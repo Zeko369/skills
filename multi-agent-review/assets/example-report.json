@@ -1,0 +1,83 @@
+{
+  "title": "Three perspectives. One evidence trail.",
+  "verdict": "Example only — no review has been run for this page.",
+  "summary": "A portable skill for independent Codex, Claude, and Cursor reviews. It selects a live T3 route when possible, falls back to the matching CLI, and turns findings and disagreements into this offline HTML report.",
+  "status": "setup",
+  "generated_at": "2026-10-06",
+  "target": {
+    "Artifact": "multi-agent-review skill",
+    "Scope": "Illustrative setup page; replace this data with actual review evidence.",
+    "Default team": "Codex, Claude Code, and Cursor",
+    "Rounds": "One independent pass and at most one targeted follow-up",
+    "Output": "Standalone HTML with findings, provenance, and coverage gaps"
+  },
+  "reviewers": [
+    {
+      "name": "Codex",
+      "model": "gpt-6.1-sol",
+      "effort": "xhigh",
+      "transport": "T3 child task / matching CLI fallback",
+      "status": "not_run",
+      "provenance": "Requested preset only. Refresh the live provider/model catalog and distinguish requested settings from runtime-confirmed values.",
+      "limitations": "No execution evidence in this example."
+    },
+    {
+      "name": "Claude Code",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh",
+      "transport": "T3 child task / matching CLI fallback",
+      "status": "not_run",
+      "provenance": "Requested preset only. Refresh the live provider/model catalog and distinguish requested settings from runtime-confirmed values.",
+      "limitations": "No execution evidence in this example."
+    },
+    {
+      "name": "Cursor Agent",
+      "model": "grok-4.7 / CLI: grok-4.7-xhigh",
+      "effort": "xhigh",
+      "transport": "T3 child task / matching CLI fallback",
+      "status": "not_run",
+      "provenance": "Requested preset only. Refresh the live provider/model catalog and distinguish requested settings from runtime-confirmed values.",
+      "limitations": "No execution evidence in this example."
+    }
+  ],
+  "findings": [],
+  "checks": [],
+  "gaps": [
+    "This is an illustrative setup page, with zero completed reviewer runs.",
+    "Provider authentication and model availability must be checked in the environment running the review.",
+    "T3 wait timeouts do not cancel child execution; use a supervised process when a hard deadline is required."
+  ],
+  "next_steps": [
+    "Ask the agent to use multi-agent-review on a PR, branch, working tree, plan, or document.",
+    "Pin the target snapshot and give reviewers the same complete scope before sharing conclusions.",
+    "Validate material claims, preserve disagreements, and produce an HTML report from actual results."
+  ],
+  "notes": [
+    {
+      "title": "Independent before collaborative",
+      "body": "Keep first-pass findings private to each reviewer. This reduces anchoring and gives the coordinator three independent attempts at finding the same classes of failure."
+    },
+    {
+      "title": "Evidence wins the disagreement",
+      "body": "Use confirmed, disputed, rejected, and needs-validation states. Three matching opinions are weaker than one reproducible counterexample. Keep the reason for the final disposition."
+    },
+    {
+      "title": "Spend the second round carefully",
+      "body": "Send concrete claims and counterevidence to a fresh child task. Rerun only the disputed or changed scope, and leave untested claims visible when the budget is exhausted."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Codex non-interactive execution",
+      "url": "https://learn.chatgpt.com/docs/non-interactive-mode"
+    },
+    {
+      "title": "Claude Code CLI reference",
+      "url": "https://code.claude.com/docs/en/cli-reference"
+    },
+    {
+      "title": "Cursor CLI parameters",
+      "url": "https://cursor.com/docs/cli/reference/parameters"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-agent review"
+  short_description: "Cross-harness reviews with an HTML evidence report"
+  default_prompt: "Use $multi-agent-review to review the current change with Codex, Claude, and Cursor and produce an HTML report."
