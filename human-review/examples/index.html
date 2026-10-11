@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>#412 feat: account API keys with hashed tokens &middot; human review</title>
+<style>
+:root{--ink:#0a0a0a;--paper:#fff;--wash:#f3f3f0;--line:#d6d6cf;--muted:#56564f;--p0:#e5202e;
+--sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:light}
+:root[data-mode="dark"]{--ink:#ecece7;--paper:#13130f;--wash:#1c1c18;--line:#34342c;
+--muted:#a3a39a;--p0:#ff4b55;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:clamp(28px,6vw,72px) clamp(16px,4vw,40px)}
+.kicker{display:block;font:800 10.5px/1.15 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{margin:10px 0 0;font:800 clamp(24px,4vw,38px)/1.08 var(--sans);letter-spacing:-.025em}
+.meta{margin:10px 0 0;font:500 12.5px/1.5 var(--mono);color:var(--muted)}
+.metrics{display:flex;flex-wrap:wrap;margin:26px 0 0;border:2px solid var(--ink)}
+.metric{flex:1 1 120px;padding:10px 14px 12px;border-right:2px solid var(--ink)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font:800 25px/1 var(--sans);letter-spacing:-.02em;margin-top:5px}
+.metric.hot b{color:var(--p0)}
+.cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));margin:28px 0 0}
+.card{display:flex;flex-direction:column;gap:7px;padding:18px;border:2px solid var(--ink);text-decoration:none;color:inherit;background:var(--paper)}
+.card:hover{background:var(--ink);color:var(--paper)}
+.card:hover .kicker{color:inherit}
+.card strong{font:800 19px/1.2 var(--sans);letter-spacing:-.01em}
+.card span:nth-of-type(2){font-size:13.5px;color:var(--muted)}
+.card:hover span{color:inherit}
+.open{margin-top:auto;font:800 10.5px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase}
+footer{margin:34px 0 0;padding-top:16px;border-top:2px solid var(--line);font-size:12.5px;color:var(--muted)}
+</style>
+<script>
+/* The chooser has no state of its own; it just honours the theme the tool stored. */
+(function () {
+  var choice;
+  try { choice = localStorage.getItem("human-review:theme") || "system"; } catch (e) { choice = "system"; }
+  var dark = choice === "dark" || (choice === "system" && window.matchMedia &&
+             window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
+})();
+</script>
+</head>
+<body><div class="wrap">
+<span class="kicker">Human review</span>
+<h1>#412 feat: account API keys with hashed tokens</h1>
+<p class="meta">acme/example · #412 · 0000000000 · rules: rails-default</p>
+<div class="metrics">
+  <div class="metric"><span class="kicker">Changed files</span><b>32</b></div>
+  <div class="metric hot"><span class="kicker">Need your eyes</span><b>16</b></div>
+  <div class="metric"><span class="kicker">Stop and read</span><b>5</b></div>
+  <div class="metric"><span class="kicker">Folded away</span><b>16</b></div>
+</div>
+<div class="cards"><a class="card" href="plan.html"><span class="kicker">plan.html</span><strong>Reading plan</strong><span>What to read, what to skim, what the rules folded away.</span><span class="open">Open &rarr;</span></a><a class="card" href="review.html"><span class="kicker">review.html</span><strong>Review tool</strong><span>Monaco diff per file, line comments, export as JSON.</span><span class="open">Open &rarr;</span></a></div>
+<footer>Generated 2026-01-14T10:00:00Z from configs/rails.json (example).
+Weights are a reading heuristic, not a verdict on the change.</footer>
+</div></body>
+</html>

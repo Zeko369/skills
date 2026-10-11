@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src data:; connect-src https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="human-review · review">
+<title>#412 feat: account API keys with hashed tokens · Review tool</title>
+<style>
+/* Shared design language for the reading plan and the review tool.
+   Swiss light palette, 2px ink rules, hazard hatching, uppercase micro-labels. */
+:root{
+  --ink:#0a0a0a;--paper:#fff;--wash:#f3f3f0;--wash-2:#e8e8e3;--line:#d6d6cf;--muted:#56564f;--faint:#8b8b84;
+  --p0:#e5202e;--p2:#ffc400;--green:#00b25a;--grey:#b4b4ac;--grey-lt:#e4e4de;--blue:#2f6bff;
+  --sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --hatch-soft:repeating-linear-gradient(-45deg,rgba(10,10,10,.075) 0 2px,transparent 2px 9px);
+  /* Ink has two jobs: it is the text colour, and it is what the 2px rules and solid
+     slabs are painted in. Inverted for dark those two part ways - text wants the full
+     #ecece7, a border or a filled bar at that value lights up the whole screen. Giving
+     the surfaces their own tokens keeps the dark palette to one block. */
+  --rule:var(--ink);--slab:var(--ink);--ctl:var(--ink);
+  /* Amber is the one accent that does not flip for dark, so what sits on it cannot
+     flip either - inherited ink goes near-white and the label disappears into the
+     background. Declared once here and never overridden below. */
+  --on-p2:#0a0a0a;
+  --hazard:repeating-linear-gradient(-45deg,var(--slab) 0 10px,var(--p2) 10px 20px);
+  color-scheme:light;
+}
+/* Dark is applied as a resolved mode: core.js reads the stored choice (light / dark /
+   system) plus prefers-color-scheme and writes data-mode on <html>, so this block is
+   the only place the dark palette lives. */
+:root[data-mode="dark"]{
+  --ink:#ecece7;--paper:#13130f;--wash:#1c1c18;--wash-2:#26261f;--line:#34342c;
+  --muted:#a3a39a;--faint:#6f6f67;
+  --p0:#ff4b55;--p2:#ffc400;--green:#2bbd66;--grey:#55554c;--grey-lt:#2a2a23;--blue:#6f9dff;
+  --hatch-soft:repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 2px,transparent 2px 9px);
+  --rule:#4a4a42;--slab:#c3c3b9;--ctl:var(--muted);
+  color-scheme:dark;
+}
+[data-weight="critical"]{--wc:var(--p0);--wi:#fff;--wbg:var(--p0);--wr:var(--rule)}
+[data-weight="read"]{--wc:var(--ink);--wi:var(--paper);--wbg:var(--slab);--wr:var(--rule)}
+[data-weight="skim"]{--wc:var(--grey);--wi:var(--ink);--wbg:var(--grey-lt);--wr:var(--grey)}
+[data-weight="skip"]{--wc:var(--grey-lt);--wi:var(--muted);--wbg:var(--paper);--wr:var(--grey)}
+/* Dark borders are the weight's own colour taken down, not a neutral: a critical box
+   still reads red at a glance, and the ladder survives at a tenth of the brightness. */
+:root[data-mode="dark"] [data-weight="critical"]{--wr:#8f3238}
+:root[data-mode="dark"] [data-weight="read"]{--wr:#5e5e55}
+:root[data-mode="dark"] [data-weight="skim"]{--wr:#46463e}
+:root[data-mode="dark"] [data-weight="skip"]{--wr:#3a3a32}
+:root[data-mode="dark"] .dec-add{background:rgba(43,189,102,.20)}
+:root[data-mode="dark"] .dec-del{background:rgba(255,75,85,.18)}
+:root[data-mode="dark"] .dec-hunk{background:#26261f}
+:root[data-mode="dark"] .dec-commented{background:rgba(255,196,0,.26)}
+:root[data-mode="dark"] .fallback .add{background:rgba(43,189,102,.18)}
+:root[data-mode="dark"] .fallback .del{background:rgba(255,75,85,.16)}
+:root[data-mode="dark"] .overlay{background:rgba(0,0,0,.72)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+button,input,textarea,select{font:inherit;color:inherit}
+code,pre,kbd{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.kicker{display:block;font:800 10px/1.15 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.muted{color:var(--muted)}
+.spacer{flex:1}
+
+/* Controls */
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:2px solid var(--rule);background:var(--paper);color:var(--ink);font:800 10.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--slab);color:var(--paper)}
+.btn-solid{background:var(--slab);color:var(--paper)}
+.btn-solid:hover{background:var(--paper);color:var(--ink)}
+.btn-sm{height:24px;padding:0 8px;font-size:9.5px}
+.btn:disabled{opacity:.4;cursor:default}
+.count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;background:var(--p2);color:var(--on-p2);font:900 10.5px/1 var(--sans)}
+.bar{width:120px;height:9px;border:2px solid var(--rule);background:var(--paper)}
+.bar i{display:block;height:100%;background:var(--slab)}
+.progress{display:flex;align-items:center;gap:8px;font:800 10.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;height:21px;padding:0 8px;background:var(--wbg);color:var(--wi);border:2px solid var(--wr);font:900 9.5px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase;flex:none}
+.note{display:inline-block;padding:1px 6px;background:var(--p2);color:var(--on-p2);font:700 10px/1.5 var(--sans)}
+
+/* Checkbox: a square that fills in. Used for files, folders and whole groups. */
+.box{flex:none;width:16px;height:16px;padding:0;border:2px solid var(--grey);background:var(--paper);cursor:pointer;position:relative}
+.box:hover{border-color:var(--ctl)}
+.box[aria-checked="true"]{background:var(--green);border-color:var(--ctl)}
+.box[aria-checked="true"]::after{content:"";position:absolute;left:3px;top:0;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.box[aria-checked="mixed"]{border-color:var(--ctl)}
+.box[aria-checked="mixed"]::after{content:"";position:absolute;left:2px;top:5px;width:8px;height:2px;background:var(--slab)}
+/* Inside a weight bar the box borrows the bar's own text colour - the one value that
+   reads on red, on a slab and on paper alike. Same specificity as the rules above, so
+   it wins on order, which only holds because none of them is mode-qualified. */
+.group-head .box{border-color:currentColor}
+
+/* Monaco line decorations + the no-network fallback */
+.dec-add{background:rgba(0,178,90,.13)}
+.dec-del{background:rgba(229,32,46,.11)}
+.dec-hunk{background:var(--wash-2);opacity:.85}
+.dec-commented{background:rgba(255,196,0,.22)}
+.glyph-comment{background:var(--p2);border:2px solid var(--rule);width:11px!important;height:11px!important;margin-left:5px;margin-top:4px;cursor:pointer}
+.fallback{overflow:auto;margin:0;padding:0;font:12px/1.5 var(--mono);background:var(--paper)}
+.fallback .ln{display:flex}
+.fallback .n{flex:none;width:86px;padding:0 10px;text-align:right;color:var(--faint);background:var(--wash);user-select:none;cursor:pointer}
+.fallback .n:hover{background:var(--wash-2);color:var(--ink)}
+.fallback .c{flex:1;padding:0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.fallback .add{background:rgba(0,178,90,.12)}
+.fallback .del{background:rgba(229,32,46,.1)}
+.fallback .hunk{background:var(--wash-2);color:var(--muted)}
+
+/* Comments */
+.cmt{border:2px solid var(--rule);margin:0 0 10px;background:var(--paper)}
+.cmt-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:2px solid var(--rule);background:var(--wash)}
+.cmt-kind{font:900 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;background:var(--slab);color:var(--paper)}
+.cmt-kind[data-kind="question"]{background:var(--blue);color:#fff}
+.cmt-kind[data-kind="nit"]{background:var(--grey)}
+.cmt-kind[data-kind="praise"]{background:var(--green);color:#fff}
+.cmt-loc{flex:1;font:500 11px/1 var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.cmt-loc:hover{color:var(--ink);text-decoration:underline}
+.cmt-x{border:0;background:transparent;cursor:pointer;font-size:16px;line-height:1;padding:0 2px;color:var(--muted)}
+.cmt-x:hover{color:var(--p0)}
+.cmt-code{margin:0;padding:6px 9px;border-bottom:1px solid var(--line);background:var(--wash);font:11.5px/1.5 var(--mono);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;max-height:4.6em;overflow:hidden}
+.cmt-body{padding:7px 9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Composer */
+.composer{border-top:3px solid var(--rule);padding:10px 12px;background:var(--wash)}
+.composer textarea{display:block;width:100%;min-height:62px;resize:vertical;border:2px solid var(--rule);padding:7px 8px;font:13px/1.45 var(--sans);background:var(--paper)}
+.composer-head{display:flex;align-items:center;gap:7px;margin:0 0 7px;flex-wrap:wrap}
+.kinds{display:inline-flex;border:2px solid var(--rule)}
+.kinds button{border:0;border-right:2px solid var(--rule);background:var(--paper);padding:0 8px;height:24px;font:800 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;cursor:pointer}
+.kinds button:last-child{border-right:0}
+.kinds button[aria-pressed="true"]{background:var(--slab);color:var(--paper)}
+.theme button{height:26px;padding:0 9px}
+.composer-foot{display:flex;align-items:center;gap:8px;margin-top:8px}
+.anchor{flex:1;font:500 11px/1.3 var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Export dialog + toast */
+.overlay{position:fixed;inset:0;z-index:50;display:none;place-items:center;padding:20px;background:rgba(0,0,0,.5)}
+.overlay.open{display:grid}
+.sheet{width:min(820px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:var(--paper);border:3px solid var(--rule)}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:3px solid var(--rule)}
+.sheet pre{flex:1;overflow:auto;margin:0;padding:12px 14px;font:11.5px/1.5 var(--mono);background:var(--wash);white-space:pre}
+.sheet-foot{display:flex;gap:8px;padding:11px 14px;border-top:3px solid var(--rule);flex-wrap:wrap;align-items:center}
+.sheet-foot input,.sheet-foot select{border:2px solid var(--rule);padding:5px 8px;background:var(--paper)}
+.sheet-foot input{flex:1;min-width:160px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;padding:9px 16px;background:var(--slab);color:var(--paper);font:800 11px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:0;transition:opacity .18s;pointer-events:none}
+.toast.on{opacity:1}
+
+
+html,body{height:100%}
+body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+:root{--rail:330px;--panel:350px}
+
+.top{display:flex;align-items:center;gap:13px;padding:9px 16px;border-bottom:3px solid var(--rule);background:var(--paper);flex-wrap:wrap}
+.top h1{font:800 14px/1.2 var(--sans);letter-spacing:-.01em;max-width:42ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .meta{font:500 11px/1 var(--mono);color:var(--muted)}
+
+.shell{display:grid;grid-template-columns:var(--rail) 1fr var(--panel);min-height:0}
+.rail,.panel{overflow:auto;min-height:0;background:var(--paper)}
+.rail{border-right:2px solid var(--rule)}
+.panel{border-left:2px solid var(--rule);display:flex;flex-direction:column}
+.center{min-width:0;min-height:0;display:flex;flex-direction:column}
+
+.group-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--wbg);color:var(--wi);border-bottom:2px solid var(--wr);cursor:pointer}
+[data-weight="skim"] .group-head,[data-weight="skip"] .group-head{border-color:var(--grey)}
+[data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
+.group-head .label{flex:1;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.group-head .tally{font:700 10px/1 var(--mono);opacity:.8}
+.caret{flex:none;width:12px;text-align:center;font-size:9px;transition:transform .12s}
+.caret.shut{transform:rotate(-90deg)}
+.frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;cursor:pointer}
+.frow:hover{background:var(--wash)}
+.frow[aria-current="true"]{background:var(--wash-2);box-shadow:inset 4px 0 0 var(--ink)}
+.frow.done .fname{opacity:.45;text-decoration:line-through}
+.fname{flex:1 1 22ch;min-width:min(100%,22ch);font:400 12px/1.35 var(--mono);overflow-wrap:anywhere;color:var(--muted)}
+.fname b{font-weight:700;color:var(--ink)}
+.fstat{flex:none;font:500 10.5px/1 var(--mono);color:var(--muted)}
+.more{width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--hatch-soft),var(--wash);font:700 10.5px/1.4 var(--sans);letter-spacing:.04em;color:var(--muted);text-align:left;cursor:pointer}
+
+.fhead{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:2px solid var(--rule);flex-wrap:wrap;flex:none}
+.fhead .path{font:700 13px/1.3 var(--mono);overflow-wrap:anywhere}
+.fwhy{width:100%;font-size:12px;color:var(--muted)}
+#editor{flex:1;min-height:0}
+#editor .fallback{height:100%}
+.empty{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:var(--muted)}
+
+.panel-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:2px solid var(--rule);background:var(--slab);color:var(--paper);flex:none}
+.panel-body{flex:1;overflow:auto;padding:12px}
+.composer{flex:none}
+@media (max-width:1100px){:root{--rail:260px;--panel:300px}}
+@media (max-width:820px){.shell{grid-template-columns:1fr}.rail,.panel{display:none}}
+</style>
+</head>
+<body>
+<script type="application/json" id="plan">{"format":"human-review/plan@1","generated_at":"2026-01-14T10:00:00Z","target":{"kind":"pr","repo":"acme/example","number":412,"title":"feat: account API keys with hashed tokens","author":"example","base":"main","branch":"feat/api-keys","head_sha":"0000000000000000000000000000000000000000","url":"https://github.com/acme/example/pull/412","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"stats":{"critical":5,"read":11,"skim":8,"skip":8,"files":32,"additions":486,"deletions":186,"folded":8},"questions":[{"id":"q-wiring","kind":"wiring","text":"5 files changed by one or two lines each - registration or include wiring. Do not read the diffs; check the list is complete.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"id":"q-gen-config/brakeman.ignore","kind":"generated","text":"config/brakeman.ignore gains 5 lines. Confirm every new entry is wanted.","files":["config/brakeman.ignore"]},{"id":"q-coverage","kind":"coverage","text":"1 test file loses far more than it gains. Confirm the behaviour went away, not just its test.","files":["spec/requests/legacy_tokens_spec.rb"]}],"groups":[{"key":"critical:migration","rule":"migration","label":"Migrations","weight":"critical","why":"Runs once against production data and is awkward to undo.","files":["db/migrate/20260114093000_create_api_keys.rb"]},{"key":"critical:authz","rule":"authz","label":"Authorization","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","files":["config/permissions.json"]},{"key":"critical:secrets","rule":"secrets","label":"Secret handling","weight":"critical","why":"Controls what leaks into logs and error reports.","files":["app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb"]},{"key":"critical:dep-manifest","rule":"dep-manifest","label":"Dependencies","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","files":["Gemfile"]},{"key":"read:models","rule":"models","label":"Models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","files":["app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb"]},{"key":"read:controllers","rule":"controllers","label":"Controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","files":["app/controllers/api_keys_controller.rb"]},{"key":"read:api-contract","rule":"api-contract","label":"API contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["docs/API_CHANGELOG.md"]},{"key":"read:routes","rule":"routes","label":"Routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","files":["config/routes.rb"]},{"key":"read:request-spec","rule":"request-spec","label":"Request specs","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","files":["spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"]},{"key":"skim:view","rule":"view","label":"Views and components","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","files":["app/components/settings/api_keys/component.html.erb"]},{"key":"skim:api-contract","rule":"api-contract","label":"API contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"key":"skim:e2e","rule":"e2e","label":"End-to-end tests","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","files":["e2e/spec/settings/api-keys.spec.ts"]},{"key":"skim:unit-spec","rule":"unit-spec","label":"Unit specs","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","files":["spec/models/api_key_spec.rb"]},{"key":"skip:locale","rule":"locale","label":"Translations","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","files":["config/locales/de.yml","config/locales/en.yml","config/locales/fr.yml","config/locales/it.yml","config/locales/nl.yml"]},{"key":"skip:lockfile","rule":"lockfile","label":"Lockfiles","weight":"skip","why":"Resolver output. The manifest above is the decision.","files":["Gemfile.lock"]},{"key":"skip:schema","rule":"schema","label":"Schema dump","weight":"skip","why":"Generated by the migrations. Read those instead.","files":["db/schema.rb"]},{"key":"skip:brakeman","rule":"brakeman","label":"Brakeman ignores","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","files":["config/brakeman.ignore"]}],"order":["db/migrate/20260114093000_create_api_keys.rb","config/permissions.json","app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb","Gemfile","app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb","app/controllers/api_keys_controller.rb","docs/API_CHANGELOG.md","config/routes.rb","spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"],"files":[{"path":"db/migrate/20260114093000_create_api_keys.rb","add":9,"del":0,"status":"added","patch":"@@ -1,2 +1,11 @@\n def change\n+    create_table :api_keys do |t|\n+      t.references :account, null: false, foreign_key: true\n+      t.string :token_digest, null: false\n+      t.string :name, null: false\n+      t.datetime :last_used_at\n+      t.datetime :revoked_at\n+      t.timestamps\n+    end\n+    add_index :api_keys, :token_digest, unique: true\n end","previous":null,"rule_id":"migration","weight":"critical","why":"Runs once against production data and is awkward to undo.","label":"Migrations","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/permissions.json","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    \"api_keys.manage\": [\"owner\", \"admin\"],\n end","previous":null,"rule_id":"authz","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","label":"Authorization","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"app/services/api_keys/token_digest.rb","add":6,"del":0,"status":"added","patch":"@@ -1,2 +1,5 @@\n def change\n+  def self.call(token)\n+    OpenSSL::HMAC.hexdigest('SHA256', Rails.application.secret_key_base, token)\n+  end\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"config/initializers/filter_parameter_logging.rb","add":1,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+Rails.application.config.filter_parameters += %i[passw secret token _key api_token]\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"Gemfile","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+gem \"rack-attack\", \"~\u003e 6.7\"\n end","previous":null,"rule_id":"dep-manifest","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","label":"Dependencies","collapse":null,"report":null,"rank":60,"never_demote":false,"notes":[]},{"path":"app/models/api_key.rb","add":54,"del":0,"status":"added","patch":"@@ -1,2 +1,4 @@\n def change\n+  belongs_to :account\n+  scope :active, -\u003e { where(revoked_at: nil) }\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/account.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/audit_event.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/membership.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/session.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/webhook.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/controllers/api_keys_controller.rb","add":88,"del":0,"status":"added","patch":"@@ -1,2 +1,6 @@\n def change\n+  def create\n+    key = ApiKeys::CreateService.call(account: current_account, name: params[:name])\n+    render json: { token: key.plaintext }, status: :created\n+  end\n end","previous":null,"rule_id":"controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","label":"Controllers","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"docs/API_CHANGELOG.md","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,5 @@\n def change\n+## 2026-01-14\n+\n+Added `/api_keys`.\n end","previous":null,"rule_id":"api-contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":[]},{"path":"config/routes.rb","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  resources :api_keys, only: %i[index create destroy]\n end","previous":null,"rule_id":"routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","label":"Routes","collapse":null,"report":null,"rank":55,"never_demote":false,"notes":[]},{"path":"spec/requests/legacy_tokens_spec.rb","add":2,"del":184,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  # replaced by spec/requests/api_keys_spec.rb\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":["coverage removed - intentional?"]},{"path":"spec/requests/api_keys_spec.rb","add":96,"del":0,"status":"added","patch":"@@ -1,2 +1,8 @@\n def change\n+  describe \"POST /api_keys\" do\n+    it \"returns the token exactly once\" do\n+      post api_keys_path, params: { name: \"deploy\" }\n+      expect(response.parsed_body[\"token\"]).to be_present\n+    end\n+  end\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":[]},{"path":"app/components/settings/api_keys/component.html.erb","add":31,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+\u003c%= render Settings::Card::Component.new(title: t(\".title\")) do %\u003e\n end","previous":null,"rule_id":"view","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","label":"Views and components","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"app/serializers/account_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folds":4},{"path":"app/serializers/audit_event_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/membership_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/session_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/webhook_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"e2e/spec/settings/api-keys.spec.ts","add":74,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+test(\"creates and revokes a key\", async ({ page }) =\u003e {\n end","previous":null,"rule_id":"e2e","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","label":"End-to-end tests","collapse":null,"report":null,"rank":97,"never_demote":false,"notes":[]},{"path":"spec/models/api_key_spec.rb","add":61,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+  it { is_expected.to belong_to(:account) }\n end","previous":null,"rule_id":"unit-spec","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","label":"Unit specs","collapse":null,"report":null,"rank":99,"never_demote":false,"notes":[]},{"path":"config/locales/de.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folds":4},{"path":"config/locales/en.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/fr.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/it.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/nl.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"Gemfile.lock","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    rack-attack (6.7.0)\n end","previous":null,"rule_id":"lockfile","weight":"skip","why":"Resolver output. The manifest above is the decision.","label":"Lockfiles","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"db/schema.rb","add":12,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  create_table \"api_keys\", force: :cascade do |t|\n end","previous":null,"rule_id":"schema","weight":"skip","why":"Generated by the migrations. Read those instead.","label":"Schema dump","collapse":null,"report":{"unless_paired_with":"db/migrate/**","deletions_over":8},"rank":30,"never_demote":false,"notes":[]},{"path":"config/brakeman.ignore","add":5,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+      \"fingerprint\": \"a1b2c3\",\n+      \"note\": \"token is hashed\"\n end","previous":null,"rule_id":"brakeman","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","label":"Brakeman ignores","collapse":null,"report":{"additions_over":0},"rank":40,"never_demote":false,"notes":[]}]}</script>
+
+<div class="top">
+  <h1 id="t-title"></h1>
+  <span class="meta" id="t-meta"></span>
+  <span class="spacer"></span>
+  <span class="progress"><span id="t-progress"></span><span class="bar"><i id="t-bar"></i></span></span>
+  <span id="t-theme"></span>
+  <a class="btn" href="plan.html">Plan</a>
+  <button class="btn" id="t-shortcuts" title="Keyboard shortcuts">?</button>
+  <button class="btn btn-solid" id="t-export">Export <span class="count" id="t-count">0</span></button>
+</div>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Files in reading order"></nav>
+  <main class="center">
+    <div class="fhead" id="fhead"></div>
+    <div id="editor"></div>
+  </main>
+  <aside class="panel">
+    <div class="panel-head"><span class="kicker spacer">Comments</span><span class="count" id="p-count">0</span></div>
+    <div class="panel-body" id="comments"></div>
+    <div class="composer">
+      <div class="composer-head">
+        <span class="kinds" id="kinds">
+          <button data-kind="fix" aria-pressed="true">Fix</button>
+          <button data-kind="question" aria-pressed="false">Question</button>
+          <button data-kind="nit" aria-pressed="false">Nit</button>
+          <button data-kind="praise" aria-pressed="false">Praise</button>
+        </span>
+      </div>
+      <textarea id="composer" placeholder="Click a line number to anchor a comment, or write a file-level note here."></textarea>
+      <div class="composer-foot">
+        <span class="anchor" id="anchor">file-level</span>
+        <button class="btn btn-sm" id="clear-anchor">Clear</button>
+        <button class="btn btn-sm btn-solid" id="add">Add</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-head"><span class="kicker spacer">human-review/comments@1</span>
+      <button class="btn" id="x-close">Close</button></div>
+    <pre id="x-json"></pre>
+    <div class="sheet-foot">
+      <select id="x-verdict">
+        <option value="comment">Verdict: comment</option>
+        <option value="request_changes">Verdict: request changes</option>
+        <option value="approve">Verdict: approve</option>
+      </select>
+      <input id="x-summary" placeholder="One-line summary for the agent (optional)">
+      <button class="btn" id="x-download">Download</button>
+      <button class="btn btn-solid" id="x-copy">Copy JSON</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* Shared engine for the reading plan and the review tool.
+   Both pages read the same embedded plan and the same localStorage record, so a file
+   marked read in one is read in the other. */
+window.HR = (function () {
+  "use strict";
+  var MONACO = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
+  var plan = JSON.parse(document.getElementById("plan").textContent);
+  var target = plan.target;
+  var byPath = {};
+  plan.files.forEach(function (f) { byPath[f.path] = f; });
+
+  var KEY = "human-review:" + (target.repo || "") + ":" +
+            (target.number || target.range || "") + ":" + (target.head_sha || "").slice(0, 12);
+  var LABEL = { critical: "Stop and read", read: "Read", skim: "Skim", skip: "Skipped" };
+  var LANG = { rb: "ruby", ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
+    json: "json", yml: "yaml", yaml: "yaml", md: "markdown", html: "html", erb: "html", css: "css",
+    scss: "scss", sql: "sql", sh: "shell", rake: "ruby", py: "python", toml: "ini", lock: "ini",
+    gemspec: "ruby", ru: "ruby", jbuilder: "ruby", vue: "html", graphql: "graphql" };
+
+  var state = (function () {
+    try {
+      var raw = JSON.parse(localStorage.getItem(KEY) || "{}");
+      return { read: raw.read || {}, comments: raw.comments || [], seq: raw.seq || 0,
+               collapsed: raw.collapsed || {}, verdict: raw.verdict || "comment",
+               summary: raw.summary || "" };
+    } catch (e) {
+      return { read: {}, comments: [], seq: 0, collapsed: {}, verdict: "comment", summary: "" };
+    }
+  })();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  /* ── Theme ────────────────────────────────────────────────────────────
+     The choice is light / dark / system; what the CSS sees is the resolved mode. */
+  var THEME_KEY = "human-review:theme";
+  var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function themeChoice() {
+    try { return localStorage.getItem(THEME_KEY) || "system"; } catch (e) { return "system"; }
+  }
+  function themeMode() {
+    var choice = themeChoice();
+    if (choice === "light" || choice === "dark") return choice;
+    return darkQuery && darkQuery.matches ? "dark" : "light";
+  }
+  function applyTheme() {
+    var mode = themeMode();
+    document.documentElement.setAttribute("data-mode", mode);
+    if (monacoState.ok && window.monaco) {
+      monaco.editor.setTheme(mode === "dark" ? "hr-dark" : "hr-light");
+    }
+    return mode;
+  }
+  function setTheme(choice) {
+    try { localStorage.setItem(THEME_KEY, choice); } catch (e) {}
+    applyTheme();
+  }
+  if (darkQuery && darkQuery.addEventListener) {
+    darkQuery.addEventListener("change", function () {
+      if (themeChoice() === "system") applyTheme();
+    });
+  }
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function toast(message) {
+    var node = document.getElementById("toast");
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add("on");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { node.classList.remove("on"); }, 1600);
+  }
+
+  /* ── Patch → display lines ──────────────────────────────────────────────
+     One array of {text, kind, oldNo, newNo}. The patch already encodes the diff, so
+     Monaco only has to colour it - no diff worker, which is what keeps this offline-safe. */
+  function parsePatch(patch) {
+    var lines = [], oldNo = 0, newNo = 0;
+    (patch || "").split("\n").forEach(function (raw) {
+      var header = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/.exec(raw);
+      if (header) {
+        oldNo = +header[1]; newNo = +header[2];
+        lines.push({ text: header[3].trim() || "⋯", kind: "hunk", oldNo: null, newNo: null });
+        return;
+      }
+      if (raw === "" || raw[0] === "\\") return;
+      var marker = raw[0], text = raw.slice(1);
+      if (marker === "+") lines.push({ text: text, kind: "add", oldNo: null, newNo: newNo++ });
+      else if (marker === "-") lines.push({ text: text, kind: "del", oldNo: oldNo++, newNo: null });
+      else lines.push({ text: text, kind: "ctx", oldNo: oldNo++, newNo: newNo++ });
+    });
+    return lines;
+  }
+  function anchorOf(line) {
+    return line.kind === "del" ? { side: "left", line: line.oldNo }
+      : (line.newNo != null ? { side: "right", line: line.newNo } : null);
+  }
+  function languageOf(path) {
+    var parts = path.split("/").pop().split(".");
+    for (var i = parts.length - 1; i > 0; i--) if (LANG[parts[i]]) return LANG[parts[i]];
+    if (/Gemfile|Rakefile|Guardfile/.test(path)) return "ruby";
+    return "plaintext";
+  }
+
+  /* ── Read state ─────────────────────────────────────────────────────── */
+  function isRead(path) { return !!state.read[path]; }
+  function setRead(paths, value) {
+    paths.forEach(function (p) { if (value) state.read[p] = true; else delete state.read[p]; });
+    save();
+  }
+  function tallyRead(paths) {
+    var done = paths.filter(isRead).length;
+    return { done: done, total: paths.length,
+             tri: done === 0 ? "false" : (done === paths.length ? "true" : "mixed") };
+  }
+
+  /* ── Comments ───────────────────────────────────────────────────────── */
+  function commentsFor(path) {
+    return state.comments.filter(function (c) { return c.path === path; });
+  }
+  function addComment(path, body, kind, anchor) {
+    var entry = { id: "c" + (++state.seq), path: path,
+                  line: anchor ? anchor.line.line : null, side: anchor ? anchor.line.side : null,
+                  kind: kind, body: body, code: anchor ? anchor.text : null };
+    state.comments.push(entry);
+    save();
+    return entry;
+  }
+  function removeComment(id) {
+    state.comments = state.comments.filter(function (c) { return c.id !== id; });
+    save();
+  }
+
+  /* ── Path tree ──────────────────────────────────────────────────────────
+     Rails paths are deep and mostly uninteresting in the middle, so a directory with a
+     single child is merged into its parent: app/controllers/concerns/matching reads as
+     one row, not four. */
+  function buildTree(paths) {
+    var root = { name: "", path: "", dirs: {}, files: [] };
+    paths.forEach(function (p) {
+      var parts = p.split("/");
+      var leaf = parts.pop();
+      var node = root;
+      parts.forEach(function (segment) {
+        if (!node.dirs[segment]) {
+          node.dirs[segment] = { name: segment, path: (node.path ? node.path + "/" : "") + segment,
+                                 dirs: {}, files: [] };
+        }
+        node = node.dirs[segment];
+      });
+      node.files.push(p);
+    });
+    (function collapse(node) {
+      Object.keys(node.dirs).forEach(function (key) { collapse(node.dirs[key]); });
+      var keys = Object.keys(node.dirs);
+      if (node !== root && keys.length === 1 && !node.files.length) {
+        var only = node.dirs[keys[0]];
+        node.name += "/" + only.name;
+        node.path = only.path;
+        node.dirs = only.dirs;
+        node.files = only.files;
+      }
+    })(root);
+    return root;
+  }
+  function filesUnder(node) {
+    var out = node.files.slice();
+    Object.keys(node.dirs).forEach(function (key) {
+      out = out.concat(filesUnder(node.dirs[key]));
+    });
+    return out;
+  }
+  function sortedDirs(node) {
+    return Object.keys(node.dirs).sort().map(function (key) { return node.dirs[key]; });
+  }
+
+  /* ── Collapse state ─────────────────────────────────────────────────── */
+  function collapsed(key, fallback) {
+    return key in state.collapsed ? state.collapsed[key] : !!fallback;
+  }
+  function setCollapsed(key, value) { state.collapsed[key] = !!value; save(); }
+
+  /* ── Monaco ─────────────────────────────────────────────────────────────
+     Loaded once and shared. `ready` resolves either way; callers check `ok` and fall
+     back to a plain renderer when it is false. */
+  var monacoState = { ok: false, waiting: [], done: false };
+  function onMonaco(callback) {
+    if (monacoState.done) callback(monacoState.ok);
+    else monacoState.waiting.push(callback);
+  }
+  function finish(ok) {
+    monacoState.ok = ok;
+    monacoState.done = true;
+    monacoState.waiting.splice(0).forEach(function (cb) { cb(ok); });
+  }
+  function loadMonaco() {
+    var loader = document.createElement("script");
+    loader.src = MONACO + "/loader.js";
+    loader.onerror = function () { finish(false); };
+    loader.onload = function () {
+      window.require.config({ paths: { vs: MONACO } });
+      // The editor never needs a worker: no diffing, no language services.
+      self.MonacoEnvironment = { getWorker: function () {
+        return { postMessage: function () {}, addEventListener: function () {},
+                 removeEventListener: function () {}, terminate: function () {} };
+      } };
+      window.require(["vs/editor/editor.main"], function () {
+        monaco.editor.defineTheme("hr-light", {
+          base: "vs", inherit: true,
+          rules: [
+            { token: "", foreground: "1c1c1a" },
+            { token: "comment", foreground: "7d7d75", fontStyle: "italic" },
+            { token: "keyword", foreground: "c01c28" },
+            { token: "keyword.control", foreground: "c01c28" },
+            { token: "operator", foreground: "8a5000" },
+            { token: "string", foreground: "0a4d6e" },
+            { token: "string.escape", foreground: "8a5000" },
+            { token: "regexp", foreground: "0a4d6e" },
+            { token: "number", foreground: "1c4fb5" },
+            { token: "constant", foreground: "1c4fb5" },
+            { token: "type", foreground: "7a3ba8" },
+            { token: "type.identifier", foreground: "7a3ba8" },
+            { token: "identifier", foreground: "1c1c1a" },
+            { token: "variable", foreground: "8a5000" },
+            { token: "variable.predefined", foreground: "c01c28" },
+            { token: "attribute.name", foreground: "7a3ba8" },
+            { token: "attribute.value", foreground: "0a4d6e" },
+            { token: "tag", foreground: "0f6b3a" },
+            { token: "delimiter", foreground: "56564f" },
+            { token: "metatag", foreground: "7d7d75" }
+          ],
+          colors: {
+            "editor.background": "#ffffff",
+            "editor.foreground": "#1c1c1a",
+            "editorLineNumber.foreground": "#b4b4ac",
+            "editorLineNumber.activeForeground": "#0a0a0a",
+            "editorGutter.background": "#f8f8f6",
+            "editorIndentGuide.background1": "#ecece7",
+            "editor.selectionBackground": "#ffe8a3",
+            "editor.inactiveSelectionBackground": "#f1f1ec",
+            "editorCursor.foreground": "#0a0a0a",
+            "editorWidget.background": "#ffffff",
+            "editorWidget.border": "#0a0a0a",
+            "scrollbarSlider.background": "#d6d6cf88",
+            "scrollbarSlider.hoverBackground": "#b4b4acaa"
+          }
+        });
+        monaco.editor.defineTheme("hr-dark", {
+          base: "vs-dark", inherit: true,
+          rules: [
+            { token: "", foreground: "e6e6e0" },
+            { token: "comment", foreground: "7c7c73", fontStyle: "italic" },
+            { token: "keyword", foreground: "ff7b82" },
+            { token: "keyword.control", foreground: "ff7b82" },
+            { token: "operator", foreground: "e3a857" },
+            { token: "string", foreground: "8fd3ff" },
+            { token: "string.escape", foreground: "e3a857" },
+            { token: "regexp", foreground: "8fd3ff" },
+            { token: "number", foreground: "9db8ff" },
+            { token: "constant", foreground: "9db8ff" },
+            { token: "type", foreground: "d2a8ff" },
+            { token: "type.identifier", foreground: "d2a8ff" },
+            { token: "identifier", foreground: "e6e6e0" },
+            { token: "variable", foreground: "e3a857" },
+            { token: "variable.predefined", foreground: "ff7b82" },
+            { token: "attribute.name", foreground: "d2a8ff" },
+            { token: "attribute.value", foreground: "8fd3ff" },
+            { token: "tag", foreground: "7ee787" },
+            { token: "delimiter", foreground: "a3a39a" },
+            { token: "metatag", foreground: "7c7c73" }
+          ],
+          colors: {
+            "editor.background": "#13130f",
+            "editor.foreground": "#e6e6e0",
+            "editorLineNumber.foreground": "#55554c",
+            "editorLineNumber.activeForeground": "#ecece7",
+            "editorGutter.background": "#1a1a15",
+            "editorIndentGuide.background1": "#2a2a23",
+            "editor.selectionBackground": "#4a431f",
+            "editor.inactiveSelectionBackground": "#26261f",
+            "editorCursor.foreground": "#ecece7",
+            "editorWidget.background": "#1c1c18",
+            "editorWidget.border": "#ecece7",
+            "scrollbarSlider.background": "#34342c99",
+            "scrollbarSlider.hoverBackground": "#55554cbb"
+          }
+        });
+        finish(true);
+      }, function () { finish(false); });
+    };
+    document.head.appendChild(loader);
+  }
+
+  /* ── A diff view for one file ───────────────────────────────────────────
+     Monaco when it loaded, a plain <pre> otherwise. Both report gutter clicks through
+     `onAnchor`, so the commenting flow is identical either way. */
+  function mountDiff(host, file, options) {
+    options = options || {};
+    var lines = parsePatch(file.patch);
+    if (!lines.length) {
+      lines = [{ text: "No textual diff (binary, rename, or too large to include).",
+                 kind: "hunk", oldNo: null, newNo: null }];
+    }
+    var view = { lines: lines, editor: null, dispose: function () {}, paint: function () {},
+                 reveal: function () {} };
+
+    function marked() {
+      var set = {};
+      commentsFor(file.path).forEach(function (c) {
+        if (c.line != null) set[c.side + ":" + c.line] = true;
+      });
+      return set;
+    }
+
+    if (!monacoState.ok) {
+      var pre = el("pre", "fallback");
+      if (options.autoHeight) pre.style.maxHeight = "520px";
+      lines.forEach(function (line) {
+        var row = el("div", "ln " + line.kind);
+        var num = el("span", "n", line.kind === "hunk" ? "⋯"
+          : (line.newNo != null ? String(line.newNo) : line.oldNo + " −"));
+        num.addEventListener("click", function () {
+          if (options.onAnchor) options.onAnchor(line);
+        });
+        row.appendChild(num);
+        row.appendChild(el("span", "c",
+          (line.kind === "add" ? "+" : line.kind === "del" ? "−" : " ") + line.text));
+        pre.appendChild(row);
+      });
+      host.appendChild(pre);
+      view.dispose = function () { pre.remove(); };
+      return view;
+    }
+
+    var box = el("div");
+    box.style.height = options.autoHeight
+      ? Math.min(Math.max(lines.length * 19 + 14, 90), 560) + "px"
+      : "100%";
+    host.appendChild(box);
+    var editor = monaco.editor.create(box, {
+      value: lines.map(function (l) { return l.text; }).join("\n"),
+      language: languageOf(file.path),
+      readOnly: true, automaticLayout: true, glyphMargin: true, minimap: { enabled: false },
+      scrollBeyondLastLine: false, renderLineHighlight: "none", fontSize: 12.5,
+      lineNumbersMinChars: 6, folding: false, wordWrap: "on", contextmenu: false,
+      scrollbar: { alwaysConsumeMouseWheel: !options.autoHeight },
+      fontFamily: "ui-monospace, SF Mono, Menlo, Consolas, monospace",
+      theme: themeMode() === "dark" ? "hr-dark" : "hr-light",
+      lineNumbers: function (n) {
+        var line = lines[n - 1];
+        if (!line) return "";
+        if (line.kind === "hunk") return "⋯";
+        return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
+      }
+    });
+    var decorations = [];
+    view.editor = editor;
+    view.paint = function () {
+      var set = marked();
+      decorations = editor.deltaDecorations(decorations, lines.map(function (line, i) {
+        var base = { add: "dec-add", del: "dec-del", hunk: "dec-hunk", ctx: "" }[line.kind];
+        var a = anchorOf(line);
+        var hit = a && set[a.side + ":" + a.line];
+        return { range: new monaco.Range(i + 1, 1, i + 1, 1),
+                 options: { isWholeLine: true, className: hit ? "dec-commented" : base,
+                            glyphMarginClassName: hit ? "glyph-comment" : null } };
+      }));
+    };
+    view.reveal = function (side, line) {
+      for (var i = 0; i < lines.length; i++) {
+        var a = anchorOf(lines[i]);
+        if (a && a.side === side && a.line === line) {
+          editor.revealLineInCenter(i + 1);
+          editor.setPosition({ lineNumber: i + 1, column: 1 });
+          return;
+        }
+      }
+    };
+    view.dispose = function () {
+      var model = editor.getModel();
+      editor.dispose();
+      if (model) model.dispose();
+      box.remove();
+    };
+    editor.onMouseDown(function (event) {
+      var kinds = monaco.editor.MouseTargetType;
+      if (event.target.type !== kinds.GUTTER_LINE_NUMBERS &&
+          event.target.type !== kinds.GUTTER_GLYPH_MARGIN) return;
+      var line = lines[event.target.position.lineNumber - 1];
+      if (line && options.onAnchor) options.onAnchor(line);
+    });
+    view.paint();
+    return view;
+  }
+
+  /* ── Export ─────────────────────────────────────────────────────────── */
+  var INSTRUCTIONS =
+    "A human read this change and left the comments below. Treat each one as a request " +
+    "from the reviewer. kind=fix means change the code; kind=question means answer it in " +
+    "your reply and only change code if the answer implies it; kind=nit is optional and " +
+    "should be applied only if it is genuinely trivial; kind=praise needs no action. " +
+    "`line` and `side` refer to the diff at target.head_sha: side=right is the new file, " +
+    "side=left is the old one. Re-locate a comment if the branch has moved since. Do not " +
+    "post anything to GitHub unless you are asked separately. Report per comment id what " +
+    "you changed, what you verified, and anything you deliberately skipped.";
+
+  function exportPayload() {
+    return {
+      format: "human-review/comments@1",
+      generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      target: target,
+      instructions: INSTRUCTIONS,
+      review: { verdict: state.verdict, summary: (state.summary || "").trim() },
+      comments: state.comments.map(function (c) {
+        var f = byPath[c.path] || {};
+        return { id: c.id, path: c.path, line: c.line, side: c.side, kind: c.kind,
+                 body: c.body, code: c.code, weight: f.weight, rule: f.rule_id };
+      }),
+      progress: {
+        read: plan.order.filter(isRead),
+        unread: plan.order.filter(function (p) { return !isRead(p); }),
+        skipped_by_rules: plan.files.filter(function (f) { return f.weight === "skip"; })
+                                    .map(function (f) { return f.path; })
+      },
+      stats: plan.stats
+    };
+  }
+
+  /* Wires the export dialog that both pages include verbatim. */
+  function mountExport() {
+    var overlay = document.getElementById("overlay");
+    var verdict = document.getElementById("x-verdict");
+    var summary = document.getElementById("x-summary");
+    verdict.value = state.verdict;
+    summary.value = state.summary;
+    function refresh() {
+      document.getElementById("x-json").textContent =
+        JSON.stringify(exportPayload(), null, 2);
+    }
+    [verdict, summary].forEach(function (node) {
+      node.addEventListener("input", function () {
+        state.verdict = verdict.value;
+        state.summary = summary.value;
+        save(); refresh();
+      });
+    });
+    document.getElementById("x-close").addEventListener("click", function () {
+      overlay.classList.remove("open");
+    });
+    overlay.addEventListener("click", function (event) {
+      if (event.target === overlay) overlay.classList.remove("open");
+    });
+    document.getElementById("x-copy").addEventListener("click", function () {
+      navigator.clipboard.writeText(JSON.stringify(exportPayload(), null, 2)).then(function () {
+        toast("Copied " + state.comments.length + " comments");
+      }, function () { toast("Copy blocked - use Download"); });
+    });
+    document.getElementById("x-download").addEventListener("click", function () {
+      var blob = new Blob([JSON.stringify(exportPayload(), null, 2)], { type: "application/json" });
+      var link = el("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "review-comments" + (target.number ? "-" + target.number : "") + ".json";
+      link.click();
+      setTimeout(function () { URL.revokeObjectURL(link.href); }, 2000);
+    });
+    return { open: function () { refresh(); overlay.classList.add("open"); },
+             close: function () { overlay.classList.remove("open"); },
+             refresh: refresh };
+  }
+
+  function mountTheme(host) {
+    var wrap = el("span", "kinds theme");
+    [["light", "Light"], ["dark", "Dark"], ["system", "Auto"]].forEach(function (option) {
+      var button = el("button", "", option[1]);
+      button.title = option[0] === "system" ? "Follow the system setting" : option[1] + " theme";
+      button.setAttribute("aria-pressed", String(themeChoice() === option[0]));
+      button.addEventListener("click", function () {
+        setTheme(option[0]);
+        wrap.querySelectorAll("button").forEach(function (other) {
+          other.setAttribute("aria-pressed", String(other === button));
+        });
+      });
+      wrap.appendChild(button);
+    });
+    host.appendChild(wrap);
+  }
+
+  function titleOf() {
+    return target.title || target.range || "Change";
+  }
+  function metaOf() {
+    return (target.repo || "") + (target.number ? " #" + target.number : "") +
+           (target.head_sha ? " @" + String(target.head_sha).slice(0, 7) : "") +
+           (plan.config && plan.config.name ? " · rules: " + plan.config.name : "");
+  }
+
+  applyTheme();
+  loadMonaco();
+
+  return {
+    plan: plan, target: target, byPath: byPath, state: state, LABEL: LABEL,
+    save: save, el: el, toast: toast,
+    parsePatch: parsePatch, anchorOf: anchorOf, languageOf: languageOf,
+    isRead: isRead, setRead: setRead, tallyRead: tallyRead,
+    commentsFor: commentsFor, addComment: addComment, removeComment: removeComment,
+    buildTree: buildTree, filesUnder: filesUnder, sortedDirs: sortedDirs,
+    collapsed: collapsed, setCollapsed: setCollapsed,
+    onMonaco: onMonaco, mountDiff: mountDiff,
+    themeChoice: themeChoice, themeMode: themeMode, mountTheme: mountTheme,
+    exportPayload: exportPayload, mountExport: mountExport,
+    titleOf: titleOf, metaOf: metaOf
+  };
+})();
+
+</script>
+<script>
+(function () {
+  "use strict";
+  var plan = HR.plan, el = HR.el, LABEL = HR.LABEL;
+  var exporter = HR.mountExport();
+  var current = null, view = null, anchor = null, kind = "fix";
+  var showFolded = {};
+
+  document.getElementById("t-title").textContent = HR.titleOf();
+  document.getElementById("t-meta").textContent = HR.metaOf();
+
+  function checkbox(paths, after, title) {
+    var box = el("button", "box");
+    box.type = "button";
+    box.setAttribute("role", "checkbox");
+    box.title = title || "Mark read";
+    box.setAttribute("aria-checked", HR.tallyRead(paths).tri);
+    box.addEventListener("click", function (event) {
+      event.stopPropagation();
+      HR.setRead(paths, box.getAttribute("aria-checked") !== "true");
+      after();
+    });
+    return box;
+  }
+
+  /* ── Rail ───────────────────────────────────────────────────────────── */
+  function renderRail() {
+    var rail = document.getElementById("rail");
+    rail.textContent = "";
+    plan.groups.forEach(function (group) {
+      var box = el("div");
+      box.setAttribute("data-weight", group.weight);
+      var key = "group:" + group.key;
+      var shut = HR.collapsed(key, false);
+      var head = el("div", "group-head");
+      head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+      head.appendChild(checkbox(group.files, function () {
+        HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
+        renderRail(); renderCounts();
+      }, "Mark the whole group read"));
+      head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
+      var tally = HR.tallyRead(group.files);
+      head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
+      head.addEventListener("click", function () { HR.setCollapsed(key, !shut); renderRail(); });
+      box.appendChild(head);
+
+      if (!shut) {
+        var folded = [];
+        group.files.forEach(function (path) {
+          var f = HR.byPath[path];
+          if (f.folded_into && !showFolded[group.key]) { folded.push(f); return; }
+          box.appendChild(fileRow(f));
+        });
+        if (folded.length) {
+          var more = el("button", "more", "+ " + folded.length + " with an identical shape — show");
+          more.addEventListener("click", function (event) {
+            event.stopPropagation();
+            showFolded[group.key] = true;
+            renderRail();
+          });
+          box.appendChild(more);
+        }
+      }
+      rail.appendChild(box);
+    });
+  }
+
+  function fileRow(f) {
+    var row = el("div", "frow" + (HR.isRead(f.path) ? " done" : ""));
+    if (f.path === current) row.setAttribute("aria-current", "true");
+    row.appendChild(checkbox([f.path], function () { renderRail(); renderCounts(); }));
+    var cut = f.path.lastIndexOf("/");
+    var name = el("span", "fname");
+    name.appendChild(document.createTextNode(cut < 0 ? "" : f.path.slice(0, cut + 1)));
+    name.appendChild(el("b", "", cut < 0 ? f.path : f.path.slice(cut + 1)));
+    row.appendChild(name);
+    var count = HR.commentsFor(f.path).length;
+    if (count) row.appendChild(el("span", "count", String(count)));
+    row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
+    row.addEventListener("click", function () { show(f.path); });
+    return row;
+  }
+
+  /* ── Centre ─────────────────────────────────────────────────────────── */
+  function renderHead(f) {
+    var head = document.getElementById("fhead");
+    head.textContent = "";
+    head.setAttribute("data-weight", f.weight);
+    head.appendChild(el("span", "chip", LABEL[f.weight]));
+    head.appendChild(el("span", "path", f.path));
+    head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
+    head.appendChild(el("span", "spacer"));
+    var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
+    mark.addEventListener("click", function () { toggleRead(f.path); });
+    head.appendChild(mark);
+    if (HR.target.repo && HR.target.head_sha) {
+      var link = el("a", "btn btn-sm", "GitHub");
+      link.href = "https://github.com/" + HR.target.repo + "/blob/" +
+                  HR.target.head_sha + "/" + f.path;
+      link.target = "_blank"; link.rel = "noreferrer";
+      head.appendChild(link);
+    }
+    var why = el("span", "fwhy");
+    why.appendChild(document.createTextNode(f.why || ""));
+    (f.notes || []).forEach(function (note) { why.appendChild(el("span", "note", note)); });
+    head.appendChild(why);
+  }
+
+  function show(path) {
+    var f = HR.byPath[path];
+    if (!f || path === current) return;
+    current = path;
+    // replaceState, not a hash assignment: browsing files is not navigation, and
+    // Back should leave the tool rather than walk every file you glanced at.
+    try {
+      history.replaceState(null, "", "#" + encodeURIComponent(path));
+    } catch (e) { /* file:// in some browsers */ }
+    if (view) { view.dispose(); view = null; }
+    renderHead(f);
+    renderRail();
+    anchor = null;
+    document.getElementById("anchor").textContent = "file-level";
+    view = HR.mountDiff(document.getElementById("editor"), f, {
+      onAnchor: setAnchor
+    });
+    renderComments();
+  }
+
+  function toggleRead(path) {
+    HR.setRead([path], !HR.isRead(path));
+    renderRail(); renderCounts();
+    if (path === current) renderHead(HR.byPath[path]);
+  }
+
+  /* ── Comments ───────────────────────────────────────────────────────── */
+  function setAnchor(line) {
+    var a = HR.anchorOf(line);
+    anchor = a ? { line: a, text: line.text } : null;
+    document.getElementById("anchor").textContent = anchor
+      ? (a.side === "left" ? "removed line " : "line ") + a.line + " · " +
+        line.text.trim().slice(0, 40)
+      : "file-level";
+    document.getElementById("composer").focus();
+  }
+  function renderComments() {
+    var host = document.getElementById("comments");
+    host.textContent = "";
+    var items = current ? HR.commentsFor(current) : [];
+    document.getElementById("p-count").textContent = String(items.length);
+    if (!items.length) {
+      host.appendChild(el("p", "muted", current
+        ? "No comments on this file yet. Click a line number to anchor one."
+        : "Pick a file from the list."));
+      return;
+    }
+    items.forEach(function (c) {
+      var box = el("div", "cmt");
+      var head = el("div", "cmt-head");
+      var tag = el("span", "cmt-kind", c.kind);
+      tag.setAttribute("data-kind", c.kind);
+      head.appendChild(tag);
+      var loc = el("span", "cmt-loc", c.line == null ? "file-level"
+        : (c.side === "left" ? "−" : "") + "line " + c.line);
+      if (c.line != null) loc.addEventListener("click", function () {
+        if (view) view.reveal(c.side, c.line);
+      });
+      head.appendChild(loc);
+      var remove = el("button", "cmt-x", "×");
+      remove.title = "Delete comment";
+      remove.addEventListener("click", function () {
+        HR.removeComment(c.id);
+        if (view) view.paint();
+        renderComments(); renderRail(); renderCounts(); exporter.refresh();
+      });
+      head.appendChild(remove);
+      box.appendChild(head);
+      if (c.code) box.appendChild(el("pre", "cmt-code", c.code));
+      box.appendChild(el("div", "cmt-body", c.body));
+      host.appendChild(box);
+    });
+  }
+  function renderCounts() {
+    var tally = HR.tallyRead(plan.order);
+    document.getElementById("t-progress").textContent = tally.done + " / " + tally.total;
+    document.getElementById("t-bar").style.width =
+      tally.total ? (100 * tally.done / tally.total) + "%" : "0";
+    document.getElementById("t-count").textContent = String(HR.state.comments.length);
+  }
+
+  /* ── Wiring ─────────────────────────────────────────────────────────── */
+  document.getElementById("kinds").addEventListener("click", function (event) {
+    var button = event.target.closest("button[data-kind]");
+    if (!button) return;
+    kind = button.dataset.kind;
+    this.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b === button));
+    });
+  });
+  function submit() {
+    var box = document.getElementById("composer");
+    var body = box.value.trim();
+    if (!body) { box.focus(); return; }
+    if (!current) { HR.toast("Pick a file first"); return; }
+    HR.addComment(current, body, kind, anchor);
+    anchor = null;
+    box.value = "";
+    document.getElementById("anchor").textContent = "file-level";
+    if (view) view.paint();
+    renderComments(); renderRail(); renderCounts(); exporter.refresh();
+  }
+  document.getElementById("add").addEventListener("click", submit);
+  document.getElementById("composer").addEventListener("keydown", function (event) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault(); submit();
+    }
+  });
+  document.getElementById("clear-anchor").addEventListener("click", function () {
+    anchor = null;
+    document.getElementById("anchor").textContent = "file-level";
+  });
+  HR.mountTheme(document.getElementById("t-theme"));
+  document.getElementById("t-export").addEventListener("click", exporter.open);
+  document.getElementById("t-shortcuts").addEventListener("click", function () {
+    HR.toast("j/k file · x mark read · c comment · e export");
+  });
+  document.addEventListener("keydown", function (event) {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.metaKey || event.ctrlKey) return;
+    var order = plan.order.length ? plan.order : plan.files.map(function (f) { return f.path; });
+    var index = order.indexOf(current);
+    if (event.key === "j") { show(order[Math.min(index + 1, order.length - 1)]); event.preventDefault(); }
+    else if (event.key === "k") { show(order[Math.max(index - 1, 0)]); event.preventDefault(); }
+    else if (event.key === "x" && current) { toggleRead(current); event.preventDefault(); }
+    else if (event.key === "c") { document.getElementById("composer").focus(); event.preventDefault(); }
+    else if (event.key === "e") { exporter.open(); event.preventDefault(); }
+    else if (event.key === "Escape") { exporter.close(); }
+  });
+
+  renderRail(); renderCounts(); renderComments();
+  HR.onMonaco(function (ok) {
+    if (!ok) HR.toast("Monaco unavailable — plain diff view");
+    var start = decodeURIComponent((location.hash || "").slice(1)) ||
+                plan.order[0] || plan.files[0].path;
+    current = null;
+    show(HR.byPath[start] ? start : plan.files[0].path);
+  });
+})();
+</script>
+</body>
+</html>

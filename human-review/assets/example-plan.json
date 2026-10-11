@@ -1,0 +1,843 @@
+{
+  "format": "human-review/plan@1",
+  "generated_at": "2026-01-14T10:00:00Z",
+  "target": {
+    "kind": "pr",
+    "repo": "acme/example",
+    "number": 412,
+    "title": "feat: account API keys with hashed tokens",
+    "author": "example",
+    "base": "main",
+    "branch": "feat/api-keys",
+    "head_sha": "0000000000000000000000000000000000000000",
+    "url": "https://github.com/acme/example/pull/412",
+    "draft": false
+  },
+  "config": {
+    "name": "rails-default",
+    "source": "configs/rails.json (example)"
+  },
+  "stats": {
+    "critical": 5,
+    "read": 11,
+    "skim": 8,
+    "skip": 8,
+    "files": 32,
+    "additions": 486,
+    "deletions": 186,
+    "folded": 8
+  },
+  "questions": [
+    {
+      "id": "q-wiring",
+      "kind": "wiring",
+      "text": "5 files changed by one or two lines each - registration or include wiring. Do not read the diffs; check the list is complete.",
+      "files": [
+        "app/serializers/account_serializer.rb",
+        "app/serializers/audit_event_serializer.rb",
+        "app/serializers/membership_serializer.rb",
+        "app/serializers/session_serializer.rb",
+        "app/serializers/webhook_serializer.rb"
+      ]
+    },
+    {
+      "id": "q-gen-config/brakeman.ignore",
+      "kind": "generated",
+      "text": "config/brakeman.ignore gains 5 lines. Confirm every new entry is wanted.",
+      "files": [
+        "config/brakeman.ignore"
+      ]
+    },
+    {
+      "id": "q-coverage",
+      "kind": "coverage",
+      "text": "1 test file loses far more than it gains. Confirm the behaviour went away, not just its test.",
+      "files": [
+        "spec/requests/legacy_tokens_spec.rb"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "key": "critical:migration",
+      "rule": "migration",
+      "label": "Migrations",
+      "weight": "critical",
+      "why": "Runs once against production data and is awkward to undo.",
+      "files": [
+        "db/migrate/20260114093000_create_api_keys.rb"
+      ]
+    },
+    {
+      "key": "critical:authz",
+      "rule": "authz",
+      "label": "Authorization",
+      "weight": "critical",
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report.",
+      "files": [
+        "config/permissions.json"
+      ]
+    },
+    {
+      "key": "critical:secrets",
+      "rule": "secrets",
+      "label": "Secret handling",
+      "weight": "critical",
+      "why": "Controls what leaks into logs and error reports.",
+      "files": [
+        "app/services/api_keys/token_digest.rb",
+        "config/initializers/filter_parameter_logging.rb"
+      ]
+    },
+    {
+      "key": "critical:dep-manifest",
+      "rule": "dep-manifest",
+      "label": "Dependencies",
+      "weight": "critical",
+      "why": "New code from someone else. One line is still a supply-chain change.",
+      "files": [
+        "Gemfile"
+      ]
+    },
+    {
+      "key": "read:models",
+      "rule": "models",
+      "label": "Models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "files": [
+        "app/models/api_key.rb",
+        "app/models/account.rb",
+        "app/models/audit_event.rb",
+        "app/models/membership.rb",
+        "app/models/session.rb",
+        "app/models/webhook.rb"
+      ]
+    },
+    {
+      "key": "read:controllers",
+      "rule": "controllers",
+      "label": "Controllers",
+      "weight": "read",
+      "why": "Where a request becomes an action: params, authorization calls, what gets rendered.",
+      "files": [
+        "app/controllers/api_keys_controller.rb"
+      ]
+    },
+    {
+      "key": "read:api-contract",
+      "rule": "api-contract",
+      "label": "API contract",
+      "weight": "read",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "files": [
+        "docs/API_CHANGELOG.md"
+      ]
+    },
+    {
+      "key": "read:routes",
+      "rule": "routes",
+      "label": "Routes",
+      "weight": "read",
+      "why": "New surface area, and the fastest place to spot something exposed by accident.",
+      "files": [
+        "config/routes.rb"
+      ]
+    },
+    {
+      "key": "read:request-spec",
+      "rule": "request-spec",
+      "label": "Request specs",
+      "weight": "read",
+      "why": "The contract as exercised. Read after the code they cover, as confirmation.",
+      "files": [
+        "spec/requests/legacy_tokens_spec.rb",
+        "spec/requests/api_keys_spec.rb"
+      ]
+    },
+    {
+      "key": "skim:view",
+      "rule": "view",
+      "label": "Views and components",
+      "weight": "skim",
+      "why": "Markup. Look at the shape; the browser is a better reviewer than you are.",
+      "files": [
+        "app/components/settings/api_keys/component.html.erb"
+      ]
+    },
+    {
+      "key": "skim:api-contract",
+      "rule": "api-contract",
+      "label": "API contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "files": [
+        "app/serializers/account_serializer.rb",
+        "app/serializers/audit_event_serializer.rb",
+        "app/serializers/membership_serializer.rb",
+        "app/serializers/session_serializer.rb",
+        "app/serializers/webhook_serializer.rb"
+      ]
+    },
+    {
+      "key": "skim:e2e",
+      "rule": "e2e",
+      "label": "End-to-end tests",
+      "weight": "skim",
+      "why": "Verbose by nature. Check what they assert, not how.",
+      "files": [
+        "e2e/spec/settings/api-keys.spec.ts"
+      ]
+    },
+    {
+      "key": "skim:unit-spec",
+      "rule": "unit-spec",
+      "label": "Unit specs",
+      "weight": "skim",
+      "why": "Mostly restate the code above. Check the cases chosen, not the assertions.",
+      "files": [
+        "spec/models/api_key_spec.rb"
+      ]
+    },
+    {
+      "key": "skip:locale",
+      "rule": "locale",
+      "label": "Translations",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "files": [
+        "config/locales/de.yml",
+        "config/locales/en.yml",
+        "config/locales/fr.yml",
+        "config/locales/it.yml",
+        "config/locales/nl.yml"
+      ]
+    },
+    {
+      "key": "skip:lockfile",
+      "rule": "lockfile",
+      "label": "Lockfiles",
+      "weight": "skip",
+      "why": "Resolver output. The manifest above is the decision.",
+      "files": [
+        "Gemfile.lock"
+      ]
+    },
+    {
+      "key": "skip:schema",
+      "rule": "schema",
+      "label": "Schema dump",
+      "weight": "skip",
+      "why": "Generated by the migrations. Read those instead.",
+      "files": [
+        "db/schema.rb"
+      ]
+    },
+    {
+      "key": "skip:brakeman",
+      "rule": "brakeman",
+      "label": "Brakeman ignores",
+      "weight": "skip",
+      "why": "Removing an entry means a warning was fixed; only additions need an argument.",
+      "files": [
+        "config/brakeman.ignore"
+      ]
+    }
+  ],
+  "order": [
+    "db/migrate/20260114093000_create_api_keys.rb",
+    "config/permissions.json",
+    "app/services/api_keys/token_digest.rb",
+    "config/initializers/filter_parameter_logging.rb",
+    "Gemfile",
+    "app/models/api_key.rb",
+    "app/models/account.rb",
+    "app/models/audit_event.rb",
+    "app/models/membership.rb",
+    "app/models/session.rb",
+    "app/models/webhook.rb",
+    "app/controllers/api_keys_controller.rb",
+    "docs/API_CHANGELOG.md",
+    "config/routes.rb",
+    "spec/requests/legacy_tokens_spec.rb",
+    "spec/requests/api_keys_spec.rb"
+  ],
+  "files": [
+    {
+      "path": "db/migrate/20260114093000_create_api_keys.rb",
+      "add": 9,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,11 @@\n def change\n+    create_table :api_keys do |t|\n+      t.references :account, null: false, foreign_key: true\n+      t.string :token_digest, null: false\n+      t.string :name, null: false\n+      t.datetime :last_used_at\n+      t.datetime :revoked_at\n+      t.timestamps\n+    end\n+    add_index :api_keys, :token_digest, unique: true\n end",
+      "previous": null,
+      "rule_id": "migration",
+      "weight": "critical",
+      "why": "Runs once against production data and is awkward to undo.",
+      "label": "Migrations",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/permissions.json",
+      "add": 2,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+    \"api_keys.manage\": [\"owner\", \"admin\"],\n end",
+      "previous": null,
+      "rule_id": "authz",
+      "weight": "critical",
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report.",
+      "label": "Authorization",
+      "collapse": null,
+      "report": null,
+      "rank": 20,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "app/services/api_keys/token_digest.rb",
+      "add": 6,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,5 @@\n def change\n+  def self.call(token)\n+    OpenSSL::HMAC.hexdigest('SHA256', Rails.application.secret_key_base, token)\n+  end\n end",
+      "previous": null,
+      "rule_id": "secrets",
+      "weight": "critical",
+      "why": "Controls what leaks into logs and error reports.",
+      "label": "Secret handling",
+      "collapse": null,
+      "report": null,
+      "rank": 30,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/initializers/filter_parameter_logging.rb",
+      "add": 1,
+      "del": 1,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+Rails.application.config.filter_parameters += %i[passw secret token _key api_token]\n end",
+      "previous": null,
+      "rule_id": "secrets",
+      "weight": "critical",
+      "why": "Controls what leaks into logs and error reports.",
+      "label": "Secret handling",
+      "collapse": null,
+      "report": null,
+      "rank": 30,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "Gemfile",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+gem \"rack-attack\", \"~> 6.7\"\n end",
+      "previous": null,
+      "rule_id": "dep-manifest",
+      "weight": "critical",
+      "why": "New code from someone else. One line is still a supply-chain change.",
+      "label": "Dependencies",
+      "collapse": null,
+      "report": null,
+      "rank": 60,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "app/models/api_key.rb",
+      "add": 54,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+  belongs_to :account\n+  scope :active, -> { where(revoked_at: nil) }\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/models/account.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/models/audit_event.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/models/membership.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/models/session.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/models/webhook.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "read",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": []
+    },
+    {
+      "path": "app/controllers/api_keys_controller.rb",
+      "add": 88,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,6 @@\n def change\n+  def create\n+    key = ApiKeys::CreateService.call(account: current_account, name: params[:name])\n+    render json: { token: key.plaintext }, status: :created\n+  end\n end",
+      "previous": null,
+      "rule_id": "controllers",
+      "weight": "read",
+      "why": "Where a request becomes an action: params, authorization calls, what gets rendered.",
+      "label": "Controllers",
+      "collapse": null,
+      "report": null,
+      "rank": 20,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "docs/API_CHANGELOG.md",
+      "add": 6,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,5 @@\n def change\n+## 2026-01-14\n+\n+Added `/api_keys`.\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "read",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/routes.rb",
+      "add": 2,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  resources :api_keys, only: %i[index create destroy]\n end",
+      "previous": null,
+      "rule_id": "routes",
+      "weight": "read",
+      "why": "New surface area, and the fastest place to spot something exposed by accident.",
+      "label": "Routes",
+      "collapse": null,
+      "report": null,
+      "rank": 55,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "spec/requests/legacy_tokens_spec.rb",
+      "add": 2,
+      "del": 184,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  # replaced by spec/requests/api_keys_spec.rb\n end",
+      "previous": null,
+      "rule_id": "request-spec",
+      "weight": "read",
+      "why": "The contract as exercised. Read after the code they cover, as confirmation.",
+      "label": "Request specs",
+      "collapse": null,
+      "report": null,
+      "rank": 90,
+      "never_demote": false,
+      "notes": [
+        "coverage removed - intentional?"
+      ]
+    },
+    {
+      "path": "spec/requests/api_keys_spec.rb",
+      "add": 96,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,8 @@\n def change\n+  describe \"POST /api_keys\" do\n+    it \"returns the token exactly once\" do\n+      post api_keys_path, params: { name: \"deploy\" }\n+      expect(response.parsed_body[\"token\"]).to be_present\n+    end\n+  end\n end",
+      "previous": null,
+      "rule_id": "request-spec",
+      "weight": "read",
+      "why": "The contract as exercised. Read after the code they cover, as confirmation.",
+      "label": "Request specs",
+      "collapse": null,
+      "report": null,
+      "rank": 90,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "app/components/settings/api_keys/component.html.erb",
+      "add": 31,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+<%= render Settings::Card::Component.new(title: t(\".title\")) do %>\n end",
+      "previous": null,
+      "rule_id": "view",
+      "weight": "skim",
+      "why": "Markup. Look at the shape; the browser is a better reviewer than you are.",
+      "label": "Views and components",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "app/serializers/account_serializer.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": [
+        "mechanical wiring"
+      ],
+      "wiring": true,
+      "folds": 4
+    },
+    {
+      "path": "app/serializers/audit_event_serializer.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": [
+        "mechanical wiring"
+      ],
+      "wiring": true,
+      "folded_into": "app/serializers/account_serializer.rb"
+    },
+    {
+      "path": "app/serializers/membership_serializer.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": [
+        "mechanical wiring"
+      ],
+      "wiring": true,
+      "folded_into": "app/serializers/account_serializer.rb"
+    },
+    {
+      "path": "app/serializers/session_serializer.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": [
+        "mechanical wiring"
+      ],
+      "wiring": true,
+      "folded_into": "app/serializers/account_serializer.rb"
+    },
+    {
+      "path": "app/serializers/webhook_serializer.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "skim",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": [
+        "mechanical wiring"
+      ],
+      "wiring": true,
+      "folded_into": "app/serializers/account_serializer.rb"
+    },
+    {
+      "path": "e2e/spec/settings/api-keys.spec.ts",
+      "add": 74,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+test(\"creates and revokes a key\", async ({ page }) => {\n end",
+      "previous": null,
+      "rule_id": "e2e",
+      "weight": "skim",
+      "why": "Verbose by nature. Check what they assert, not how.",
+      "label": "End-to-end tests",
+      "collapse": null,
+      "report": null,
+      "rank": 97,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "spec/models/api_key_spec.rb",
+      "add": 61,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  it { is_expected.to belong_to(:account) }\n end",
+      "previous": null,
+      "rule_id": "unit-spec",
+      "weight": "skim",
+      "why": "Mostly restate the code above. Check the cases chosen, not the assertions.",
+      "label": "Unit specs",
+      "collapse": null,
+      "report": null,
+      "rank": 99,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/locales/de.yml",
+      "add": 4,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": [],
+      "folds": 4
+    },
+    {
+      "path": "config/locales/en.yml",
+      "add": 4,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": [],
+      "folded_into": "config/locales/de.yml"
+    },
+    {
+      "path": "config/locales/fr.yml",
+      "add": 4,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": [],
+      "folded_into": "config/locales/de.yml"
+    },
+    {
+      "path": "config/locales/it.yml",
+      "add": 4,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": [],
+      "folded_into": "config/locales/de.yml"
+    },
+    {
+      "path": "config/locales/nl.yml",
+      "add": 4,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": [],
+      "folded_into": "config/locales/de.yml"
+    },
+    {
+      "path": "Gemfile.lock",
+      "add": 6,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+    rack-attack (6.7.0)\n end",
+      "previous": null,
+      "rule_id": "lockfile",
+      "weight": "skip",
+      "why": "Resolver output. The manifest above is the decision.",
+      "label": "Lockfiles",
+      "collapse": null,
+      "report": null,
+      "rank": 20,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "db/schema.rb",
+      "add": 12,
+      "del": 1,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,3 @@\n def change\n+  create_table \"api_keys\", force: :cascade do |t|\n end",
+      "previous": null,
+      "rule_id": "schema",
+      "weight": "skip",
+      "why": "Generated by the migrations. Read those instead.",
+      "label": "Schema dump",
+      "collapse": null,
+      "report": {
+        "unless_paired_with": "db/migrate/**",
+        "deletions_over": 8
+      },
+      "rank": 30,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/brakeman.ignore",
+      "add": 5,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,2 +1,4 @@\n def change\n+      \"fingerprint\": \"a1b2c3\",\n+      \"note\": \"token is hashed\"\n end",
+      "previous": null,
+      "rule_id": "brakeman",
+      "weight": "skip",
+      "why": "Removing an entry means a warning was fixed; only additions need an argument.",
+      "label": "Brakeman ignores",
+      "collapse": null,
+      "report": {
+        "additions_over": 0
+      },
+      "rank": 40,
+      "never_demote": false,
+      "notes": []
+    }
+  ]
+}
