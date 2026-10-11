@@ -21,7 +21,7 @@ Grok is the model name; use the **Cursor** harness for that reviewer, not the st
 
 ## Establish one review target
 
-Use the target and constraints from the conversation. Ask only if materially different targets remain plausible. For a PR or branch, record repository, absolute workspace, resolved base/head SHAs, comparison semantics, changed files, and relevant checks. For working-tree changes, include staged, unstaged, and relevant untracked files. For a plan or document, record its path or URL, version or content hash, and review criteria.
+Use the target and constraints from the conversation. Ask only if materially different targets remain plausible. For a PR or branch, record repository, absolute workspace, resolved base/head SHAs, comparison semantics, changed files, and relevant checks. For a stack of PRs, record every PR's number, branch, base/parent PR, and head SHA, and review each PR against its parent branch rather than trunk; the whole stack is one review target. For working-tree changes, include staged, unstaged, and relevant untracked files. For a plan or document, record its path or URL, version or content hash, and review criteria.
 
 Create a unique run directory outside the reviewed source files (for example a task artifact directory or a temporary directory). Save a short review brief, a manifest of the inputs, and any diff/source snapshots there. Hash the actual reviewed content, including untracked files; a commit SHA alone does not pin dirty work. Prefer a preserved source copy for dirty targets, and give every reviewer its absolute path plus the same manifest/hash. The original captured version remains the review target even if the live workspace advances. Never stash, reset, or discard the user's work to create a review target.
 
@@ -56,6 +56,7 @@ Separate observed facts, inferences, and untested hypotheses. Do not invent find
 or claim tests you did not run. Return 'no supported findings' when appropriate.
 For each finding: stable local ID, severity (P0-P3), title, location/line range,
 trigger, impact, evidence, suggested correction, confidence, and validation limits.
+For a PR stack, also name the PR that introduces the root cause.
 Also list scope inspected, tests/checks actually run, and any blocked coverage.
 Return the findings to the coordinator; the coordinator produces the HTML report.
 ```
@@ -66,22 +67,40 @@ Default to one independent round plus at most one targeted follow-up round, and 
 
 ## Reconcile and validate
 
-Deduplicate findings by root cause, preserve which reviewers raised them, and inspect the supporting code or source yourself. Prioritize reproducible failures over style preferences. Assign **confirmed**, **disputed**, **rejected**, or **needs validation** to each candidate, with a short reason. Severity describes impact; confidence describes evidence. Agreement counts do not prove correctness, and one well-supported dissent can be decisive.
+Deduplicate findings by root cause, preserve which reviewers raised them, and inspect the supporting code or source yourself. In a stack, attribute each finding to the PR that introduces it (`pr`), using several PRs (`prs`) only for defects that exist because PRs combine. Prioritize reproducible failures over style preferences. Assign **confirmed**, **disputed**, **rejected**, or **needs validation** to each candidate, with a short reason. Severity describes impact; confidence describes evidence. Agreement counts do not prove correctness, and one well-supported dissent can be decisive.
 
 For material disputes, send the original brief, candidate claims, counterevidence, earlier responses, and unresolved questions to the original claimant and one available independent challenger in a fresh targeted round. If only one reviewer is available, disclose that limitation. In T3, every round is a new `delegate_task` with its own `taskId` and idempotency key; never send a continuation to `childThreadId`. Rerun only what needs clarification, combining any drift recovery into this round. Leave unresolved claims visibly unresolved when the round/budget limit is reached.
 
 Do not turn a review request into fixes. If fixes were separately requested, finish the review artifact and perform implementation as a distinct phase, followed by validation of the changed target. Never label the reviewed version as validating later commits.
 
-## Deliver an HTML artifact
+## Deliver HTML artifacts
 
-The deliverable is a usable **HTML page**, not just Markdown or a chat summary. Use the included renderer and [report contract](references/report.md):
+The deliverable is usable **HTML pages**, not just Markdown or a chat summary. Build one `report.json` following the [report contract](references/report.md). While the user compares designs, **render all three trial designs on every run**, each from the same `report.json`:
 
 ```sh
-python3 /path/to/multi-agent-review/scripts/render_report.py /path/to/report.json --output /path/to/review.html
+python3 /path/to/multi-agent-review/scripts/render_report.py /path/to/report.json --output-dir /path/to/run/review
 ```
 
-The page must show the target/version, verdict, coverage and failed reviewers, model/effort provenance, prioritized findings with evidence, disagreements and their disposition, tests actually run, gaps, and practical next steps. Include raw reviewer output or durable links when useful. A completed review with no supported findings and an incomplete review are distinct outcomes.
+This writes `command.html`, `train.html`, `focus.html`, and an `index.html` chooser into the directory. Read the design notes before inspecting them:
 
-The included renderer creates an offline page with search, disposition filters, expandable details, and print styling. An available Executor artifact or Claude Code document is also suitable if it presents the same report as a rendered page; inspect that tool's current contract first. Keep an HTML export when practical. Do not publish the report externally unless requested.
+- [command](references/designs/command.md): triage console with list, board, and matrix views.
+- [train](references/designs/train.md): stack-first merge readiness, merge plan, and per-PR dossiers.
+- [focus](references/designs/focus.md): a one-finding-at-a-time review queue for answering every finding.
 
-Open and inspect the resulting page if browser tools are available; in T3 use `preview_status`, then `preview_open` if necessary. Verify desktop/mobile layout and filters. Finish with a clickable artifact link and a brief statement of verdict and limitations. The bundled `example-report.html` is a setup walkthrough, not evidence of a completed code review.
+Each page must show the target/version, verdict, coverage and failed reviewers, model/effort provenance, prioritized findings with evidence, disagreements and their disposition, tests actually run, gaps, and practical next steps. Include raw reviewer output or durable links when useful. A completed review with no supported findings and an incomplete review are distinct outcomes. Every design renders the same offline data, with the PR stack hierarchy when `stack` is present; faceted filters by severity, disposition, reviewer, PR, confidence, tag, and answer; presets; pins; section toggles; a detail drawer the user can drag wider or make full screen (`f`); a `?` keyboard cheatsheet; Markdown copy; and print styling.
+
+Every finding starts **approved for fixing**, except those the coordinator rejected, which start as Ignore. The user marks the findings they do not want fixed as **Ignore**, can comment on any finding, and presses **Copy answers** to copy their decisions as JSON. Answers live in that browser's localStorage, keyed by report, so all designs of one report share them.
+
+If the user asks for one design, render only that one with `--output review.html --theme NAME`. `--themes a,b` overrides the trio for `--output-dir`. The older `triage` and `board` designs remain available by name. An available Executor artifact or Claude Code document is also suitable if it presents the same report as a rendered page; inspect that tool's current contract first. Keep the HTML files when practical. Do not publish the report externally unless requested.
+
+Open and inspect every rendered page if browser tools are available; in T3 use `preview_status`, then `preview_open` if necessary. Run each design's inspection checklist, including the stack hierarchy when present and a 390px mobile check. Finish with clickable links to `index.html` and each design, one line on which design fits this review best (for example `train` for a stack), a brief statement of verdict and limitations, and a reminder that **Copy answers** produces the JSON to paste back for fixes. The bundled pages in `examples/` use illustrative data and are not evidence of a completed code review.
+
+## Apply review answers
+
+When the user pastes JSON with `"format": "multi-agent-review/answers@1"`, treat it as their decisions on the review, and follow its `instructions` field:
+
+- Fix only the entries in `fix`. A `comment` is the user's instruction and overrides `recommendation`. Leave everything in `ignore` untouched, including its location.
+- Check `report.snapshot_id` and each PR's `head` in `stack` against the current checkout. If the code has moved, re-locate each finding before editing, and say which ones no longer apply.
+- For `needs validation` and `disputed` findings, reproduce or confirm the problem first; report the ones that do not hold up instead of changing code.
+- In a stack, fix each finding on the branch of the PR that introduced it (`prs`), bottom of the stack first, then restack the PRs above it. Ask before force-pushing or rewriting a shared branch.
+- Run the relevant tests or checks, then report per finding `id` what changed, what was verified, and what was skipped and why.

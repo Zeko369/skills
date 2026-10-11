@@ -1,0 +1,1737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="multi-agent-review · @@THEME@@">
+<meta name="color-scheme" content="dark">
+<title>@@TITLE@@</title>
+<style>@@CORE_CSS@@</style>
+<style>
+/* command: triage's dark three-pane console with board's Swiss confidence.
+   Sidebar = git-graph stack rail + facets; center = List | Board | Matrix; right = finding / report detail. */
+:root{color-scheme:dark;
+  --bg:#08090c;--panel:#0d1015;--raised:#141920;--hover:#1a212a;--line:#1c232b;--line2:#2a323d;--rule:#3a4451;
+  --text:#eef2f6;--soft:#c2cbd5;--muted:#8893a1;--dim:#5c6775;--ink:#07080a;
+  --accent:#7ee0c3;--accent-weak:rgba(126,224,195,.11);--accent-line:rgba(126,224,195,.42);
+  --p0:#ff4f64;--p1:#ff8b2b;--p2:#ffd23a;--p3:#5c9dff;--violet:#b58cff;--ok:#3ddc97;--warn:#ffb547;--bad:#ff5f5f;--grey:#3a4350;
+  --rv0:#7ee0c3;--rv1:#f0a6ff;--rv2:#ffcf70;--rv3:#8ab4ff;--rv4:#ff8f8f;--rv5:#b6f09c;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,"SF Pro Text","Segoe UI",sans-serif;
+  --display:"Helvetica Neue",Helvetica,Inter,Arial,ui-sans-serif,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --top:56px;--bar-h:92px;--fold:46px;--main-min:480px;
+  --hatch:repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 2px,transparent 2px 8px);
+  --hazard:repeating-linear-gradient(-45deg,#07080a 0 8px,var(--warn) 8px 16px)}
+[data-severity="P0"]{--sev:var(--p0)}[data-severity="P1"]{--sev:var(--p1)}[data-severity="P2"]{--sev:var(--p2)}[data-severity="P3"]{--sev:var(--p3)}
+[data-rv="0"]{--rv:var(--rv0)}[data-rv="1"]{--rv:var(--rv1)}[data-rv="2"]{--rv:var(--rv2)}[data-rv="3"]{--rv:var(--rv3)}[data-rv="4"]{--rv:var(--rv4)}[data-rv="5"]{--rv:var(--rv5)}
+[data-disposition="confirmed"]{--disp:var(--text)}[data-disposition="needs validation"]{--disp:var(--p2)}[data-disposition="disputed"]{--disp:var(--violet)}[data-disposition="rejected"]{--disp:var(--muted)}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:calc(var(--top) + var(--bar-h) + 52px)}
+html[data-lock]{overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{border-radius:0}
+a{color:var(--accent);text-decoration-color:var(--accent-line);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,kbd,pre{font-family:var(--mono)}
+kbd{display:inline-block;min-width:20px;font-size:11px;line-height:1.3;padding:1px 5px;border:1px solid var(--rule);border-bottom-width:2px;color:var(--soft);background:var(--raised);text-align:center}
+h1,h2,h3,p{margin:0}
+ul,ol{margin:0;padding-left:18px}
+li{margin:0 0 6px}
+li::marker{color:var(--dim)}
+.muted{color:var(--muted)}
+.kicker{display:block;font:800 10.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+noscript{display:block;padding:24px}
+
+/* Buttons */
+.btn,.copy,.print,.reset,.expand-all,.collapse-all,.icon-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--rule);background:var(--raised);color:var(--soft);font:700 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
+:is(.btn,.copy,.print,.reset,.expand-all,.collapse-all,.icon-btn):hover:not(:disabled){color:var(--ink);background:var(--text);border-color:var(--text)}
+.btn-solid{background:var(--text);color:var(--ink);border-color:var(--text)}
+.btn-solid:hover:not(:disabled){background:var(--accent)!important;border-color:var(--accent)!important}
+.icon-btn{width:30px;padding:0;font:700 14px/1 var(--sans);letter-spacing:0}
+.badge:empty{display:none}
+.badge{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;background:var(--accent);color:var(--ink);font:800 10px/1 var(--display);letter-spacing:0}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:30;height:var(--top);display:flex;align-items:center;gap:14px;padding:0 16px;background:rgba(8,9,12,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:2px solid var(--rule)}
+.app.status-incomplete .topbar::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:4px;background:var(--hazard)}
+.brand{display:flex;align-items:center;gap:9px;min-width:0;flex:0 1 auto;max-width:24vw;overflow:hidden}
+.brand-mark{display:inline-grid;grid-template-columns:repeat(4,4px);gap:2px;flex:none}
+.brand-mark i{height:16px;background:var(--sev)}
+.brand-name{font:800 12px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--soft)}
+.brand-sep{color:var(--dim)}
+.brand-title{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-pill{flex:none;display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;font:800 10.5px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--rule);color:var(--soft);background:var(--hatch)}
+.status-pill::before{content:"";width:7px;height:7px;background:currentColor}
+.status-pill.status-complete{background:var(--ok);border-color:var(--ok);color:var(--ink)}
+.status-pill.status-incomplete{background:var(--warn);border-color:var(--warn);color:var(--ink)}
+.status-pill.status-incomplete::before{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.2}}
+.top-search{position:relative;flex:1 1 260px;max-width:460px;min-width:180px}
+.search-input{width:100%;height:34px;padding:0 34px;border:1px solid var(--rule);border-radius:0;background:var(--panel);color:var(--text);outline:none}
+.search-input::placeholder{color:var(--dim)}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+.top-search::before{content:"";position:absolute;left:12px;top:11px;width:9px;height:9px;border:1.5px solid var(--dim);border-radius:50%}
+.top-search::after{content:"";position:absolute;left:21px;top:20px;width:5px;height:1.5px;background:var(--dim);transform:rotate(45deg)}
+.search-kbd{position:absolute;right:8px;top:7px;pointer-events:none}
+.search-input:focus+.search-kbd{display:none}
+.presets{display:flex;flex:none;border:1px solid var(--rule)}
+.preset{border:0;border-right:1px solid var(--rule);background:transparent;color:var(--muted);padding:0 11px;height:32px;font:700 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.preset:last-child{border-right:0}
+.preset:hover{color:var(--text);background:var(--hover)}
+.preset[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+.top-actions{display:flex;gap:6px;margin-left:auto;flex:none}
+.filters-btn{display:none}
+
+/* Primary export: copy the answers as JSON */
+.copy-answers{display:inline-flex;align-items:stretch;flex:none;height:32px;padding:0;border:1px solid var(--accent);background:var(--accent);color:var(--ink);font:800 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.copy-answers-label{display:inline-flex;align-items:center;padding:0 12px}
+.copy-answers-label::before{content:"";width:9px;height:11px;margin-right:8px;border:1.5px solid currentColor;box-shadow:2px -2px 0 -1px var(--accent),2px -2px 0 .5px currentColor}
+.copy-answers-count{display:inline-flex;align-items:center;padding:0 10px;background:var(--ink);color:var(--accent);font:700 11px/1 var(--mono);letter-spacing:0;text-transform:none}
+.copy-answers:hover:not(:disabled){background:var(--text);border-color:var(--text)}
+.copy-answers:hover:not(:disabled) .copy-answers-label::before{box-shadow:2px -2px 0 -1px var(--text),2px -2px 0 .5px currentColor}
+.answer-summary{margin:0;font:700 12px var(--mono);color:var(--soft);white-space:nowrap}
+.answer-summary::before{content:"";display:inline-block;width:7px;height:7px;margin-right:7px;background:var(--accent);vertical-align:1px}
+
+/* Shell. The detail column follows the resizer's --drawer-width but always leaves --main-min for the findings. */
+.shell{display:grid;grid-template-columns:264px minmax(0,1fr) clamp(360px,var(--drawer-width,420px),max(360px,100vw - 264px - var(--main-min)));min-height:calc(100vh - var(--top))}
+.app:is([data-view="board"],[data-view="matrix"]) .shell{grid-template-columns:240px minmax(0,1fr) clamp(320px,var(--drawer-width,clamp(320px,28vw,384px)),max(320px,100vw - 240px - var(--main-min)))}
+.sidebar{position:sticky;top:var(--top);height:calc(100vh - var(--top));overflow:auto;border-right:2px solid var(--rule);padding:16px 10px 48px;background:var(--panel);scrollbar-width:thin}
+.main{min-width:0;padding:20px 22px 96px}
+.detail{position:sticky;top:var(--top);height:calc(100vh - var(--top));display:flex;flex-direction:column;min-width:0;border-left:2px solid var(--rule);background:var(--panel)}
+.detail-scroll{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
+.scrim,.sheet-scrim{display:none}
+
+/* Resize handle: a console rail that lights up in accent while you drag */
+.resize-handle{color:var(--soft)}
+.resize-handle::before{content:"";position:absolute;top:0;bottom:0;left:5px;width:2px;background:var(--accent);opacity:0;transition:opacity .12s}
+.resize-handle::after{left:3px;width:6px;height:40px;margin-top:-20px;border-radius:0;background:repeating-linear-gradient(180deg,currentColor 0 2px,transparent 2px 5px);opacity:.35}
+.resize-handle:hover::before,.resize-handle:focus-visible::before,.is-resizing .resize-handle::before{opacity:1}
+.resize-handle:hover::after,.resize-handle:focus-visible::after,.is-resizing .resize-handle::after{color:var(--accent);opacity:1}
+/* Two handles share one width: the docked column (wide) and the overlay sheet (board/matrix below 1180px). */
+@media (min-width:1180px){.finding-pane>.resize-handle{display:none}}
+
+/* Sidebar */
+.side-block{margin:0 0 22px}
+.side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px 8px;margin-bottom:6px;border-bottom:1px solid var(--line2)}
+.side-clear{height:22px;padding:0 7px;border:1px solid var(--rule);background:transparent;color:var(--muted);font:700 10px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.side-clear:hover{color:var(--ink);background:var(--text)}
+.facet{margin:0 0 22px}
+.facet-legend{display:block;width:100%;font:800 10.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);padding:0 8px 8px;margin-bottom:4px;border-bottom:1px solid var(--line2)}
+.facet-options{flex-direction:column;gap:1px}
+.facet-option{display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border:0;background:transparent;color:var(--soft);text-align:left;font-size:13px}
+.facet-option:hover{background:var(--hover);color:var(--text)}
+.facet-option[aria-pressed="true"]{background:var(--accent-weak);color:var(--text);box-shadow:inset 3px 0 var(--accent)}
+.facet-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.facet-hint{display:none}
+.facet-count{font:700 12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.facet-option[aria-pressed="true"] .facet-count{color:var(--accent)}
+.facet-swatch{width:10px;height:10px;flex:none;background:var(--dim)}
+.facet-severity .facet-swatch{width:10px;height:14px;background:var(--sev)}
+.facet-reviewer .facet-swatch{background:var(--rv)}
+.facet-tag .facet-swatch{background:none;width:auto;height:auto;color:var(--dim);font:12px var(--mono)}
+.facet-tag .facet-swatch::before{content:"#"}
+.facet-confidence .facet-swatch{background:none;border:1.5px solid var(--soft)}
+.facet-confidence[data-value="high"] .facet-swatch{background:var(--soft)}
+.facet-confidence[data-value="medium"] .facet-swatch{background:linear-gradient(90deg,var(--soft) 50%,transparent 50%)}
+.toggle{padding:5px 8px;color:var(--soft);font-size:13px}
+.toggle:hover{background:var(--hover)}
+.toggle input{accent-color:var(--accent);margin:0}
+.toggle-label{flex:1}
+.toggle-count{font:700 12px var(--mono);color:var(--muted)}
+
+/* Your answers block: answer facet, bulk answers, pins */
+.side-answers .facet{margin:0 0 8px}
+.facet-answer .facet-swatch{display:inline-grid;place-items:center;width:14px;height:14px;font:800 10px/1 var(--display)}
+.facet-answer[data-value="fix"] .facet-swatch{background:var(--accent);color:var(--ink)}
+.facet-answer[data-value="fix"] .facet-swatch::before{content:"✓"}
+.facet-answer[data-value="ignore"] .facet-swatch{background:var(--hatch);border:1.5px solid var(--muted);color:var(--soft);font-size:9px}
+.facet-answer[data-value="ignore"] .facet-swatch::before{content:"✕"}
+.bulk-answers{gap:4px;padding:0 8px}
+.bulk-answer{flex:1 1 auto;height:28px;padding:0 8px;border:1px solid var(--rule);background:transparent;color:var(--soft);font:700 10px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.bulk-answer:hover:not(:disabled){background:var(--text);border-color:var(--text);color:var(--ink)}
+.bulk-fix:hover:not(:disabled){background:var(--accent);border-color:var(--accent)}
+.bulk-reset{flex-basis:100%;border-style:dashed;color:var(--muted)}
+.bulk-reset:not(:disabled):hover{background:var(--bad);border-color:var(--bad)}
+.side-pins{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:6px;border-top:1px solid var(--line)}
+.side-pins .toggle{flex:1;min-width:0;padding-right:4px}
+.side-pins .toggle-label{white-space:nowrap}
+.pins-clear{flex:none;margin-right:8px;padding:0 7px}
+.side-note{margin:8px 8px 0;font-size:11.5px;line-height:1.4;color:var(--dim)}
+.section-toggles{margin:0 0 22px}
+.shortcuts{margin:8px 8px 0;color:var(--muted);font-size:12.5px}
+.shortcuts summary{cursor:pointer;font:800 10.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);list-style:none}
+.shortcuts summary::-webkit-details-marker{display:none}
+.shortcuts summary::before{content:"▸ "}.shortcuts[open] summary::before{content:"▾ "}
+
+/* Disposition glyphs: shape as well as color */
+.disp{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;vertical-align:baseline}
+.disp[data-disposition="confirmed"],.facet-disposition[data-disposition="confirmed"] .facet-swatch{background:var(--text);border-radius:50%}
+.disp[data-disposition="needs validation"],.facet-disposition[data-disposition="needs validation"] .facet-swatch{background:none;border:1.5px dashed var(--p2);border-radius:50%}
+.disp[data-disposition="disputed"],.facet-disposition[data-disposition="disputed"] .facet-swatch{background:linear-gradient(90deg,var(--violet) 50%,transparent 50%);border:1.5px solid var(--violet);border-radius:50%}
+.disp[data-disposition="rejected"],.facet-disposition[data-disposition="rejected"] .facet-swatch{background:linear-gradient(135deg,transparent 44%,var(--muted) 44%,var(--muted) 56%,transparent 56%);border:1.5px solid var(--muted);border-radius:50%}
+
+/* Severity tags and pips: solid blocks with text */
+.sev{display:inline-grid;place-items:center;flex:none;min-width:28px;height:21px;padding:0 5px;font:800 11px/1 var(--display);letter-spacing:.02em;color:var(--ink);background:var(--sev)}
+.sev-pips{flex:none}
+.sev-pip{font:800 10px/1 var(--display);padding:2px 4px;color:var(--ink);background:var(--sev);font-variant-numeric:tabular-nums}
+
+/* Git-graph stack rail */
+.stack-list{list-style:none;margin:0;padding:0}
+.stack-list li{margin:0}
+.stack-row{display:flex;align-items:stretch;gap:8px;width:100%;padding:0 8px;border:0;background:transparent;color:var(--soft);text-align:left;cursor:pointer}
+.stack-row:hover{background:var(--hover);color:var(--text)}
+.stack-row[aria-pressed="true"]{background:var(--accent-weak);color:var(--text);box-shadow:inset 3px 0 var(--accent)}
+.stack-row[aria-pressed="true"] .g-dot{box-shadow:0 0 0 3px var(--accent-weak),0 0 0 1.5px var(--accent)}
+.stack-row[data-empty]:not([aria-pressed="true"]) .stack-text{opacity:.5}
+.g{position:relative;flex:none;align-self:stretch}
+.g-v,.g-top,.g-bot{position:absolute;width:2px;margin-left:-1px;background:var(--rule)}
+.g-v{top:0;bottom:0}.g-top{top:0;height:50%}.g-bot{top:50%;bottom:0}
+.g-fork{position:absolute;top:calc(50% - 1px);bottom:0;border-top:2px solid var(--rule);border-right:2px solid var(--rule);border-top-right-radius:9px}
+.g-dot{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:var(--panel);border:2px solid var(--dim);z-index:1}
+.g-dot[data-worst]{background:var(--sev);border-color:var(--sev)}
+.g-dot.trunk{border-color:var(--soft);border-radius:0;background:var(--soft)}
+.stack-text{flex:1;min-width:0;padding:7px 0}
+.stack-line{display:flex;align-items:baseline;gap:7px;min-width:0}
+.stack-num{font:800 12.5px var(--display);color:var(--accent);flex:none;letter-spacing:-.01em}
+.stack-title{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.stack-count{font:800 13px var(--display);color:var(--soft);flex:none;font-variant-numeric:tabular-nums}
+.stack-sub{display:flex;align-items:center;gap:8px;margin-top:3px;font:11px var(--mono);color:var(--dim);min-width:0}
+.stack-sub .stack-branch{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.stack-sub .sev-pips{margin-left:auto}
+.trunk-row{color:var(--muted);cursor:default}
+.trunk-row:hover{background:transparent;color:var(--muted)}
+.trunk-row .stack-title{font:700 12px var(--mono)}
+.stack-inherit{padding:6px 0 0}
+
+/* Assessment */
+.assess{border:2px solid var(--rule);background:var(--panel);margin-bottom:22px}
+.assess:has(> [data-section="summary"][hidden]):has(> [data-section="team"][hidden]){display:none}
+.assess-top{display:grid;grid-template-columns:200px minmax(0,1fr)}
+.status-tile{container-type:inline-size;position:relative;display:flex;flex-direction:column;gap:12px;min-height:210px;padding:16px 16px 18px;border-right:2px solid var(--rule);background:var(--hatch);overflow:hidden}
+.status-word{margin-top:auto;font:800 min(48px,calc(138cqi / var(--len)))/0.86 var(--display);letter-spacing:-.05em;text-transform:uppercase}
+.status-note{font:600 12.5px/1.4 var(--sans);color:var(--soft)}
+.status-tile[data-status="complete"]{background:var(--ok);color:var(--ink)}
+.status-tile[data-status="complete"] :is(.kicker,.status-note){color:var(--ink)}
+.status-tile[data-status="incomplete"]{background:var(--warn);color:var(--ink);padding-top:34px}
+.status-tile[data-status="incomplete"]::before{content:"";position:absolute;left:0;right:0;top:0;height:16px;background:var(--hazard);border-bottom:2px solid var(--ink)}
+.status-tile[data-status="incomplete"] :is(.kicker,.status-note){color:var(--ink)}
+.status-tile[data-status="setup"] .status-word{color:var(--text)}
+.assess-main{display:flex;flex-direction:column;gap:10px;min-width:0;padding:16px 20px 18px}
+.assess-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px}
+.assess-title{color:var(--soft);overflow-wrap:anywhere}
+.verdict{font:800 clamp(21px,2.1vw,29px)/1.08 var(--display);letter-spacing:-.03em;max-width:30ch;text-wrap:balance;overflow-wrap:anywhere}
+.summary-text{color:var(--muted);font-size:13px;max-width:78ch;margin-top:auto}
+.metrics{grid-column:1/-1;display:grid;grid-template-columns:200px minmax(0,1fr) minmax(0,1fr) minmax(0,2.3fr);border-top:2px solid var(--rule)}
+.metric{position:relative;display:flex;flex-direction:column;gap:8px;min-width:0;padding:14px 16px;border-right:2px solid var(--rule)}
+.metric:last-child{border-right:0}
+.metric-value{font:800 44px/.82 var(--display);letter-spacing:-.06em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.metric-value small{font-size:.42em;letter-spacing:-.02em;color:var(--dim);margin-left:.06em}
+.metric-note{margin-top:auto;font-size:12px;line-height:1.35;color:var(--muted)}
+.metric[data-warn]{padding-top:22px}
+.metric[data-warn]::before{content:"";position:absolute;left:0;right:0;top:0;height:7px;background:var(--hazard)}
+.metric[data-warn] .metric-value{color:var(--warn)}
+.metric[data-hatch]{background:var(--hatch)}
+.metric-sev{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:18px;row-gap:8px}
+.metric-sev .kicker{grid-column:1/-1}
+.metric-sev .metric-value{align-self:end}
+.herobar{display:flex;align-self:end;height:44px;gap:2px;min-width:0}
+.herobar-seg{flex:1 1 0;min-width:34px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:5px 7px;border:0;background:var(--sev);color:var(--ink);cursor:pointer;text-align:left}
+.herobar-seg .n{font:800 19px/.85 var(--display);letter-spacing:-.04em}
+.herobar-seg .k{font:800 9.5px/1 var(--display);letter-spacing:.12em}
+.herobar[data-filtered] .herobar-seg[aria-pressed="false"]{background:repeating-linear-gradient(-45deg,var(--sev) 0 2px,var(--panel) 2px 7px);color:var(--text)}
+.herobar[data-filtered] .herobar-seg[aria-pressed="false"] :is(.n,.k){background:var(--panel);padding:1px 2px}
+.herobar-seg[aria-pressed="true"]{box-shadow:inset 0 -5px 0 var(--ink)}
+.herobar-seg:focus-visible{outline-offset:-4px;outline-color:var(--ink)}
+.herobar.is-empty{align-items:center;justify-content:center;background:var(--hatch);border:1px dashed var(--rule);font:800 10px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.team{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));border-top:2px solid var(--rule)}
+.team-chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border:0;border-right:1px solid var(--line2);background:transparent;text-align:left;min-width:0;cursor:pointer}
+.team-chip:last-child{border-right:0}
+.team-chip:hover{background:var(--hover)}
+.team-chip[aria-pressed="true"]{background:var(--accent-weak);box-shadow:inset 0 -3px var(--accent)}
+.team-text{display:flex;flex-direction:column;min-width:0}
+.team-name{font-weight:700;font-size:13px}
+.team-model{font:11.5px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state{flex:none;margin-left:auto;font:800 9.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;padding:5px 6px;color:var(--ok);border:1px solid rgba(61,220,151,.4)}
+.team-chip .state-completed{font-size:0;width:9px;height:9px;padding:0;border:0;background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.16)}
+.state-failed,.state-timed_out,.state-unavailable,.state-cancelled{color:var(--ink);background:var(--bad);border-color:var(--bad)}
+.state-stale,.state-running{color:var(--ink);background:var(--warn);border-color:var(--warn)}
+.state-not_run{color:var(--muted);border-color:var(--rule);background:var(--hatch)}
+
+/* Reviewer badges: squared tiles */
+.rv-badges{display:inline-flex;gap:2px;flex:none}
+.rv{display:inline-grid;place-items:center;flex:none;min-width:22px;height:20px;padding:0 3px;font:800 9px/1 var(--display);letter-spacing:.04em;color:var(--ink);background:var(--rv)}
+
+/* Toolbar + view switcher */
+.toolbar{position:sticky;top:var(--top);z-index:12;display:flex;flex-direction:column;gap:8px;margin:0 -22px;padding:12px 22px 10px;background:var(--bg);border-bottom:2px solid var(--rule)}
+.tb-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
+.tb-row :is(.reset,.copy,.print){height:28px}
+.tb-spacer{flex:1 1 0}
+.viewswitch{display:inline-flex;flex:none;border:1px solid var(--rule);background:var(--panel)}
+.view-btn{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 15px;border:0;border-right:1px solid var(--rule);background:transparent;color:var(--muted);font:800 11.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.view-btn:last-child{border-right:0}
+.view-btn:hover{color:var(--text);background:var(--hover)}
+.view-btn[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+.view-btn:focus-visible{outline-offset:-4px}
+.view-icon{display:grid;gap:2px;width:14px;height:12px;flex:none}
+.view-icon i{display:block;background:currentColor;min-width:0;min-height:0}
+.view-btn[data-view="list"] .view-icon{grid-template-rows:repeat(4,1fr);gap:1.5px}
+.view-btn[data-view="board"] .view-icon{grid-template-columns:repeat(4,1fr);align-items:start}
+.view-btn[data-view="board"] .view-icon i:nth-child(1){height:12px}.view-btn[data-view="board"] .view-icon i:nth-child(2){height:8px}.view-btn[data-view="board"] .view-icon i:nth-child(3){height:10px}.view-btn[data-view="board"] .view-icon i:nth-child(4){height:5px}
+.view-btn[data-view="matrix"] .view-icon{grid-template:repeat(2,1fr)/repeat(2,1fr)}
+.view-btn[data-view="matrix"] .view-icon i:nth-child(2),.view-btn[data-view="matrix"] .view-icon i:nth-child(3){opacity:.45}
+.result-count{margin:0;font:700 12px var(--mono);color:var(--muted);white-space:nowrap}
+.filter-summary{display:none}
+.select{display:flex;align-items:center;gap:6px}
+.select-label{font:800 10px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.select select{height:30px;border:1px solid var(--rule);border-radius:0;background:var(--raised);color:var(--text);padding:0 6px;font-size:12.5px}
+.expand-controls{display:none;gap:6px}
+.active-filters{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.active-filters:empty{display:none}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 4px 0 8px;border:1px solid var(--accent-line);background:var(--accent-weak);color:var(--text);font-size:12px;cursor:pointer;max-width:100%}
+.filter-chip b{font:800 9.5px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.filter-chip::after{content:"×";font-size:15px;line-height:1;color:var(--muted);padding:0 4px}
+.filter-chip:hover::after{color:var(--text)}
+.view-host{padding-top:14px}
+
+/* List */
+.group{margin-top:10px}
+.group+.group{margin-top:22px}
+.group-head{position:sticky;top:calc(var(--top) + var(--bar-h));z-index:4;display:flex;align-items:center;gap:10px;padding:10px 0 8px;background:var(--bg);border-bottom:2px solid var(--rule)}
+.group-toggle{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:none;padding:0;text-align:left;cursor:pointer}
+.caret{width:0;height:0;border-left:5px solid var(--dim);border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .12s;flex:none}
+.group-toggle[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.group-label{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.tile{flex:none;display:inline-grid;place-items:center;min-width:46px;height:26px;padding:0 7px;background:var(--text);color:var(--ink);font:800 13.5px/1 var(--display);letter-spacing:-.02em}
+.tile[data-severity]{background:var(--sev)}
+.tile[data-kind="cross"]{background:transparent;color:var(--text);border:3px double var(--soft);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.tile[data-kind="none"]{background:transparent;color:var(--soft);border:1px dashed var(--soft)}
+.tile[data-kind="disp"]{background:transparent;border:1px solid var(--rule);min-width:26px}
+.group-title{font:700 15px/1.2 var(--display);letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.group-meta{font:11.5px var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 6 auto}
+.group-count{flex:none;margin-left:auto;font:800 22px/.8 var(--display);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.group-link{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;text-decoration:none;border:1px solid var(--accent-line);padding:5px 7px}
+.group-link:hover{background:var(--accent);color:var(--ink)}
+.rows{display:flex;flex-direction:column}
+.row{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:4px 12px;padding:11px 12px 11px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:hover{background:var(--raised)}
+.row[data-selected]{background:var(--raised);box-shadow:inset 3px 0 var(--accent)}
+.row[data-pinned]{background:linear-gradient(90deg,rgba(126,224,195,.07),transparent 45%)}
+.row[data-ignored] .sev,.who-row[data-ignored] .sev{background:var(--grey);color:var(--soft)}
+.row[data-ignored] .row-title-text{color:var(--muted)}
+.row[data-ignored] :is(.row-sub,.rv-badges,.pr-chip){opacity:.55}
+.row-main{all:unset;display:flex;flex-direction:column;gap:5px;min-width:0;cursor:pointer}
+.row-main:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.row-title{display:flex;align-items:center;gap:9px;font-weight:600;line-height:1.35;color:var(--text)}
+.row-title-text{min-width:0}
+.row[data-disposition="rejected"] .row-title-text{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--dim)}
+.row-sub{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;font-size:12px;color:var(--muted)}
+.row-sub code{font-size:11.5px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(52ch,100%)}
+.disp-label{color:var(--disp);font:800 10px/1 var(--display);letter-spacing:.12em;text-transform:uppercase}
+.row-id{font:11px var(--mono);color:var(--dim)}
+.tag{font:11px var(--mono);color:var(--dim)}
+.tag::before{content:"#"}
+/* Flags follow core's data-pinned / data-ignored / data-commented, so comment typing updates them in place. */
+.flags{display:inline-flex;gap:4px;flex:none}
+.flag{display:none;align-items:center;gap:4px;height:15px;padding:0 5px;font:800 9px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+[data-pinned] .flag-pin,[data-ignored] .flag-ignored,[data-commented] .flag-comment{display:inline-flex}
+.flag-pin{background:var(--accent);color:var(--ink)}
+.flag-ignored{border:1px solid var(--muted);color:var(--soft);background:var(--hatch)}
+.flag-ignored::before{content:"✕";font-size:8px;letter-spacing:0}
+.flag-comment{border:1px solid var(--accent-line);color:var(--accent)}
+.flag-comment::before{content:"";width:8px;height:6px;border:1.5px solid currentColor;border-radius:1px 1px 1px 0;box-shadow:-1px 3px 0 -1px currentColor}
+.row-side{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pr-chip{position:relative;z-index:2;display:inline-flex;align-items:center;height:20px;padding:0 6px;border:1px solid var(--accent-line);background:var(--accent-weak);color:var(--accent);font:700 11px var(--mono);cursor:pointer}
+.pr-chip:hover{background:var(--accent);color:var(--ink)}
+.finding-actions{display:flex;gap:4px}
+.action{height:24px;padding:0 8px;border:1px solid var(--rule);background:transparent;color:var(--muted);font:700 10.5px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.action:hover{color:var(--ink);background:var(--text);border-color:var(--text)}
+.action[aria-pressed="true"]{color:var(--accent);border-color:var(--accent-line);background:var(--accent-weak)}
+.action-ignore[aria-pressed="true"]{color:var(--ink);border-color:var(--soft);background:var(--soft)}
+.action-ignore[aria-pressed="true"]::before{content:"✕ "}
+.action-ignore[aria-pressed="true"]:hover{background:var(--accent);border-color:var(--accent)}
+@media (hover:hover){
+  :is(.row,.card,.who-row) .finding-actions{opacity:0;transition:opacity .12s}
+  :is(.row,.card,.who-row):is(:hover,:focus-within,[data-selected]) .finding-actions{opacity:1}
+}
+.row-details{grid-column:1/-1;display:none;margin-top:6px;border-top:1px solid var(--line2);padding-top:8px}
+.row-details .answer{margin:8px 0 14px}
+.row-details .finding-fields dt:first-child{border-top:0;padding-top:0}
+.row-details summary{cursor:pointer;font:800 10.5px/1.6 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+
+/* Board */
+.board-scroll[data-scroll]{overflow-x:auto;scrollbar-width:thin;padding-bottom:6px}
+.board-scroll[data-scroll] .board{min-width:var(--need)}
+.board-head{position:sticky;top:calc(var(--top) + var(--bar-h));z-index:6;display:grid;grid-template-columns:var(--cols);background:var(--bg);border-bottom:2px solid var(--rule)}
+.board-scroll[data-scroll] .board-head{position:static}
+.col-head{display:flex;align-items:center;gap:8px;min-width:0;padding:10px 8px 10px 10px;border-left:1px solid var(--line2)}
+.col-head:first-child{border-left:0}
+.col-label{min-width:0;overflow:hidden;font:800 10.5px/1.15 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--disp)}
+.col-count{margin-left:auto;font:800 26px/.8 var(--display);letter-spacing:-.06em;font-variant-numeric:tabular-nums}
+.col-toggle{flex:none;display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 5px;border:1px solid var(--rule);background:transparent;color:var(--muted);font:800 12px/1 var(--display);cursor:pointer}
+.col-toggle:hover{background:var(--text);color:var(--ink)}
+.col-head[data-folded]{flex-direction:column;justify-content:center;gap:6px;padding:8px 4px;background:var(--hatch)}
+.col-head[data-folded] :is(.col-label,.col-count){display:none}
+.col-head[data-folded] .col-toggle{background:var(--panel);font-size:11px}
+.lane{border-bottom:1px solid var(--line2)}
+.lane-head{display:flex;align-items:center;gap:12px;width:100%;min-width:0;padding:10px 10px 10px 0;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+button.lane-head:hover{background:var(--panel)}
+.lane-head .tile{min-width:54px;height:30px;font-size:16px}
+.lane-text{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.lane-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 14.5px/1.15 var(--display);letter-spacing:-.01em}
+.lane-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:11px/1.2 var(--mono);color:var(--dim)}
+.lane-bar{display:flex;width:clamp(70px,10vw,150px)}
+.lane-count{min-width:1.2em;text-align:right;font:800 24px/.8 var(--display);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.lane-chev{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid var(--rule);font:800 13px/1 var(--display);color:var(--muted)}
+.lane[data-empty] .lane-head{padding-block:6px;cursor:default;color:var(--dim)}
+.lane[data-empty] .tile{min-width:44px;height:22px;font-size:12px;background:var(--raised);color:var(--muted)}
+.lane[data-empty] .lane-label{font-size:13px;font-weight:600}
+.lane[data-empty] .lane-meta{display:none}
+.lane[data-empty] .lane-count{font-size:15px;color:var(--dim)}
+.lane-empty{font:800 9.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase}
+.lane[data-collapsed] .lane-cells{display:none}
+.lane-cells{display:grid;grid-template-columns:var(--cols);padding-bottom:12px}
+.cell{display:flex;flex-direction:column;gap:9px;min-width:0;padding:4px 9px 4px;border-left:1px solid var(--line)}
+.cell:first-child{border-left:0;padding-left:0}
+.cell:last-child{padding-right:0}
+.cell-label{display:none;align-items:center;gap:8px;font:800 10px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--disp)}
+.cell-n{margin-left:auto;color:var(--text)}
+.cell[data-folded]{align-items:center;padding:6px 0;background:var(--hatch)}
+.cell[data-folded]>.card{display:none}
+.cell-fold{display:inline-grid;place-items:center;min-width:26px;height:24px;border:1px solid var(--rule);background:var(--panel);color:var(--muted);font:800 12px/1 var(--display)}
+.board[data-bare] .lane-cells{padding-top:12px}
+
+/* Cards */
+.card{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);background:var(--panel);border:1px solid var(--line2);transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+.card:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--rule)}
+.card[data-selected]{transform:translate(-2px,-2px);border-color:var(--accent);box-shadow:5px 5px 0 var(--accent)}
+.card-sev{display:flex;flex-direction:column;align-items:center;background:var(--sev);color:var(--ink)}
+.card-sev-code{align-self:stretch;text-align:center;padding:6px 0 5px;font:800 10.5px/1 var(--display);letter-spacing:-.01em}
+.card[data-disposition="needs validation"]{border-style:dashed;border-color:#6b7684}
+.card[data-disposition="needs validation"] .card-sev{background:repeating-linear-gradient(-45deg,var(--sev) 0 3px,transparent 3px 7px)}
+.card[data-disposition="needs validation"] .card-sev-code{background:var(--sev)}
+.card[data-disposition="disputed"]{border-color:var(--violet);border-top-width:4px;background:linear-gradient(180deg,rgba(181,140,255,.08),transparent 60%),var(--panel)}
+.card[data-disposition="disputed"]:hover{box-shadow:4px 4px 0 rgba(181,140,255,.5)}
+.card[data-disposition="rejected"]{border-color:var(--line2);background:var(--bg);color:var(--muted)}
+.card[data-disposition="rejected"] .card-sev{background:var(--grey);color:var(--soft)}
+.card[data-disposition="rejected"] .card-open{text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:var(--dim);color:var(--muted)}
+.card[data-disposition][data-selected]{border-color:var(--accent);box-shadow:5px 5px 0 var(--accent)}
+.card[data-ignored]{border-style:dashed;border-color:var(--rule);background:var(--hatch),var(--bg)}
+.card[data-ignored] .card-sev{background:var(--grey);color:var(--soft)}
+.card[data-ignored] :is(.card-title,.card-loc){color:var(--muted)}
+.card[data-ignored] :is(.conf,.card-foot .rv-badges,.card-foot .pr-chip){opacity:.55}
+.card .finding-actions{position:relative;z-index:2;flex-basis:100%;margin-top:2px}
+.card .action{height:20px;padding:0 6px;font-size:9.5px}
+.card[data-pinned]::before{content:"";position:absolute;top:-1px;right:-1px;border-style:solid;border-width:0 14px 14px 0;border-color:transparent var(--accent) transparent transparent;z-index:2}
+.card-body{display:flex;flex-direction:column;gap:5px;min-width:0;padding:7px 9px 8px}
+.card-top{display:flex;align-items:center;gap:6px;min-height:16px}
+.card-id{font:700 10.5px/1 var(--mono);color:var(--dim);white-space:nowrap}
+.card-body{container-type:inline-size}
+@container (max-width:128px){.card-top .conf-word{display:none}}
+.conf{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:800 9px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.conf-bars{display:inline-flex;align-items:flex-end;gap:2px}
+.conf-bars i{width:3px;background:var(--line2)}
+.conf-bars i:nth-child(1){height:5px}.conf-bars i:nth-child(2){height:8px}.conf-bars i:nth-child(3){height:11px}
+.conf-bars i.on{background:var(--soft)}
+.card-title{font:650 13px/1.3 var(--sans)}
+.card-open{display:block;width:100%;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.card-open::after{content:"";position:absolute;inset:-1px;z-index:1}
+.card-open:focus-visible{outline:none}
+.card-open:focus-visible::after{outline:2px solid var(--accent);outline-offset:3px}
+.card-loc{font:11px/1.35 var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-foot{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:2px}
+.card-foot .rv-badges{margin-left:auto}
+.card .rv{min-width:20px;height:17px;font-size:8.5px}
+.segbar{display:flex;flex:1;min-width:0;height:10px;gap:2px}
+.segbar-seg{flex:1 1 0;min-width:6px;background:var(--sev)}
+
+/* Matrix */
+.mx-panel+.mx-panel{margin-top:34px}
+.mx-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 14px;padding-bottom:10px;margin-bottom:14px;border-bottom:2px solid var(--rule)}
+.sec-num{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 4px;background:var(--text);color:var(--ink);font:800 14px/1 var(--display);letter-spacing:-.02em}
+.mx-title{font:800 26px/.9 var(--display);letter-spacing:-.045em}
+.mx-note{flex:1 1 220px;margin-left:auto;text-align:right;font-size:12px;line-height:1.35;color:var(--muted);max-width:52ch}
+.mx-scroll{overflow-x:auto;scrollbar-width:thin}
+.heat{width:100%;min-width:520px;border-collapse:separate;border-spacing:0;table-layout:fixed}
+.heat th,.heat td{padding:0;font-weight:inherit;vertical-align:middle}
+.heat thead th{padding:0 2px 8px;text-align:center;vertical-align:bottom}
+.heat thead th:first-child{text-align:left;padding-left:0}
+.heat-col{width:13%}
+.heat-col-total{width:12%}
+.heat-colbtn{display:inline-flex;flex-direction:column;align-items:center;gap:5px;width:100%;padding:4px 0;border:0;background:none;color:var(--muted);font:800 9.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.heat-colbtn .sev{min-width:34px}
+.heat-colbtn:hover{color:var(--text)}
+.heat-colbtn[aria-pressed="true"]{color:var(--text);box-shadow:inset 0 -3px var(--accent)}
+.heat-total-h{font:800 9.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.heat-rowh{height:46px;text-align:left}
+.heat-rowbtn{display:flex;align-items:stretch;gap:8px;width:100%;height:46px;padding:0 10px 0 4px;border:0;background:transparent;color:var(--soft);text-align:left;cursor:pointer;min-width:0}
+.heat-rowbtn:hover{background:var(--hover);color:var(--text)}
+.heat-rowbtn[aria-pressed="true"]{background:var(--accent-weak);color:var(--text);box-shadow:inset 3px 0 var(--accent)}
+.heat-rowtext{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.heat-rowtext .stack-title{font-weight:600}
+.heat-rowtext .tile{min-width:40px;height:22px;font-size:12px}
+.heat-trunk th{height:30px}
+.heat-trunk .heat-rowbtn{height:30px;cursor:default;color:var(--muted)}
+.heat-trunk .heat-rowbtn:hover{background:transparent}
+.heat-trunk td{font:11px var(--mono);color:var(--dim);padding-left:10px}
+.heat .heat-sep th,.heat .heat-sep td{height:12px;border:0}
+.heat td{border:1px solid var(--bg);height:46px}
+.heat-cell{display:grid;place-items:center;width:100%;height:44px;border:0;background:color-mix(in oklab,var(--sev) var(--mix),var(--panel));color:var(--text);font:800 19px/1 var(--display);letter-spacing:-.04em;font-variant-numeric:tabular-nums;cursor:pointer;transition:box-shadow .1s}
+.heat-cell[data-strong]{color:var(--ink)}
+.heat-cell{position:relative}
+.heat-ign{position:absolute;top:3px;right:3px;padding:2px 3px;background:var(--ink);color:var(--soft);font:800 9px/1 var(--display);letter-spacing:.02em}
+.heat-legend .heat-ign{position:static;display:inline-block;margin-right:6px}
+.heat-cell:hover{box-shadow:inset 0 0 0 2px var(--text)}
+.heat-cell[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--accent),inset 0 0 0 5px var(--ink)}
+.heat-zero{display:grid;place-items:center;height:44px;background:var(--panel);color:var(--line2);font:700 14px/1 var(--display)}
+.heat-cell-total{background:var(--raised);color:var(--text)}
+.heat [data-out] .heat-cell,.heat td[data-out] .heat-cell,.heat td[data-out] .heat-zero{opacity:.35}
+.heat tr[data-out] .heat-rowbtn{opacity:.5}
+.heat tfoot th,.heat tfoot td{border-top:2px solid var(--rule)}
+.heat tfoot th{height:46px;padding-left:12px;font:800 10px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.heat-foot{display:grid;place-items:center;width:100%;height:44px;border:0;background:transparent;color:var(--text);font:800 19px/1 var(--display);letter-spacing:-.04em;cursor:pointer}
+.heat-foot:hover{background:var(--hover)}
+.heat-foot[aria-pressed="true"]{box-shadow:inset 0 -3px var(--accent)}
+.heat-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:11.5px;color:var(--muted)}
+.heat-scale{display:inline-flex;align-items:center;gap:6px}
+.heat-scale i{width:16px;height:10px;background:color-mix(in oklab,var(--p1) var(--mix),var(--panel))}
+.who-stats{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:14px;background:var(--rule);border:2px solid var(--rule)}
+.who-stat{flex:1 1 130px;display:flex;align-items:flex-end;gap:10px;padding:10px 12px;background:var(--panel)}
+.who-stat b{font:800 36px/.8 var(--display);letter-spacing:-.06em;font-variant-numeric:tabular-nums}
+.who-stat span{font:800 9.5px/1.25 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.who-stat[data-k="all"]{background:var(--accent);color:var(--ink)}
+.who-stat[data-k="all"] span{color:var(--ink)}
+.who{width:100%;min-width:500px;border-collapse:collapse;table-layout:fixed}
+.who th,.who td{padding:0;border-bottom:1px solid var(--line);vertical-align:middle;font-weight:inherit}
+.who thead th{padding:4px 4px 10px;border-bottom:2px solid var(--rule);text-align:center;vertical-align:bottom;font:800 9.5px/1.2 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.who thead th:first-child{text-align:left;padding-left:0}
+.who-h-rv{width:96px}
+.who-h-agree{width:82px}
+.who-rvh{display:inline-flex;flex-direction:column;align-items:center;gap:6px;max-width:100%}
+.who-rvh span:last-child{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who-row{cursor:pointer}
+.who-row:hover>*{background:var(--raised)}
+.who-fin{display:flex;align-items:center;gap:9px;min-width:0;padding:8px 8px 8px 6px}
+.who-id{flex:none;font:700 11px/1 var(--mono);color:var(--dim)}
+.who-open{min-width:0;flex:1;padding:0;border:0;background:none;color:inherit;font:600 13px/1.3 var(--sans);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.who-row[data-disposition="rejected"] .who-open{text-decoration:line-through;color:var(--muted)}
+.who-cell{text-align:center}
+.who-dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--rv);vertical-align:middle}
+.who-none{display:inline-block;width:10px;height:2px;background:var(--line2);vertical-align:middle}
+.who-agree{text-align:right;padding-right:4px!important}
+.who-tag{display:inline-flex;align-items:center;height:22px;padding:0 7px;border:1px solid var(--rule);font:800 11px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;font-variant-numeric:tabular-nums;color:var(--soft)}
+.who-row.is-solo .who-tag{border-color:var(--line);color:var(--dim)}
+.who-row.is-all>*{background:rgba(126,224,195,.07)}
+.who-row.is-all>th{box-shadow:inset 3px 0 var(--accent)}
+.who-row.is-all .who-dot{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+.who-row.is-all .who-tag{background:var(--accent);border-color:var(--accent);color:var(--ink)}
+.who-row[data-selected]>*{background:var(--raised)}
+.who-row[data-selected]>th{box-shadow:inset 4px 0 var(--text)}
+.who-row[data-ignored] .who-open{color:var(--muted)}
+.who-row[data-ignored] :is(.who-dot,.who-tag){opacity:.5}
+.who-fin .flags{flex:none}
+.who-fin .finding-actions{flex:none}
+.who-row[data-pinned] .who-id::after{content:" ▲";color:var(--accent)}
+.who tfoot th,.who tfoot td{padding:10px 4px;border-bottom:0;border-top:2px solid var(--rule);vertical-align:top}
+.who tfoot th{text-align:left;padding-left:0;font:800 9.5px/1.2 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.who-total{text-align:center}
+.who-total b{display:block;font:800 24px/.85 var(--display);letter-spacing:-.05em}
+.who-total span{font:700 10.5px/1.4 var(--sans);color:var(--muted)}
+
+/* Empty states */
+.nomatch{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-top:6px;padding:30px 28px;border:2px dashed var(--rule);background:var(--hatch)}
+.nomatch>*{background:var(--bg)}
+.nomatch-big{font:800 clamp(26px,3vw,40px)/.9 var(--display);letter-spacing:-.045em;padding:2px 4px 2px 0}
+.nomatch-why{font-size:13px;color:var(--muted);padding:2px 4px 2px 0}
+.nomatch-actions{display:flex;flex-wrap:wrap;gap:8px;background:none}
+.empty-state{display:grid;grid-template-columns:minmax(150px,26%) minmax(0,1fr);margin-top:6px;border:2px solid var(--rule);background:var(--panel)}
+.empty-zero{display:flex;align-items:flex-end;padding:14px 20px 18px;border-right:2px solid var(--rule);background:var(--hatch);font:800 clamp(110px,11vw,170px)/.72 var(--display);letter-spacing:-.08em}
+.empty-copy{display:flex;flex-direction:column;justify-content:flex-end;gap:12px;padding:24px 26px}
+.empty-msg{font:800 clamp(20px,2.2vw,30px)/1.08 var(--display);letter-spacing:-.03em;max-width:28ch;text-wrap:balance}
+.empty-sub{font-size:13px;line-height:1.5;color:var(--muted);max-width:64ch}
+
+/* Detail pane */
+.detail-tabs{position:sticky;top:0;z-index:3;display:flex;background:var(--panel);border-bottom:2px solid var(--rule)}
+.tab{flex:1;height:44px;border:0;border-right:1px solid var(--line2);background:none;color:var(--muted);font:800 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.tab:last-child{border-right:0}
+.tab:hover:not(:disabled){color:var(--text);background:var(--hover)}
+.tab[aria-selected="true"]{color:var(--text);box-shadow:inset 0 -3px var(--accent)}
+.detail[data-tab="report"] .finding-pane,.detail[data-tab="finding"] .report-pane{display:none}
+.report-pane{padding:18px 20px 64px}
+.pane-band{position:relative;display:flex;align-items:center;gap:10px;min-height:76px;padding:12px 12px 12px 18px;background:var(--sev);color:var(--ink)}
+.finding-pane[data-disposition="needs validation"] .pane-band{padding-bottom:22px}
+.finding-pane[data-disposition="needs validation"] .pane-band::after{content:"";position:absolute;left:0;right:0;bottom:0;height:10px;background:repeating-linear-gradient(-45deg,var(--ink) 0 2px,transparent 2px 6px)}
+.finding-pane[data-disposition="disputed"] .pane-band{box-shadow:inset 0 -10px 0 var(--violet);padding-bottom:22px}
+.finding-pane[data-disposition="rejected"] .pane-band{background:var(--grey);color:var(--text)}
+.pane-sev{font:800 46px/.78 var(--display);letter-spacing:-.06em}
+.pane-sevtext{display:flex;flex-direction:column;gap:5px;min-width:0;font:800 10.5px/1 var(--display);letter-spacing:.14em;text-transform:uppercase}
+.pane-id{font:700 12px/1 var(--mono);letter-spacing:0;text-transform:none}
+.pane-nav{margin-left:auto;display:flex;align-items:center;gap:4px}
+.pane-step{width:30px;height:30px;border:2px solid currentColor;background:transparent;color:inherit;font:800 14px/1 var(--display);cursor:pointer}
+.pane-step:hover:not(:disabled){background:var(--ink);color:var(--text);border-color:var(--ink)}
+.pane-pos{min-width:38px;text-align:center;font:800 11px/1 var(--display);font-variant-numeric:tabular-nums}
+.pane-full{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:30px;height:30px;padding:0 7px;border:2px solid currentColor;background:transparent;color:inherit;font:800 10.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
+.pane-full:hover{background:var(--ink);color:var(--text);border-color:var(--ink)}
+.pane-full[aria-pressed="true"]{background:var(--ink);color:var(--text);border-color:var(--ink)}
+.full-icon{flex:none;width:12px;height:12px;background:
+  linear-gradient(currentColor,currentColor) 0 0/5px 2px,linear-gradient(currentColor,currentColor) 0 0/2px 5px,
+  linear-gradient(currentColor,currentColor) 100% 0/5px 2px,linear-gradient(currentColor,currentColor) 100% 0/2px 5px,
+  linear-gradient(currentColor,currentColor) 0 100%/5px 2px,linear-gradient(currentColor,currentColor) 0 100%/2px 5px,
+  linear-gradient(currentColor,currentColor) 100% 100%/5px 2px,linear-gradient(currentColor,currentColor) 100% 100%/2px 5px;background-repeat:no-repeat}
+.pane-full-label{display:none}
+.pane-close{flex:none;width:36px;height:36px;border:0;background:var(--ink);color:var(--text);font:300 24px/1 var(--sans);cursor:pointer}
+.pane-close:hover{background:var(--text);color:var(--ink)}
+.pane-band :focus-visible{outline-color:var(--ink)}
+.finding-pane[data-disposition="rejected"] .pane-band :focus-visible{outline-color:var(--accent)}
+.pane-body{padding:18px 20px 64px}
+.pane-note{margin-bottom:12px;padding:7px 10px;background:var(--warn);color:var(--ink);font:700 12px/1.35 var(--sans)}
+.pane-title{font:800 21px/1.15 var(--display);letter-spacing:-.025em;text-wrap:balance}
+.pane-title:focus{outline:none}
+.finding-pane[data-disposition="rejected"] .pane-title{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--dim)}
+.finding-pane[data-ignored] .pane-band{background:repeating-linear-gradient(-45deg,rgba(7,8,10,.2) 0 2px,transparent 2px 8px),var(--sev)}
+.finding-pane[data-ignored][data-disposition="rejected"] .pane-band{background:repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 2px,transparent 2px 8px),var(--grey)}
+.pane-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 0 14px}
+.pane-line .finding-actions{margin-left:auto}
+.pane-disp{display:flex;align-items:center;gap:8px;font:800 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--disp)}
+
+/* Answer block: Fix / Ignore + where it came from + a comment for the fixer */
+.answer{margin:0 0 6px;border:2px solid var(--rule);background:var(--bg);box-shadow:inset 4px 0 var(--accent)}
+.answer[data-answer="ignore"]{box-shadow:inset 4px 0 var(--soft);background:var(--hatch),var(--bg)}
+.answer-head{padding:11px 12px 10px 16px;border-bottom:1px solid var(--line2)}
+.answer-legend{font:800 10.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.answer-choice{border:1px solid var(--rule);background:var(--panel)}
+.answer-option{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;border:0;border-right:1px solid var(--rule);background:transparent;color:var(--muted);font:800 11.5px/1 var(--display);letter-spacing:.12em;text-transform:uppercase}
+.answer-option:last-child{border-right:0}
+.answer-option:hover{color:var(--text);background:var(--hover)}
+.answer-option:focus-visible{outline-offset:-4px}
+.answer-mark{display:inline-grid;place-items:center;width:15px;height:15px;border:1.5px solid currentColor;font-size:10px;line-height:1}
+.answer-option[data-answer-value="fix"][aria-pressed="true"]{background:var(--accent);color:var(--ink)}
+.answer-option[data-answer-value="ignore"][aria-pressed="true"]{background:var(--text);color:var(--ink)}
+.answer-option[aria-pressed="true"] .answer-mark{background:var(--ink);border-color:var(--ink);color:var(--text)}
+.answer-option[aria-pressed="true"]:focus-visible{outline-color:var(--ink)}
+.answer-note{flex:1 1 100%;font-size:12px;line-height:1.35;color:var(--muted)}
+.answer[data-answer="ignore"] .answer-note{color:var(--soft)}
+.answer-comment{padding:10px 12px 12px 16px}
+.answer-comment-label{font:800 9.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.answer-input{min-height:84px;max-height:50vh;field-sizing:content;padding:9px 11px;border:1px solid var(--line2);border-radius:0;background:#05060a;color:var(--text);font:13px/1.5 var(--sans)}
+.answer-input::placeholder{color:var(--dim)}
+.answer-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+.pane-meta{display:grid;grid-template-columns:96px minmax(0,1fr);margin:0 0 14px;border-top:2px solid var(--rule)}
+.pane-meta dt,.pane-meta dd{margin:0;padding:9px 0;border-bottom:1px solid var(--line2)}
+.pane-meta dt{font:800 9.5px/1.7 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.pane-meta dd{font-size:13px;min-width:0;color:var(--soft)}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.pr-ref{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.pr-ref-title{font-size:12.5px;color:var(--muted)}
+.people{display:flex;flex-wrap:wrap;gap:6px 14px}
+.person{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text)}
+.tag-chip{height:22px;padding:0 7px;border:1px solid var(--rule);background:transparent;color:var(--soft);font:11.5px var(--mono);cursor:pointer}
+.tag-chip:hover,.tag-chip[aria-pressed="true"]{background:var(--text);color:var(--ink)}
+.pane-meta .conf{margin:0;font-size:10px;color:var(--soft)}
+.finding-fields{margin:16px 0 0}
+.finding-fields dt{font:800 9.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:18px;padding-top:10px;border-top:1px solid var(--line2)}
+.finding-fields dt:first-child{margin-top:0}
+.finding-fields dd{margin:7px 0 0;color:var(--soft)}
+.finding-fields dd[data-field="impact"]{color:var(--text);font-size:15px;line-height:1.5;font-weight:500}
+.finding-fields dd[data-field="location"] code{font-size:12.5px;color:var(--accent);word-break:break-all}
+.finding-fields pre{font-size:12.5px;line-height:1.65;background:#05060a;border:1px solid var(--line2);border-left:3px solid var(--rule);padding:12px 14px;color:#d3dfeb;max-height:440px;overflow:auto}
+.finding-fields dd[data-field="recommendation"]{border-left:3px solid var(--accent);padding:2px 0 2px 12px;color:var(--text)}
+.finding-fields dd[data-field="decision"]{padding:10px 12px;background:var(--raised);color:var(--text)}
+.finding-fields dd[data-field="validation"]{color:var(--warn)}
+.pane-empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.rp-block{padding:0 0 22px;margin:0 0 22px;border-bottom:2px solid var(--rule)}
+.rp-block:last-of-type{border-bottom:0}
+.rp-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px}
+.rp-h h2{font:800 17px/1 var(--display);letter-spacing:-.025em}
+.rp-n{font:800 17px/1 var(--display);color:var(--dim);font-variant-numeric:tabular-nums}
+.rp-sub+.rp-sub{margin-top:18px}
+.kv{display:grid;grid-template-columns:minmax(92px,auto) 1fr;margin:0;font-size:12.5px;border-top:1px solid var(--line2)}
+.kv dt,.kv dd{margin:0;padding:7px 0;border-bottom:1px solid var(--line)}
+.kv dt{color:var(--muted);padding-right:12px}
+.kv dd{color:var(--soft);overflow-wrap:anywhere}
+.numbered{list-style:none;margin:0;padding:0;counter-reset:li;border-top:1px solid var(--line2)}
+.numbered li{counter-increment:li;display:grid;grid-template-columns:26px minmax(0,1fr);gap:6px;margin:0;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;color:var(--soft)}
+.numbered li::before{content:counter(li,decimal-leading-zero);font:800 11px/1.7 var(--display);color:var(--dim)}
+.rp-sub[data-kind="gaps"] .rp-h{padding-top:8px;border-top:4px solid transparent;border-image:var(--hazard) 1}
+.none-note{font-size:13px;color:var(--dim);padding:6px 0;border-top:1px solid var(--line2)}
+.rv-card{margin-bottom:12px;border:1px solid var(--line2);background:rgba(255,255,255,.012)}
+.rv-status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;font:800 10px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;border-bottom:1px solid var(--line2);color:var(--ok)}
+.rv-status::before{content:"";width:8px;height:8px;background:currentColor;flex:none}
+.rv-status span{flex:1}
+.rv-status small{font:600 10.5px/1.2 var(--sans);letter-spacing:0;text-transform:none;text-align:right}
+.rv-card[data-tone="bad"] .rv-status{background:var(--bad);color:var(--ink);border-color:var(--bad)}
+.rv-card[data-tone="warn"] .rv-status{background:var(--warn);color:var(--ink);border-color:var(--warn)}
+.rv-card[data-tone="idle"] .rv-status{background:var(--hatch);color:var(--muted)}
+.rv-inner{display:flex;flex-direction:column;gap:10px;padding:12px}
+.rv-head{display:flex;align-items:center;gap:10px;min-width:0}
+.rv-head .rv{min-width:28px;height:26px;font-size:10.5px}
+.rv-name{font:800 19px/1 var(--display);letter-spacing:-.03em}
+.rv-model{font:12px/1.35 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.rv-stats{display:flex;border:1px solid var(--line2)}
+.rv-stat{flex:1;display:flex;align-items:flex-end;gap:8px;padding:7px 10px}
+.rv-stat+.rv-stat{border-left:1px solid var(--line2)}
+.rv-stat b{font:800 24px/.8 var(--display);letter-spacing:-.05em}
+.rv-stat span{font:800 9px/1.2 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.rv-card .kv{font-size:12px}
+.rv-card .kv dd{font-family:var(--mono);font-size:11.5px}
+.rv-prov{font-size:12.5px;line-height:1.45;color:var(--soft)}
+.rv-prov .kicker,.rv-limits .kicker{margin-bottom:4px}
+.rv-limits{padding:8px 10px;border-left:3px solid var(--warn);background:rgba(255,181,71,.08);font-size:12.5px;line-height:1.45;color:var(--soft)}
+.raw summary{cursor:pointer;font:800 10px/1.6 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.raw pre{margin:8px 0 0;font-size:11.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;background:#05060a;border:1px solid var(--line2);padding:10px;color:var(--soft);max-height:320px;overflow:auto}
+.note{margin-bottom:12px;padding-top:8px;border-top:3px solid var(--rule)}
+.note strong{display:block;font:800 14px/1.25 var(--display);letter-spacing:-.01em}
+.note p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+.sources{list-style:none;padding:0;border-top:1px solid var(--line2)}
+.sources li{margin:0;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.sources a::after{content:" ↗"}
+.footnote{font:11px var(--mono);color:var(--dim);margin-top:8px}
+
+/* Assessment metrics reflow by their own width, so a wide detail column never crushes them */
+.assess{container-type:inline-size}
+@container (max-width:660px){
+  .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .metric{border-bottom:2px solid var(--rule);padding:12px}
+  .metric:nth-child(3){border-right:0}
+  .metric .kicker{font-size:9.5px;letter-spacing:.1em}
+  .metric-sev{grid-column:1/-1;border-bottom:0}
+  .metric-value{font-size:36px}
+}
+
+/* Keyboard cheatsheet (core's ? modal), console-styled */
+.shortcut-overlay{background:rgba(3,4,6,.74);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.shortcut-sheet{width:min(760px,100%);padding:0;background:var(--panel);color:var(--text);border:2px solid var(--rule);box-shadow:8px 8px 0 var(--accent-weak),0 30px 90px rgba(0,0,0,.65);scrollbar-width:thin}
+.shortcut-head{position:sticky;top:0;z-index:1;margin:0;padding:12px 12px 12px 20px;background:var(--panel);border-bottom:2px solid var(--rule)}
+.shortcut-head::before{content:"?";display:inline-grid;place-items:center;flex:none;width:30px;height:30px;background:var(--accent);color:var(--ink);font:800 17px/1 var(--display)}
+.shortcut-title{flex:1;font:800 21px/1 var(--display);letter-spacing:-.03em}
+.shortcut-close{width:36px;height:36px;background:var(--ink);color:var(--text);font:300 24px/1 var(--sans)}
+.shortcut-close:hover{background:var(--text);color:var(--ink)}
+.shortcut-groups{padding:18px 20px 6px;gap:20px 30px}
+.shortcut-group-title{margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--line2);font:800 10.5px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);opacity:1}
+.shortcut-group dl{gap:8px 14px}
+.shortcut-group dd{font-size:13px;color:var(--soft)}
+.shortcut-group kbd{min-width:24px;font-size:12px;padding:2px 6px;color:var(--text)}
+.kbd-or{font:700 10px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);opacity:1}
+.shortcut-foot{margin:12px 0 0;padding:10px 20px 12px;border-top:1px solid var(--line2);font:11px/1.45 var(--mono);color:var(--dim);opacity:1}
+.shortcuts .shortcut-groups{padding:0;gap:14px}
+.shortcuts .shortcut-group-title{color:var(--dim);font-size:9.5px}
+.shortcuts .shortcut-group dd{font-size:12px;color:var(--muted)}
+.shortcuts-open{height:26px;padding:0 9px;border:1px solid var(--rule);background:transparent;color:var(--soft);font:700 10.5px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.shortcuts-open:hover{background:var(--text);border-color:var(--text);color:var(--ink)}
+
+/* Full screen (f): the finding pane becomes the whole console. Centred reading column; on wide screens the
+   answer and meta ride along in a sticky side rail so a/i/r/c stay in reach while you read evidence with j/k. */
+@media screen{
+  html[data-drawer-full] .detail{z-index:80}
+  html[data-drawer-full] .app .detail .finding-pane{display:flex!important;flex-direction:column;position:fixed;inset:0;z-index:90;width:auto;transform:none;visibility:visible;transition:none;border:0;box-shadow:none;background:var(--bg)}
+  html[data-drawer-full] .finding-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  html[data-drawer-full] .pane-band{position:sticky;top:0;z-index:3;padding-left:max(18px,calc((100% - 1040px) / 2 + 20px));padding-right:max(12px,calc((100% - 1040px) / 2 + 20px))}
+  html[data-drawer-full] .pane-full-label{display:inline}
+  html[data-drawer-full] .pane-body{width:100%;max-width:1040px;margin:0 auto;padding:30px 20px 96px}
+  html[data-drawer-full] .pane-title{font-size:clamp(24px,2.6vw,34px);max-width:30ch}
+  html[data-drawer-full] .finding-fields dd{font-size:14.5px;line-height:1.6}
+  html[data-drawer-full] .finding-fields dd[data-field="impact"]{font-size:17px}
+  html[data-drawer-full] .finding-fields pre{max-height:none;font-size:13px}
+}
+/* Keep the list's columns at their default width under the full-screen pane, so nothing reflows behind it. */
+@media screen and (min-width:1180px){
+  html[data-drawer-full] .shell{grid-template-columns:264px minmax(0,1fr) 420px}
+  html[data-drawer-full] .app:is([data-view="board"],[data-view="matrix"]) .shell{grid-template-columns:240px minmax(0,1fr) clamp(320px,28vw,384px)}
+}
+@media screen and (min-width:960px){
+  html[data-drawer-full] .pane-body{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"note note" "title side" "line side" "fields side";grid-template-rows:auto auto auto 1fr;column-gap:40px;align-items:start}
+  html[data-drawer-full] .pane-note{grid-area:note}
+  html[data-drawer-full] .pane-title{grid-area:title}
+  html[data-drawer-full] .pane-line{grid-area:line}
+  html[data-drawer-full] .finding-fields{grid-area:fields;margin-top:4px}
+  html[data-drawer-full] .pane-side{grid-area:side;position:sticky;top:116px;display:flex;flex-direction:column;gap:14px}
+  html[data-drawer-full] .pane-side .pane-meta{order:2;margin:0}
+  html[data-drawer-full] .pane-side .answer{order:1;margin:0}
+}
+
+/* Medium: detail flows below; list rows expand inline; board/matrix open the finding as an overlay sheet */
+@media (max-width:1179px){
+  .shell,.app:is([data-view="board"],[data-view="matrix"]) .shell{grid-template-columns:240px minmax(0,1fr)}
+  .detail{position:static;display:block;height:auto;grid-column:2;border-left:0;border-top:2px solid var(--rule);overflow:visible}
+  .detail-scroll{overflow:visible}
+  .detail>.resize-handle{display:none}
+  .detail-tabs{display:none}
+  .detail .report-pane{display:block!important}
+  .detail .finding-pane{display:none}
+  .app[data-view="list"] .row-details{display:block}
+  .app[data-view="list"] .expand-controls{display:flex}
+  .presets .preset[data-preset="disagreements"]{display:none}
+  .brand-name,.brand-sep{display:none}
+  .app:is([data-view="board"],[data-view="matrix"]) .detail .finding-pane{display:flex!important;flex-direction:column;position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(var(--drawer-width,500px),100vw);background:var(--panel);border-left:2px solid var(--rule);box-shadow:-30px 0 70px rgba(0,0,0,.55);transform:translateX(104%);visibility:hidden;transition:transform .2s ease,visibility 0s linear .2s}
+  .app:is([data-view="board"],[data-view="matrix"]) .finding-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .app[data-sheet] .detail .finding-pane{transform:none;visibility:visible;transition:transform .2s ease}
+  .app[data-sheet] .sheet-scrim{display:block;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.6)}
+}
+/* Small: sidebar becomes a drawer */
+@media (max-width:759px){
+  :root{--top:0px;--bar-h:0px}
+  html{scroll-padding-top:12px}
+  .topbar{position:relative;height:auto;flex-wrap:wrap;padding:10px 12px;gap:10px}
+  .brand{max-width:none;flex:1 1 0}
+  .brand-name,.brand-sep{display:none}
+  .top-search{order:5;flex-basis:100%;max-width:none}
+  .presets{order:6;width:100%;overflow-x:auto}
+  .preset{flex:1 0 auto;padding:0 6px;font-size:10px;letter-spacing:.04em}
+  .presets .preset[data-preset="disagreements"]{display:block}
+  .tb-row .print{display:none}
+  .filters-btn{display:inline-flex}
+  .top-actions{display:contents}
+  .top-actions .copy-answers{order:4;flex:1 1 100%;justify-content:space-between}
+  .pane-band{gap:8px}
+  .pane-full-label{display:none!important}
+  .app:is([data-view="board"],[data-view="matrix"]) .detail .finding-pane{width:100vw}
+  .shell{display:block}
+  .sidebar{position:fixed;z-index:70;top:0;left:0;bottom:0;height:auto;width:min(320px,88vw);transform:translateX(-102%);transition:transform .18s ease;box-shadow:20px 0 60px rgba(0,0,0,.5)}
+  .app[data-drawer] .sidebar{transform:none}
+  .app[data-drawer] .scrim{display:block;position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.6)}
+  .main{padding:14px 12px 56px}
+  .toolbar{position:static;margin:0 -12px;padding:10px 12px}
+  .viewswitch{width:100%}
+  .view-btn{flex:1;justify-content:center;padding:0 8px}
+  .tb-spacer{display:none}
+  .group-head,.board-head{position:static}
+  .group-meta,.group-head .sev-pips{display:none}
+  .assess-top{grid-template-columns:1fr}
+  .status-tile{min-height:0;border-right:0;border-bottom:2px solid var(--rule);padding:14px}
+  .status-tile[data-status="incomplete"]{padding-top:30px}
+  .status-word{font-size:clamp(34px,13vw,52px)}
+  .assess-main{padding:14px}
+  .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .metric{border-bottom:2px solid var(--rule);padding:12px}
+  .metric:nth-child(3){border-right:0}
+  .metric .kicker{font-size:9.5px;letter-spacing:.1em}
+  .metric-sev{grid-column:1/-1;border-bottom:0;grid-template-columns:auto minmax(0,1fr)}
+  .metric-value{font-size:36px}
+  .team-chip{border-right:0;border-bottom:1px solid var(--line2)}
+  .row{grid-template-columns:auto minmax(0,1fr);padding:10px 4px}
+  .row-side{grid-column:2;justify-content:flex-start}
+  .board-head{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 0 12px;border:0}
+  .col-head,.col-head:first-child,.col-head[data-folded]{flex-direction:row;justify-content:flex-start;padding:8px 10px;border:1px solid var(--rule);background:var(--panel)}
+  .col-head[data-folded] :is(.col-label,.col-count){display:block;color:var(--dim)}
+  .col-head[data-folded] .col-toggle{margin-left:0}
+  .col-count{font-size:22px}
+  .lane-bar{display:none}
+  .lane-label{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .lane-cells{display:block;padding-bottom:6px}
+  .cell,.cell:first-child,.cell:last-child{padding:10px 0 4px;border-left:0}
+  .cell[data-count="0"],.cell[data-folded]{display:none}
+  .cell-label{display:flex}
+  .card:hover{transform:none;box-shadow:none}
+  .mx-note{text-align:left;margin-left:0}
+  .mx-title{font-size:22px}
+  .heat{min-width:340px}
+  .heat-col{width:46px}.heat-col-total{width:48px}
+  .heat-colbtn span:last-child{display:none}
+  .heat-rowtext .stack-title{display:none}
+  .who{min-width:0}
+  .who-h-rv{width:40px}.who-h-agree{width:56px}
+  .who-rvh span:last-child{display:none}
+  .who-fin{flex-wrap:wrap;gap:5px 8px}
+  .who-open{flex:1 1 100%;order:5;white-space:normal}
+  .who-stat{flex-direction:column;align-items:flex-start;gap:5px}
+  .who-stat b{font-size:28px}
+  .empty-state{grid-template-columns:1fr}
+  .empty-zero{border-right:0;border-bottom:2px solid var(--rule);font-size:110px}
+  .pane-body,.report-pane{padding:16px 14px 48px}
+}
+
+/* Print: a readable list of the filtered findings with every field */
+@media print{
+  :root{color-scheme:light;--bg:#fff;--panel:#fff;--raised:#f3f4f6;--hover:#fff;--line:#d9dde2;--line2:#c8ced5;--rule:#111;--text:#111;--soft:#222;--muted:#555;--dim:#666;--ink:#111;--accent:#0b7a5c;--accent-weak:#eef8f4;--accent-line:#9fd8c6;--p2:#d4a400;--violet:#6d28d9;--warn:#9a5b00;--grey:#d5d9de;--hatch:none;--top:0px;--bar-h:0px}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-size:10pt}
+  .topbar{position:static;height:auto;border-bottom:2px solid #111;padding:0 0 8pt;background:none;backdrop-filter:none}
+  .topbar::after{display:none}
+  .top-search,.presets,.top-actions,.sidebar,.detail-tabs,.finding-pane,.scrim,.sheet-scrim,.viewswitch,.tb-row .select,.tb-row .copy,.tb-row .print,.expand-controls,.reset,.active-filters,.finding-actions,.row-details summary,.caret,.group-link,.nomatch-actions{display:none!important}
+  .answer{border:1px solid var(--line2);box-shadow:none;background:none;break-inside:avoid}
+  .answer-option[aria-pressed="false"]{display:none}
+  .answer-choice{border:0}
+  .answer-option{height:auto;padding:3pt 6pt;border:1.5px solid #111!important}
+  .answer-option[aria-pressed="true"]{background:none!important;color:#111!important}
+  .answer-option[aria-pressed="true"] .answer-mark{background:none;color:#111;border-color:#111}
+  .answer-input{background:none;color:#111;field-sizing:content;max-height:none;min-height:0;border:0;padding:0}
+  .answer-comment:has(.answer-input:placeholder-shown){display:none}
+  .answer-head{border-bottom:0}
+  .flag-ignored,.flag-comment{background:none;color:#111;border-color:#111}
+  .shell{display:block}.main{padding:0}
+  .assess{break-inside:avoid}
+  .toolbar{position:static;margin:12pt 0 0;padding:0 0 6pt;background:none}
+  .filter-summary{display:block;margin:0;font:9pt var(--mono);color:var(--muted)}
+  .group-head{position:static;background:none;break-after:avoid}
+  .tile{background:none!important;color:#111!important;border:1.5px solid #111}
+  .row{border:1px solid var(--line2);margin-bottom:6pt;padding:8pt;box-shadow:none!important;background:none!important;opacity:1!important}
+  .row-main,.row-side{break-inside:avoid}
+  .row-details{display:block!important}
+  .finding-fields dt{break-after:avoid}
+  .finding-fields pre{white-space:pre-wrap}
+  .detail{position:static;height:auto;border:0;overflow:visible}
+  .detail .report-pane{display:block!important;padding:12pt 0 0}
+  .rv-status,.rv-head,.note{break-inside:avoid;break-after:avoid}
+  .finding-fields pre,.raw pre{background:#f6f7f8;color:#111;max-height:none}
+  a{color:inherit}
+}
+</style>
+</head>
+<body>
+<noscript>This report renders with JavaScript. The full report data is embedded in this file.</noscript>
+<div id="app" class="app"></div>
+<script type="application/json" id="report-data">@@DATA@@</script>
+<script>@@CORE_JS@@</script>
+<script>
+(() => {
+  'use strict';
+  const app = MultiAgentReview.create();
+  const { h, ui, data, stack, state } = app;
+  const { SEVERITIES, SEVERITY_LABELS, DISPOSITIONS, FACETS, FACET_LABELS, ANSWER_LABELS, NO_PR, CROSS_PR } = app.constants;
+  const root = document.getElementById('app');
+  root.classList.add(`status-${data.status}`);
+  const wide = window.matchMedia('(min-width: 1180px)');
+  const small = window.matchMedia('(max-width: 759px)');
+  const STATUS = { complete: 'Complete', incomplete: 'Incomplete', setup: 'Setup' };
+  const DISP_LABEL = { confirmed: 'Confirmed', 'needs validation': 'Needs validation', disputed: 'Disputed', rejected: 'Rejected' };
+  const VIEWS = [
+    { key: '', id: 'list', label: 'List', hint: 'Dense rows, grouped' },
+    { key: 'board', id: 'board', label: 'Board', hint: 'Disposition columns with swimlanes' },
+    { key: 'matrix', id: 'matrix', label: 'Matrix', hint: 'PR × severity heat grid and who found what' },
+  ];
+  const BAD = ['failed', 'timed_out', 'unavailable', 'cancelled'];
+  const WARN = ['stale', 'running'];
+  const findings = app.findings;
+  const hasFindings = findings.length > 0;
+  const reviewerNames = app.options.reviewer.map((o) => o.value);
+  const human = (value) => String(value).replace(/_/g, ' ');
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
+  const kicker = (text, cls) => h('span', { class: cls ? `kicker ${cls}` : 'kicker' }, text);
+  const dispGlyph = (d) => h('span', { class: 'disp', dataset: { disposition: d }, 'aria-hidden': 'true' });
+  const sevTag = (s) => h('span', { class: 'sev', dataset: { severity: s }, title: `${s} · ${SEVERITY_LABELS[s]}` }, s);
+  const rvTile = (name) => h('span', { class: 'rv', title: name, dataset: { rv: String(app.reviewerIndex(name)) } }, app.initials(name));
+  const tally = (list) => { const row = { total: 0, P0: 0, P1: 0, P2: 0, P3: 0 }; list.forEach((f) => { row.total += 1; row[f.severity] += 1; }); return row; };
+  const sameSet = (set, values) => set.size === values.length && values.every((v) => set.has(v));
+  const currentView = () => (state.view === 'board' || state.view === 'matrix' ? state.view : '');
+  const viewId = () => currentView() || 'list';
+
+  let tab = state.selected ? 'finding' : 'report';
+  let printing = false;
+  const collapsedGroups = new Set();
+  const foldedCols = new Set(app.store.get('foldedCols', []).filter((d) => DISPOSITIONS.includes(d)));
+  const foldedLanes = new Set(app.store.get('foldedLanes', []));
+
+  /** Re-render a region outside core's notify() while keeping keyboard focus on the same control. */
+  function keepFocus(fn) {
+    const active = document.activeElement;
+    const key = active && active.dataset ? active.dataset.focusKey : null;
+    fn();
+    app.sync();
+    if (key && (!document.activeElement || document.activeElement === document.body)) {
+      const el = document.querySelector(`[data-focus-key="${CSS.escape(key)}"]`);
+      if (el) el.focus({ preventScroll: true });
+    }
+  }
+  function segbar(row) {
+    const present = SEVERITIES.filter((s) => row[s]);
+    const label = present.map((s) => `${row[s]} ${s} ${SEVERITY_LABELS[s]}`).join(', ') || 'No findings';
+    return h('span', { class: 'segbar', role: 'img', 'aria-label': label, title: label },
+      present.map((s) => h('span', { class: 'segbar-seg', dataset: { severity: s }, style: `flex-grow:${row[s]}` })));
+  }
+  function confidence(value) {
+    const v = String(value || '').trim().toLowerCase();
+    const level = v === 'high' ? 3 : v === 'medium' ? 2 : v === 'low' ? 1 : 0;
+    return h('span', { class: 'conf', title: `${value} confidence` },
+      h('span', { class: 'conf-bars', 'aria-hidden': 'true' }, [1, 2, 3].map((i) => h('i', { class: i <= level ? 'on' : null }))),
+      h('span', { class: 'conf-word' }, value || 'Unknown'), h('span', { class: 'sr-only' }, ' confidence'));
+  }
+
+  /* ---------- Top bar ---------- */
+  const filtersBadge = h('span', { class: 'badge' });
+  const filtersButton = h('button', { type: 'button', class: 'btn filters-btn', 'aria-controls': 'sidebar', 'aria-expanded': 'false', onclick: () => setDrawer(!root.hasAttribute('data-drawer')) }, 'Filters', filtersBadge);
+  const topbar = h('header', { class: 'topbar' },
+    h('div', { class: 'brand' },
+      h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, SEVERITIES.map((s) => h('i', { dataset: { severity: s } }))),
+      h('span', { class: 'brand-name' }, 'Review'),
+      h('span', { class: 'brand-sep', 'aria-hidden': 'true' }, '/'),
+      h('span', { class: 'brand-title', title: data.title }, data.title)),
+    h('span', { class: `status-pill status-${data.status}`, title: data.meta.status_note }, STATUS[data.status] || data.status),
+    h('div', { class: 'top-search' }, ui.search({ placeholder: 'Search titles, files, evidence…' }), h('kbd', { class: 'search-kbd' }, '/')),
+    ui.presets(),
+    h('div', { class: 'top-actions' }, ui.copyAnswers('Copy answers JSON'), filtersButton));
+  function setDrawer(open) {
+    root.toggleAttribute('data-drawer', open);
+    filtersButton.setAttribute('aria-expanded', String(open));
+  }
+
+  /* ---------- Git-graph stack layout ----------
+     Rows follow stack order (trunk first). Column = the PR's lane: a first child continues its parent's
+     column, a fork branches right from the parent's row and runs down its own column to the child. */
+  const TRUNK = '(trunk)';
+  function stackLayout() {
+    const rows = [{ trunk: true, id: TRUNK }].concat(stack.order);
+    const col = new Map([[TRUNK, 0]]);
+    stack.order.forEach((n) => col.set(n.id, n.lane));
+    const at = new Map(rows.map((r, i) => [r.id, i]));
+    const segs = rows.map(() => ({ full: new Set(), top: new Set(), bottom: new Set(), forks: [] }));
+    stack.order.forEach((n) => {
+      const p = n.parentEntry ? n.parentEntry.id : TRUNK;
+      const rp = at.get(p); const rn = at.get(n.id); const cp = col.get(p); const cn = col.get(n.id);
+      if (cn === cp) segs[rp].bottom.add(cp); else segs[rp].forks.push([cp, cn]);
+      for (let r = rp + 1; r < rn; r += 1) segs[r].full.add(cn);
+      segs[rn].top.add(cn);
+    });
+    return { rows, col, segs, width: Math.max(...col.values()) + 1 };
+  }
+  const STEP = 16;
+  function graphCell(layout, index) {
+    const width = layout.width * STEP;
+    if (index == null) return { cell: h('span', { class: 'g', 'aria-hidden': 'true', style: `width:${width}px` }), dot: null };
+    const s = layout.segs[index];
+    const row = layout.rows[index];
+    const x = (c) => c * STEP + STEP / 2;
+    const parts = [];
+    s.full.forEach((c) => parts.push(h('span', { class: 'g-v', style: `left:${x(c)}px` })));
+    s.top.forEach((c) => { if (!s.full.has(c)) parts.push(h('span', { class: 'g-top', style: `left:${x(c)}px` })); });
+    s.bottom.forEach((c) => { if (!s.full.has(c)) parts.push(h('span', { class: 'g-bot', style: `left:${x(c)}px` })); });
+    s.forks.forEach(([a, b]) => parts.push(h('span', { class: 'g-fork', style: `left:${x(a)}px;width:${x(b) - x(a) + 1}px` })));
+    const dot = h('span', { class: row.trunk ? 'g-dot trunk' : 'g-dot', style: `left:${x(layout.col.get(row.id))}px` });
+    parts.push(dot);
+    return { cell: h('span', { class: 'g', 'aria-hidden': 'true', style: `width:${width}px` }, parts), dot };
+  }
+  function paintDot(dot, row) {
+    if (!dot) return;
+    const worst = SEVERITIES.find((s) => row[s]);
+    if (worst) { dot.dataset.worst = ''; dot.dataset.severity = worst; } else { delete dot.dataset.worst; delete dot.dataset.severity; }
+  }
+
+  /* ---------- Sidebar ---------- */
+  const sideRefresh = [];
+  function stackPanel() {
+    if (!app.hasStack) return null;
+    const layout = stackLayout();
+    const items = layout.rows.map((row, index) => {
+      const { cell, dot } = graphCell(layout, index);
+      if (row.trunk) {
+        return h('li', null, h('div', { class: 'stack-row trunk-row' }, cell,
+          h('span', { class: 'stack-text' }, h('span', { class: 'stack-line' }, h('span', { class: 'stack-title' }, stack.trunk), h('span', { class: 'kicker' }, 'trunk')))));
+      }
+      const count = h('span', { class: 'stack-count' });
+      const pips = h('span', { class: 'sev-pips' });
+      const diff = [row.additions != null ? `+${row.additions}` : null, row.deletions != null ? `−${row.deletions}` : null].filter(Boolean).join(' ');
+      const button = h('button', {
+        type: 'button', class: 'stack-row', 'aria-pressed': 'false', dataset: { focusKey: `stack:${row.id}` },
+        title: `${app.prLabel(row.id)} ${row.title}${row.forked ? ` (forks from ${app.prLabel(row.parent)})` : ''}. Click to show only this PR; shift-click to add it.`,
+        onclick: (event) => app.toggle('pr', row.id, !(event.shiftKey || event.altKey)),
+      }, cell, h('span', { class: 'stack-text' },
+        h('span', { class: 'stack-line' }, h('span', { class: 'stack-num' }, app.prLabel(row.id)), h('span', { class: 'stack-title' }, row.title), count),
+        h('span', { class: 'stack-sub' }, h('span', { class: 'stack-branch' }, [row.branch, row.status === 'draft' ? 'draft' : null, diff].filter(Boolean).join(' · ')), pips)));
+      sideRefresh.push((rows) => {
+        const stats = rows.get(row.id);
+        button.setAttribute('aria-pressed', String(state.pr.has(row.id)));
+        button.toggleAttribute('data-empty', stats.total === 0);
+        count.textContent = String(stats.total);
+        pips.replaceChildren(ui.severityPips(stats));
+        paintDot(dot, stats);
+      });
+      return h('li', null, button);
+    });
+    if (app.options.pr.some((o) => o.value === NO_PR)) {
+      const count = h('span', { class: 'stack-count' });
+      const button = h('button', { type: 'button', class: 'stack-row', 'aria-pressed': 'false', dataset: { focusKey: 'stack:none' }, title: 'Findings not tied to one PR', onclick: (e) => app.toggle('pr', NO_PR, !(e.shiftKey || e.altKey)) },
+        graphCell(layout).cell, h('span', { class: 'stack-text' }, h('span', { class: 'stack-line' }, h('span', { class: 'stack-title' }, 'Not tied to a PR'), count)));
+      sideRefresh.push(() => {
+        button.setAttribute('aria-pressed', String(state.pr.has(NO_PR)));
+        count.textContent = String(app.counts('pr').get(NO_PR) || 0);
+      });
+      items.push(h('li', null, button));
+    }
+    const clear = h('button', { type: 'button', class: 'side-clear', dataset: { focusKey: 'stack-clear' }, onclick: () => app.setFacet('pr', []) }, 'All PRs');
+    sideRefresh.push(() => { clear.hidden = !state.pr.size; });
+    return h('section', { class: 'side-block', 'aria-label': 'Stacked pull requests' },
+      h('div', { class: 'side-head' }, kicker(`Stack · ${plural(stack.order.length, 'PR')}`), clear),
+      h('ol', { class: 'stack-list' }, items),
+      h('div', { class: 'stack-inherit' }, ui.toggle('prInherited', 'Include issues from lower PRs')));
+  }
+  /** Every finding is Fix unless the coordinator rejected it; this block filters by answer and answers the shown findings at once. */
+  function answersPanel() {
+    if (!hasFindings) return null;
+    const clearPins = h('button', { type: 'button', class: 'action pins-clear', dataset: { focusKey: 'pins-clear' }, title: 'Unpin every finding', onclick: () => app.clearPins() }, 'Clear pins');
+    sideRefresh.push(() => { clearPins.disabled = !app.pinnedCount(); });
+    return h('section', { class: 'side-block side-answers', 'aria-label': 'Your answers' },
+      ui.facet('answer'),
+      ui.bulkAnswer(),
+      h('div', { class: 'side-pins' }, ui.toggle('pinnedOnly', 'Pinned only'), clearPins),
+      h('p', { class: 'side-note' }, 'Every finding is Fix unless you ignore it (rejected ones start ignored). Answers, comments and pins are saved in this browser only and shared by every design of this report.'));
+  }
+  app.addShortcuts('Views', [['v', 'Cycle List / Board / Matrix']]);
+  const shortcuts = ui.shortcuts();
+  const sectionDefs = [['summary', 'Assessment'], ['team', 'Review team'], ['target', 'Target'], ['reviewers', 'Reviewer details'], ['coverage', 'Checks & gaps']]
+    .concat(data.notes.length || data.sources.length ? [['notes', 'Notes & sources']] : []);
+  const sidebar = h('aside', { class: 'sidebar', id: 'sidebar', 'aria-label': 'Filters' },
+    answersPanel(),
+    stackPanel(),
+    ui.facet('severity', { labels: Object.fromEntries(SEVERITIES.map((s) => [s, `${s} · ${SEVERITY_LABELS[s]}`])) }),
+    ui.facet('disposition'),
+    ui.facet('reviewer'),
+    ui.facet('confidence'),
+    ui.facet('tag'),
+    ui.sections(sectionDefs),
+    shortcuts);
+
+  /* ---------- Assessment ---------- */
+  const all = tally(findings);
+  let heroBar = null;
+  let heroSegs = [];
+  const teamRefresh = [];
+  function buildAssessment() {
+    const word = STATUS[data.status] || data.status;
+    const short = data.reviewers.filter((r) => r.status !== 'completed');
+    heroSegs = SEVERITIES.filter((s) => all[s]).map((s) => h('button', {
+      type: 'button', class: 'herobar-seg', 'aria-pressed': 'false', style: `flex-grow:${all[s]}`,
+      title: `${all[s]} ${s} ${SEVERITY_LABELS[s]}. Click to filter; shift-click to show only ${s}.`,
+      dataset: { severity: s, focusKey: `hero:${s}` },
+      onclick: (event) => app.toggle('severity', s, event.shiftKey || event.altKey),
+    }, h('span', { class: 'n' }, String(all[s])), h('span', { class: 'k' }, s)));
+    heroBar = all.total
+      ? h('div', { class: 'herobar', role: 'group', 'aria-label': 'Findings by severity; click to filter' }, heroSegs)
+      : h('div', { class: 'herobar is-empty' }, 'No findings recorded');
+    const metric = (label, value, note, flags) => h('div', { class: 'metric', dataset: flags || {} },
+      kicker(label), h('div', { class: 'metric-value' }, value), note ? h('p', { class: 'metric-note' }, note) : null);
+    const team = h('div', { class: 'team', dataset: { section: 'team' } }, data.reviewers.map((r) => {
+      const chip = h('button', {
+        type: 'button', class: 'team-chip', 'aria-pressed': 'false', dataset: { focusKey: `team:${r.name}` },
+        title: `${r.provenance} Click to show findings raised by ${r.name}.`,
+        onclick: () => app.toggle('reviewer', r.name, true),
+      }, rvTile(r.name),
+      h('span', { class: 'team-text' }, h('span', { class: 'team-name' }, r.name), h('span', { class: 'team-model' }, `${r.model} · ${r.effort} · ${r.transport}`)),
+      h('span', { class: `state state-${r.status}`, title: human(r.status) }, human(r.status)));
+      teamRefresh.push(() => chip.setAttribute('aria-pressed', String(state.reviewer.size === 1 && state.reviewer.has(r.name))));
+      return chip;
+    }));
+    return h('section', { class: `assess status-${data.status}`, 'aria-label': 'Assessment' },
+      h('div', { class: 'assess-top', dataset: { section: 'summary' } },
+        h('div', { class: 'status-tile', dataset: { status: data.status } },
+          kicker('Review status'),
+          h('p', { class: 'status-word', style: `--len:${Math.max(5, word.length)}` }, word),
+          h('p', { class: 'status-note' }, data.meta.status_note)),
+        h('div', { class: 'assess-main' },
+          h('div', { class: 'assess-head' }, kicker(data.title, 'assess-title'), kicker(data.generated_at)),
+          h('h1', { class: 'verdict' }, data.verdict),
+          h('p', { class: 'summary-text' }, data.summary)),
+        h('div', { class: 'metrics' },
+          metric('Reviewers completed', [String(data.meta.completed), h('small', null, `/${data.reviewers.length}`)],
+            short.length ? `Not completed: ${short.map((r) => `${r.name} (${human(r.status)})`).join(', ')}` : 'Every requested reviewer finished.',
+            short.length ? { warn: '' } : null),
+          metric('Confirmed', String(data.meta.confirmed), hasFindings ? `of ${plural(findings.length, 'finding')}` : 'Nothing to confirm yet'),
+          metric('Unresolved', String(data.meta.unresolved), 'Disputed or still needs validation', data.meta.unresolved ? { hatch: '' } : null),
+          h('div', { class: 'metric metric-sev' }, kicker('Findings by severity'), h('div', { class: 'metric-value' }, String(all.total)), heroBar))),
+      team);
+  }
+  const assessment = buildAssessment();
+  function refreshHero() {
+    if (!heroBar) return;
+    heroBar.toggleAttribute('data-filtered', state.severity.size > 0);
+    heroSegs.forEach((b) => b.setAttribute('aria-pressed', String(state.severity.has(b.dataset.severity))));
+  }
+
+  /* ---------- Toolbar + view switcher ---------- */
+  const viewButtons = VIEWS.map((v) => h('button', {
+    type: 'button', class: 'view-btn', 'aria-pressed': 'false', title: `${v.hint} · press v to cycle views`,
+    dataset: { view: v.id, focusKey: `view:${v.id}` },
+    onclick: () => { if (currentView() !== v.key) app.set('view', v.key); },
+  }, h('span', { class: 'view-icon', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i')), h('span', null, v.label)));
+  const groupSelect = ui.select('groupBy', 'Group');
+  const groupLabelEl = groupSelect.querySelector('.select-label');
+  const sortSelect = ui.select('sort', 'Sort');
+  const expand = ui.expand();
+  const activeFilters = h('div', { class: 'active-filters', 'aria-label': 'Active filters' });
+  const toolbar = h('div', { class: 'toolbar', role: 'region', 'aria-label': 'Findings toolbar' },
+    h('h2', { class: 'sr-only' }, 'Findings'),
+    h('div', { class: 'tb-row' },
+      h('div', { class: 'viewswitch', role: 'group', 'aria-label': 'View' }, viewButtons),
+      h('span', { class: 'tb-spacer' }), hasFindings ? ui.answerSummary() : null, ui.count()),
+    h('div', { class: 'tb-row tb-controls' }, groupSelect, sortSelect, expand, h('span', { class: 'tb-spacer' }), ui.reset('Clear filters'),
+      hasFindings ? ui.copy('Copy Markdown') : null, ui.print('Print')),
+    activeFilters,
+    ui.filterSummary());
+  new ResizeObserver(() => document.documentElement.style.setProperty('--bar-h', `${toolbar.offsetHeight}px`)).observe(toolbar);
+  function syncToolbar() {
+    const v = viewId();
+    viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+    groupLabelEl.textContent = v === 'board' ? 'Lanes' : 'Group';
+    groupSelect.hidden = v === 'matrix' || !hasFindings;
+    expand.hidden = v !== 'list' || !hasFindings;
+    sortSelect.hidden = !hasFindings;
+    const n = FACETS.reduce((sum, k) => sum + state[k].size, 0) + (state.q ? 1 : 0) + (state.pinnedOnly ? 1 : 0);
+    filtersBadge.textContent = n ? String(n) : '';
+  }
+  function renderActiveFilters() {
+    const chips = [];
+    const chip = (label, value, remove) => h('button', { type: 'button', class: 'filter-chip', title: 'Remove filter', onclick: remove }, h('b', null, label), value);
+    if (state.q) chips.push(chip('Search', `“${state.q}”`, () => app.set('q', '')));
+    FACETS.forEach((facet) => state[facet].forEach((value) => {
+      const text = facet === 'pr' ? app.prLabel(value) : facet === 'answer' ? ANSWER_LABELS[value] : value;
+      chips.push(chip(FACET_LABELS[facet], text, () => app.toggle(facet, value)));
+    }));
+    if (state.pr.size && state.prInherited) chips.push(chip('Stack', 'with lower PRs', () => app.set('prInherited', false)));
+    if (state.pinnedOnly) chips.push(chip('Pins', 'pinned only', () => app.set('pinnedOnly', false)));
+    activeFilters.replaceChildren(...chips);
+  }
+
+  /* ---------- Shared empty states ---------- */
+  function emptyState() {
+    return h('div', { class: 'empty-state', dataset: { status: data.status } },
+      h('span', { class: 'empty-zero', 'aria-hidden': 'true' }, '0'),
+      h('div', { class: 'empty-copy' },
+        kicker('Findings recorded'),
+        h('p', { class: 'empty-msg' }, data.meta.empty_message),
+        h('p', { class: 'empty-sub' }, `${data.meta.completed} of ${plural(data.reviewers.length, 'reviewer')} completed. ${data.meta.status_note} Board and Matrix fill in once findings exist.`)));
+  }
+  function noMatch() {
+    return h('div', { class: 'nomatch' },
+      h('p', { class: 'nomatch-big' }, 'No findings match'),
+      h('p', { class: 'nomatch-why' }, `Current filter: ${app.filterSummary()}`),
+      h('div', { class: 'nomatch-actions' },
+        app.isFiltered() ? h('button', { type: 'button', class: 'btn btn-solid', dataset: { focusKey: 'nomatch-clear' }, onclick: () => app.reset() }, 'Clear filters') : null,
+        state.answer.size ? h('button', { type: 'button', class: 'btn', dataset: { focusKey: 'nomatch-answers' }, onclick: () => app.setFacet('answer', []) }, 'Show every answer') : null));
+  }
+  /** Markers driven by core's data-pinned / data-ignored / data-commented on the finding element. */
+  function flags(pin) {
+    return h('span', { class: 'flags' },
+      pin === false ? null : h('span', { class: 'flag flag-pin' }, 'Pinned'),
+      h('span', { class: 'flag flag-ignored', title: 'Ignored: left out of the fix list' }, 'Ignored'),
+      h('span', { class: 'flag flag-comment', title: 'Has your comment' }, 'Comment'));
+  }
+  function laneTile(g) {
+    if (g.pr) return h('span', { class: 'tile' }, app.prLabel(g.pr.id));
+    if (g.key === CROSS_PR) return h('span', { class: 'tile', dataset: { kind: 'cross' } }, 'Multi');
+    if (g.key === NO_PR) return h('span', { class: 'tile', dataset: { kind: 'none' } }, '—');
+    if (g.severity) return h('span', { class: 'tile', dataset: { severity: g.severity } }, g.severity);
+    if (g.disposition) return h('span', { class: 'tile', dataset: { kind: 'disp' } }, dispGlyph(g.disposition));
+    return h('span', { class: 'tile' }, 'All');
+  }
+  function laneText(g) {
+    if (g.pr) return { label: g.pr.title, meta: [g.pr.branch, g.pr.forked && g.pr.parent ? `forks from ${app.prLabel(g.pr.parent)}` : null, g.pr.status].filter(Boolean).join(' · ') };
+    if (g.key === CROSS_PR) return { label: 'Spans several PRs', meta: 'Root cause needs more than one PR' };
+    if (g.key === NO_PR) return { label: 'Not tied to a PR', meta: null };
+    if (g.severity) return { label: SEVERITY_LABELS[g.severity], meta: null };
+    return { label: g.label, meta: null };
+  }
+
+  /* ---------- List view ---------- */
+  const host = h('div', { class: 'view-host', id: 'findings' });
+  /* Below 1180px list rows expand inline instead of using the detail pane, so they carry the answer block (and print does too). */
+  const inlineAnswers = () => printing || !wide.matches;
+  function row(f) {
+    const showChips = f.prs.length > 1 || (state.groupBy !== 'pr' && f.prs.length);
+    const inline = inlineAnswers();
+    return h('article', {
+      class: 'row', dataset: { findingId: f.id, severity: f.severity, disposition: f.disposition },
+      onclick: (event) => { if (!event.target.closest('button,a,summary,details')) choose(f.id); },
+    },
+    sevTag(f.severity),
+    h('button', { type: 'button', class: 'row-main', dataset: { focusKey: `row:${f.id}` }, 'aria-describedby': `sub-${f.id}`, onclick: () => choose(f.id) },
+      h('span', { class: 'row-title' }, dispGlyph(f.disposition), h('span', { class: 'row-title-text' }, f.title), flags()),
+      h('span', { class: 'row-sub', id: `sub-${f.id}` },
+        h('span', { class: 'disp-label', dataset: { disposition: f.disposition } }, f.disposition),
+        h('code', null, f.location),
+        h('span', null, `${f.confidence} confidence`),
+        f.tags.slice(0, 3).map((t) => h('span', { class: 'tag' }, t)),
+        h('span', { class: 'row-id' }, f.id))),
+    h('div', { class: 'row-side' }, showChips ? f.prs.map((id) => ui.prChip(id)) : null, ui.reviewerBadges(f.reviewers), ui.findingActions(f)),
+    h('details', { class: 'row-details', dataset: { openFor: f.id }, open: printing || app.isOpen(f.id) },
+      h('summary', null, inline ? 'Your answer, evidence & decision' : 'Evidence & decision'),
+      inline ? ui.answer(f) : null,
+      ui.findingFields(f)));
+  }
+  function choose(id) {
+    app.select(id);
+    if (!wide.matches) app.setOpen(id, !app.isOpen(id));
+  }
+  function renderList() {
+    const view = app.view();
+    if (!view.flat.length) { host.replaceChildren(noMatch()); return; }
+    host.replaceChildren(...view.groups.map((g) => {
+      const isCollapsed = !printing && collapsedGroups.has(g.key);
+      const t = laneText(g);
+      const toggle = h('button', {
+        type: 'button', class: 'group-toggle', 'aria-expanded': String(!isCollapsed), dataset: { focusKey: `group:${g.key}` },
+        onclick: () => { if (collapsedGroups.has(g.key)) collapsedGroups.delete(g.key); else collapsedGroups.add(g.key); keepFocus(renderList); },
+      }, h('span', { class: 'caret', 'aria-hidden': 'true' }),
+      h('span', { class: 'group-label' }, laneTile(g), h('span', { class: 'group-title' }, t.label), t.meta ? h('span', { class: 'group-meta' }, t.meta) : null),
+      ui.severityPips(tally(g.items), { labels: true }),
+      h('span', { class: 'group-count', 'aria-label': plural(g.items.length, 'finding') }, String(g.items.length)));
+      const link = g.pr && g.pr.url ? h('a', { class: 'group-link', href: g.pr.url, target: '_blank', rel: 'noopener noreferrer', title: `Open ${app.prLabel(g.pr.id)} in a new tab` }, 'Open ↗') : null;
+      return h('section', { class: 'group', dataset: { group: g.key } },
+        state.groupBy === 'none' ? null : h('div', { class: 'group-head' }, toggle, link),
+        isCollapsed ? null : h('div', { class: 'rows' }, g.items.map(row)));
+    }));
+  }
+
+  /* ---------- Board view: disposition columns × swimlanes ---------- */
+  function card(f, showChips) {
+    return h('article', { class: 'card', dataset: { findingId: f.id, severity: f.severity, disposition: f.disposition } },
+      h('div', { class: 'card-sev', 'aria-hidden': 'true' }, h('span', { class: 'card-sev-code' }, f.severity)),
+      h('div', { class: 'card-body' },
+        h('div', { class: 'card-top' }, h('span', { class: 'card-id' }, f.id), confidence(f.confidence)),
+        h('h3', { class: 'card-title' }, h('button', {
+          type: 'button', class: 'card-open', dataset: { focusKey: `card:${f.id}` },
+          'aria-label': `${f.severity} ${SEVERITY_LABELS[f.severity]}, ${f.disposition}: ${f.title}`,
+          onclick: () => app.select(f.id),
+        }, f.title)),
+        h('div', { class: 'card-loc', title: f.location }, f.location),
+        h('div', { class: 'card-foot' }, flags(false), showChips ? f.prs.map((id) => ui.prChip(id)) : null, ui.reviewerBadges(f.reviewers), ui.findingActions(f))));
+  }
+  function saveFolds() { app.store.set('foldedCols', [...foldedCols]); app.store.set('foldedLanes', [...foldedLanes]); }
+  function colHead(d, n) {
+    const folded = foldedCols.has(d);
+    const verb = folded ? 'Show' : 'Collapse';
+    return h('div', { class: 'col-head', dataset: { disposition: d, folded: folded ? '' : null } },
+      dispGlyph(d), h('span', { class: 'col-label' }, DISP_LABEL[d]), h('span', { class: 'col-count' }, String(n)),
+      h('button', {
+        type: 'button', class: 'col-toggle', 'aria-expanded': String(!folded), dataset: { focusKey: `col:${d}` },
+        title: `${verb} the ${DISP_LABEL[d]} column`, 'aria-label': `${verb} the ${DISP_LABEL[d]} column (${plural(n, 'finding')})`,
+        onclick: () => { if (folded) foldedCols.delete(d); else foldedCols.add(d); saveFolds(); keepFocus(renderBoard); },
+      }, folded ? `+${n}` : '–'));
+  }
+  function laneHead(g, folded, empty) {
+    const t = laneText(g);
+    const parts = [laneTile(g),
+      h('span', { class: 'lane-text' }, h('span', { class: 'lane-label' }, t.label), t.meta ? h('span', { class: 'lane-meta' }, t.meta) : null),
+      empty ? h('span', { class: 'lane-empty' }, 'Nothing in view') : h('span', { class: 'lane-bar' }, segbar(tally(g.items))),
+      h('span', { class: 'lane-count' }, String(g.items.length))];
+    if (empty) return h('div', { class: 'lane-head' }, parts);
+    return h('button', {
+      type: 'button', class: 'lane-head', 'aria-expanded': String(!folded), title: folded ? 'Expand this lane' : 'Collapse this lane',
+      dataset: { focusKey: `lane:${g.key}` },
+      onclick: () => { if (foldedLanes.has(g.key)) foldedLanes.delete(g.key); else foldedLanes.add(g.key); saveFolds(); keepFocus(renderBoard); },
+    }, parts, h('span', { class: 'lane-chev', 'aria-hidden': 'true' }, folded ? '+' : '–'));
+  }
+  function renderBoard() {
+    const v = app.view({ keepEmpty: true });
+    if (!v.flat.length) { host.replaceChildren(noMatch()); return; }
+    const bare = state.groupBy === 'disposition' || state.groupBy === 'none';
+    const groups = bare ? [{ key: 'all', label: 'All findings', items: v.flat }] : v.groups;
+    const counts = Object.fromEntries(DISPOSITIONS.map((d) => [d, v.flat.filter((f) => f.disposition === d).length]));
+    const cols = DISPOSITIONS.map((d) => (foldedCols.has(d) ? 'var(--fold)' : 'minmax(0,1fr)')).join(' ');
+    const lanes = groups.map((g) => {
+      const empty = !g.items.length;
+      const folded = !bare && foldedLanes.has(g.key);
+      const showChips = (f) => f.prs.length > 1 || (!g.pr && f.prs.length > 0);
+      return h('section', { class: 'lane', 'aria-label': bare ? 'Findings' : `${laneText(g).label}: ${plural(g.items.length, 'finding')}`, dataset: { lane: g.key, empty: empty ? '' : null, collapsed: folded ? '' : null } },
+        bare ? null : laneHead(g, folded, empty),
+        empty ? null : h('div', { class: 'lane-cells' }, DISPOSITIONS.map((d) => {
+          const items = g.items.filter((f) => f.disposition === d);
+          const isFolded = foldedCols.has(d);
+          return h('div', { class: 'cell', dataset: { disposition: d, count: String(items.length), folded: isFolded ? '' : null } },
+            h('div', { class: 'cell-label' }, dispGlyph(d), h('span', null, DISP_LABEL[d]), h('span', { class: 'cell-n' }, String(items.length))),
+            isFolded && items.length ? h('span', { class: 'cell-fold', title: `${plural(items.length, 'finding')} in the collapsed column` }, String(items.length)) : null,
+            isFolded ? null : items.map((f) => card(f, showChips(f))));
+        })));
+    });
+    host.replaceChildren(h('div', { class: 'board-scroll' },
+      h('div', { class: 'board', style: `--cols:${cols}`, dataset: { bare: bare ? '' : null } },
+        h('div', { class: 'board-head' }, DISPOSITIONS.map((d) => colHead(d, counts[d]))), lanes)));
+    fitBoard();
+  }
+  /** Scroll the board inside its own container only when the columns would get too narrow (keeps the sticky header otherwise). */
+  function fitBoard() {
+    const scroller = host.querySelector('.board-scroll');
+    if (!scroller) return;
+    const open = DISPOSITIONS.filter((d) => !foldedCols.has(d)).length;
+    const need = open * 150 + (DISPOSITIONS.length - open) * 46;
+    scroller.style.setProperty('--need', `${need}px`);
+    scroller.toggleAttribute('data-scroll', !small.matches && scroller.clientWidth < need);
+  }
+  new ResizeObserver(() => { if (viewId() === 'board') fitBoard(); }).observe(host);
+
+  /* ---------- Matrix view ---------- */
+  /** Findings matching every filter except the given facets (core's matches() excludes only one). */
+  function matchingExcept(keys) {
+    const saved = keys.map((k) => state[k]);
+    keys.forEach((k) => { state[k] = new Set(); });
+    try { return findings.filter((f) => app.matches(f)); } finally { keys.forEach((k, i) => { state[k] = saved[i]; }); }
+  }
+  function applyGrid(rowFacet, values, sev) {
+    const rowActive = values ? sameSet(state[rowFacet], values) : state[rowFacet].size === 0;
+    const sevActive = sev ? sameSet(state.severity, [sev]) : state.severity.size === 0;
+    if (rowActive && sevActive) { state.severity = new Set(); app.setFacet(rowFacet, []); return; }
+    state.severity = new Set(sev ? [sev] : []);
+    app.setFacet(rowFacet, values || []);
+  }
+  function heatGrid() {
+    const rowFacet = app.hasStack ? 'pr' : 'disposition';
+    const base = matchingExcept([rowFacet, 'severity']);
+    const rows = [];
+    let layout = null;
+    if (app.hasStack) {
+      layout = stackLayout();
+      layout.rows.forEach((r, index) => {
+        if (r.trunk) rows.push({ kind: 'trunk', index });
+        else rows.push({ kind: 'pr', key: r.id, node: r, index, values: [r.id], items: base.filter((f) => f.prs.length === 1 && f.prs[0] === r.id) });
+      });
+      const multi = findings.filter((f) => f.prs.length > 1);
+      const none = findings.filter((f) => !f.prs.length);
+      if (multi.length || none.length) rows.push({ kind: 'sep' });
+      if (multi.length) rows.push({ kind: 'cross', key: CROSS_PR, values: [...new Set(multi.flatMap((f) => f.prs))], items: base.filter((f) => f.prs.length > 1) });
+      if (none.length) rows.push({ kind: 'none', key: NO_PR, values: [NO_PR], items: base.filter((f) => !f.prs.length) });
+    } else {
+      DISPOSITIONS.forEach((d) => rows.push({ kind: 'disp', key: d, values: [d], items: base.filter((f) => f.disposition === d) }));
+    }
+    const data_ = rows.filter((r) => r.items);
+    data_.forEach((r) => { r.tally = tally(r.items); r.ignored = tally(r.items.filter((f) => app.isIgnored(f.id))); });
+    const ignTag = (k) => (k ? h('span', { class: 'heat-ign', 'aria-hidden': 'true' }, `✕${k}`) : null);
+    const ignText = (k) => (k ? `, ${k} ignored` : '');
+    const max = Math.max(1, ...data_.flatMap((r) => SEVERITIES.map((s) => r.tally[s])));
+    const rowOut = (r) => state[rowFacet].size > 0 && !r.values.every((v) => state[rowFacet].has(v));
+    const colOut = (s) => state.severity.size > 0 && !state.severity.has(s);
+    const rowLabel = (r) => (r.kind === 'pr' ? `${app.prLabel(r.key)} ${r.node.title}` : r.kind === 'cross' ? 'Findings that span several PRs' : r.kind === 'none' ? 'Findings not tied to a PR' : DISP_LABEL[r.key]);
+
+    const head = h('tr', null,
+      h('th', { scope: 'col' }, kicker(app.hasStack ? 'Pull request' : 'Disposition')),
+      SEVERITIES.map((s) => h('th', { scope: 'col', class: 'heat-col' }, h('button', {
+        type: 'button', class: 'heat-colbtn', 'aria-pressed': String(sameSet(state.severity, [s]) && !state[rowFacet].size), dataset: { focusKey: `heat-col:${s}` },
+        title: `Show only ${s} ${SEVERITY_LABELS[s]}`, onclick: () => applyGrid(rowFacet, null, s),
+      }, sevTag(s), h('span', null, SEVERITY_LABELS[s])))),
+      h('th', { scope: 'col', class: 'heat-col-total' }, h('span', { class: 'heat-total-h' }, 'Total')));
+
+    const body = rows.map((r) => {
+      if (r.kind === 'sep') return h('tr', { class: 'heat-sep', 'aria-hidden': 'true' }, h('th'), h('td', { colspan: '5' }));
+      if (r.kind === 'trunk') {
+        return h('tr', { class: 'heat-trunk' },
+          h('th', { scope: 'row', class: 'heat-rowh' }, h('span', { class: 'heat-rowbtn' }, graphCell(layout, r.index).cell,
+            h('span', { class: 'heat-rowtext' }, h('span', { class: 'stack-title' }, stack.trunk)))),
+          h('td', { colspan: '5' }, `trunk · ${plural(stack.order.length, 'PR')} stacked on top`));
+      }
+      const g = r.kind === 'pr' ? graphCell(layout, r.index) : layout ? graphCell(layout) : null;
+      if (g && r.kind === 'pr') paintDot(g.dot, r.tally);
+      const rowPressed = sameSet(state[rowFacet], r.values) && state.severity.size === 0;
+      const tile = r.kind === 'pr' ? h('span', { class: 'stack-num' }, app.prLabel(r.key))
+        : r.kind === 'cross' ? h('span', { class: 'tile', dataset: { kind: 'cross' } }, 'Multi')
+          : r.kind === 'none' ? h('span', { class: 'tile', dataset: { kind: 'none' } }, '—')
+            : dispGlyph(r.key);
+      const title = r.kind === 'pr' ? r.node.title : r.kind === 'cross' ? 'Spans several PRs' : r.kind === 'none' ? 'No PR' : DISP_LABEL[r.key];
+      const rowHint = r.kind === 'cross' ? ` Filters to ${r.values.map((v) => app.prLabel(v)).join(', ')}, which also shows their single-PR findings.` : '';
+      return h('tr', { dataset: { out: rowOut(r) ? '' : null, row: r.key } },
+        h('th', { scope: 'row', class: 'heat-rowh' }, h('button', {
+          type: 'button', class: 'heat-rowbtn', 'aria-pressed': String(rowPressed), dataset: { focusKey: `heat-row:${r.key}` },
+          title: `${rowLabel(r)}. Click to show only this row.${rowHint}`, onclick: () => applyGrid(rowFacet, r.values, null),
+        }, g ? g.cell : null, h('span', { class: 'heat-rowtext' }, tile, h('span', { class: 'stack-title' }, title)))),
+        SEVERITIES.map((s) => {
+          const n = r.tally[s];
+          const cellOut = colOut(s) ? '' : null;
+          if (!n) return h('td', { dataset: { out: cellOut } }, h('span', { class: 'heat-zero', role: 'img', 'aria-label': `No ${s} findings` }, '·'));
+          const mix = Math.round(36 + 64 * (n / max));
+          const pressed = sameSet(state[rowFacet], r.values) && sameSet(state.severity, [s]);
+          return h('td', { dataset: { out: cellOut } }, h('button', {
+            type: 'button', class: 'heat-cell', 'aria-pressed': String(pressed), style: `--mix:${mix}%`,
+            dataset: { severity: s, strong: mix >= 60 ? '' : null, focusKey: `heat:${r.key}:${s}` },
+            'aria-label': `${n} ${s} ${SEVERITY_LABELS[s]} in ${rowLabel(r)}${ignText(r.ignored[s])}. Click to filter.`,
+            title: `${plural(n, `${s} finding`)}${ignText(r.ignored[s])} · ${rowLabel(r)}.${rowHint}`,
+            onclick: () => applyGrid(rowFacet, r.values, s),
+          }, String(n), ignTag(r.ignored[s])));
+        }),
+        h('td', null, h('button', {
+          type: 'button', class: 'heat-cell heat-cell-total', 'aria-pressed': String(rowPressed), dataset: { focusKey: `heat-total:${r.key}` },
+          'aria-label': `${r.tally.total} findings in ${rowLabel(r)}${ignText(r.ignored.total)}. Click to show only this row.`, onclick: () => applyGrid(rowFacet, r.values, null),
+        }, String(r.tally.total), ignTag(r.ignored.total))));
+    });
+    const colTotals = tally(base);
+    const foot = h('tr', null, h('th', { scope: 'row' }, 'All rows'),
+      SEVERITIES.map((s) => h('td', null, h('button', {
+        type: 'button', class: 'heat-foot', 'aria-pressed': String(sameSet(state.severity, [s]) && !state[rowFacet].size), dataset: { focusKey: `heat-foot:${s}` },
+        'aria-label': `${colTotals[s]} ${s} ${SEVERITY_LABELS[s]} in total. Click to show only ${s}.`, onclick: () => applyGrid(rowFacet, null, s),
+      }, String(colTotals[s])))),
+      h('td', null, h('button', { type: 'button', class: 'heat-foot', 'aria-pressed': 'false', dataset: { focusKey: 'heat-foot:all' }, title: 'Clear the row and severity filters', onclick: () => { state.severity = new Set(); app.setFacet(rowFacet, []); } }, String(colTotals.total))));
+
+    return h('section', { class: 'mx-panel', 'aria-labelledby': 'mx-heat' },
+      h('div', { class: 'mx-head' }, h('span', { class: 'sec-num', 'aria-hidden': 'true' }, '01'),
+        h('h3', { class: 'mx-title', id: 'mx-heat' }, app.hasStack ? 'Stack × severity' : 'Disposition × severity'),
+        h('p', { class: 'mx-note' }, `Counts follow every filter except ${app.hasStack ? 'PR' : 'disposition'} and severity, so each cell stays reachable. Click a cell to filter to it; click it again to clear.`)),
+      h('div', { class: 'mx-scroll' }, h('table', { class: 'heat' },
+        h('caption', { class: 'sr-only' }, `Findings by ${app.hasStack ? 'pull request' : 'disposition'} and severity`),
+        h('thead', null, head), h('tbody', null, body), h('tfoot', null, foot))),
+      h('div', { class: 'heat-legend' },
+        h('span', { class: 'heat-scale' }, 'Fewer', [40, 70, 100].map((m) => h('i', { style: `--mix:${m}%` })), 'More'),
+        h('span', null, h('span', { class: 'heat-ign', 'aria-hidden': 'true' }, '✕n'), 'n of the cell’s findings are ignored'),
+        app.hasStack ? h('span', null, 'Findings that span several PRs are counted once, in their own row.') : null));
+  }
+  function whoGrid() {
+    const list = app.view().flat;
+    const R = reviewerNames;
+    const n = R.length;
+    const hits = (f) => R.filter((r) => f.reviewers.includes(r)).length;
+    const isAll = (k) => n > 1 && k === n;
+    const stats = [];
+    for (let k = n; k >= 0; k -= 1) {
+      const count = list.filter((f) => hits(f) === k).length;
+      if (k === 0 && !count) continue;
+      stats.push(h('div', { class: 'who-stat', dataset: { k: isAll(k) && count ? 'all' : String(k) } }, h('b', null, String(count)),
+        h('span', null, isAll(k) ? `All ${n} reviewers` : k === 0 ? 'Coordinator only' : k === 1 ? 'One reviewer' : `${k} of ${n} reviewers`)));
+    }
+    const rows = list.map((f) => {
+      const k = hits(f);
+      return h('tr', {
+        class: `who-row${isAll(k) ? ' is-all' : k <= 1 ? ' is-solo' : ''}`, dataset: { findingId: f.id, severity: f.severity, disposition: f.disposition },
+        onclick: (event) => { if (!event.target.closest('button,a')) app.select(f.id, { scroll: false }); },
+      },
+      h('th', { scope: 'row' }, h('span', { class: 'who-fin' },
+        sevTag(f.severity), h('span', { class: 'who-id' }, f.id),
+        h('button', { type: 'button', class: 'who-open', title: f.title, dataset: { focusKey: `who:${f.id}` }, onclick: () => app.select(f.id, { scroll: false }) }, f.title),
+        flags(false),
+        h('span', { title: DISP_LABEL[f.disposition] }, dispGlyph(f.disposition)),
+        ui.findingActions(f, { pin: false }))),
+      R.map((r) => h('td', { class: 'who-cell' }, f.reviewers.includes(r)
+        ? h('span', { class: 'who-dot', role: 'img', 'aria-label': `Raised by ${r}`, dataset: { rv: String(app.reviewerIndex(r)) } })
+        : h('span', { class: 'who-none', role: 'img', 'aria-label': `Not raised by ${r}` }))),
+      h('td', { class: 'who-agree' }, h('span', { class: 'who-tag' }, isAll(k) ? `All ${n}` : `${k}/${n}`)));
+    });
+    return h('section', { class: 'mx-panel', 'aria-labelledby': 'mx-who' },
+      h('div', { class: 'mx-head' }, h('span', { class: 'sec-num', 'aria-hidden': 'true' }, '02'),
+        h('h3', { class: 'mx-title', id: 'mx-who' }, 'Who found what'),
+        h('p', { class: 'mx-note' }, `${plural(list.length, 'visible finding')}. Highlighted rows were raised by every reviewer. Click a row to open it.`)),
+      list.length ? [
+        h('div', { class: 'who-stats' }, stats),
+        h('div', { class: 'mx-scroll' }, h('table', { class: 'who' },
+          h('caption', { class: 'sr-only' }, 'Which reviewer raised each visible finding'),
+          h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Finding'),
+            R.map((r) => h('th', { scope: 'col', class: 'who-h-rv', title: r }, h('span', { class: 'who-rvh' }, rvTile(r), h('span', null, r)))),
+            h('th', { scope: 'col', class: 'who-h-agree' }, 'Agree'))),
+          h('tbody', null, rows),
+          h('tfoot', null, h('tr', null, h('th', { scope: 'row' }, 'Raised in view'),
+            R.map((r) => {
+              const raised = list.filter((f) => f.reviewers.includes(r)).length;
+              const alone = list.filter((f) => f.reviewers.length === 1 && f.reviewers[0] === r).length;
+              return h('td', { class: 'who-total' }, h('b', null, String(raised)), h('span', null, `${alone} alone`));
+            }),
+            h('td', null))))),
+      ] : noMatch());
+  }
+  function renderMatrix() {
+    host.replaceChildren(heatGrid(), whoGrid());
+  }
+
+  function render() {
+    root.dataset.view = printing ? 'list' : viewId();
+    syncToolbar();
+    if (!hasFindings) { host.replaceChildren(emptyState()); return; }
+    if (printing || viewId() === 'list') renderList();
+    else if (viewId() === 'board') renderBoard();
+    else renderMatrix();
+  }
+
+  /* ---------- Detail pane: finding + report ---------- */
+  const tabFinding = h('button', { type: 'button', class: 'tab', role: 'tab', 'aria-controls': 'finding-pane', onclick: () => { tab = 'finding'; renderPane(); } }, 'Finding');
+  const tabReport = h('button', { type: 'button', class: 'tab', role: 'tab', 'aria-controls': 'report-pane', onclick: () => { tab = 'report'; renderPane(); } }, 'Report');
+  const findingPane = h('div', { class: 'finding-pane', id: 'finding-pane', role: 'tabpanel', 'aria-label': 'Selected finding' });
+  const numbered = (items) => (items.length ? h('ol', { class: 'numbered' }, items.map((item) => h('li', null, item))) : h('p', { class: 'none-note' }, 'None recorded.'));
+  const rpHead = (title, n) => h('div', { class: 'rp-h' }, h('h2', null, title), n == null ? null : h('span', { class: 'rp-n' }, String(n)));
+  function reviewerCard(r) {
+    const tone = BAD.includes(r.status) ? 'bad' : WARN.includes(r.status) ? 'warn' : r.status === 'completed' ? 'ok' : 'idle';
+    const raised = findings.filter((f) => f.reviewers.includes(r.name)).length;
+    const alone = findings.filter((f) => f.reviewers.length === 1 && f.reviewers[0] === r.name).length;
+    const kv = (label, value) => (value == null || value === '' ? null : [h('dt', null, label), h('dd', null, String(value))]);
+    return h('article', { class: 'rv-card', dataset: { tone } },
+      h('div', { class: 'rv-status' }, h('span', null, human(r.status)), r.provider_status ? h('small', null, r.provider_status) : null),
+      h('div', { class: 'rv-inner' },
+        h('div', { class: 'rv-head' }, rvTile(r.name), h('div', null, h('h3', { class: 'rv-name' }, r.name), h('p', { class: 'rv-model' }, r.model))),
+        hasFindings ? h('div', { class: 'rv-stats' },
+          h('div', { class: 'rv-stat' }, h('b', null, String(raised)), h('span', null, 'Raised')),
+          h('div', { class: 'rv-stat' }, h('b', null, String(alone)), h('span', null, 'Alone'))) : null,
+        h('dl', { class: 'kv' },
+          kv('Effort', r.effort), kv('Transport', r.transport), kv('Run', r.run_id), kv('Round', r.round), kv('Provider status', r.provider_status),
+          kv('Snapshot', r.snapshot_id), 'snapshot_verified' in r ? kv('Snapshot check', r.snapshot_verified === true ? 'verified' : 'unverified') : null),
+        h('div', { class: 'rv-prov' }, kicker('Provenance'), r.provenance),
+        r.limitations ? h('div', { class: 'rv-limits' }, kicker('Limitations'), r.limitations) : null,
+        r.output ? h('details', { class: 'raw' }, h('summary', null, 'Raw reviewer output'), h('pre', null, r.output)) : null));
+  }
+  const reportPane = h('div', { class: 'report-pane', id: 'report-pane', role: 'tabpanel', 'aria-label': 'Report context' },
+    h('section', { class: 'rp-block', dataset: { section: 'target' } }, rpHead('Target'), h('dl', { class: 'kv' }, data.target.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))),
+    h('section', { class: 'rp-block', dataset: { section: 'reviewers' } }, rpHead('Reviewers', `${data.meta.completed}/${data.reviewers.length}`), data.reviewers.map(reviewerCard)),
+    h('section', { class: 'rp-block', dataset: { section: 'coverage' } },
+      h('div', { class: 'rp-sub', dataset: { kind: 'checks' } }, rpHead('Checks', data.checks.length), numbered(data.checks)),
+      h('div', { class: 'rp-sub', dataset: { kind: 'gaps' } }, rpHead('Gaps', data.gaps.length), numbered(data.gaps)),
+      h('div', { class: 'rp-sub', dataset: { kind: 'next' } }, rpHead('Next steps', data.next_steps.length), numbered(data.next_steps))),
+    data.notes.length || data.sources.length ? h('section', { class: 'rp-block', dataset: { section: 'notes' } },
+      data.notes.length ? h('div', { class: 'rp-sub' }, rpHead('Notes'), data.notes.map((n) => h('div', { class: 'note' }, n.title ? h('strong', null, n.title) : null, h('p', null, n.body || '')))) : null,
+      data.sources.length ? h('div', { class: 'rp-sub' }, rpHead('Sources'), h('ul', { class: 'sources' }, data.sources.map((s) => h('li', null, h('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer' }, s.title || s.url))))) : null) : null,
+    h('p', { class: 'footnote' }, 'Standalone HTML · no network requests · answers, comments and pins are saved in this browser only and shared by every design of this report.'));
+  /* The pane scrolls inside a fixed frame so each resize handle stays on the frame's edge instead of scrolling away. */
+  const findingScroll = h('div', { class: 'finding-scroll' });
+  findingPane.append(ui.resizer(findingPane, { key: 'command-drawer', label: 'Resize finding panel', min: 360 }), findingScroll);
+  const detail = h('aside', { class: 'detail', id: 'detail', 'aria-label': 'Finding and report details' },
+    h('div', { class: 'detail-scroll' },
+      h('div', { class: 'detail-tabs', role: 'tablist', 'aria-label': 'Detail' }, tabFinding, tabReport), findingPane, reportPane));
+  /* Docked column (1180px and up): keep --main-min for the findings, so the cap follows the sidebar's width. */
+  detail.append(ui.resizer(detail, {
+    key: 'command-drawer', label: 'Resize detail panel', min: 320,
+    get gutter() { return sidebar.getBoundingClientRect().width + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--main-min')) || 480); },
+  }));
+
+  function renderPane() {
+    const f = app.byId.get(state.selected);
+    detail.dataset.tab = f ? tab : 'report';
+    tabFinding.disabled = !f;
+    tabFinding.setAttribute('aria-selected', String(detail.dataset.tab === 'finding'));
+    tabReport.setAttribute('aria-selected', String(detail.dataset.tab === 'report'));
+    if (!f) {
+      delete findingPane.dataset.severity; delete findingPane.dataset.disposition;
+      findingPane.removeAttribute('data-ignored');
+      findingScroll.replaceChildren(h('div', { class: 'pane-empty' }, 'Select a finding.'));
+      return;
+    }
+    const flat = app.view().flat;
+    const at = flat.findIndex((x) => x.id === f.id);
+    const step = (dir, glyph, label) => h('button', {
+      type: 'button', class: 'pane-step', 'aria-label': label, title: `${label} (${dir > 0 ? 'j' : 'k'})`,
+      disabled: at < 0 || (dir < 0 ? at === 0 : at === flat.length - 1), dataset: { focusKey: `pane-${dir > 0 ? 'next' : 'prev'}` }, onclick: () => app.move(dir),
+    }, glyph);
+    const ignored = app.isIgnored(f.id);
+    const outByAnswer = state.answer.size > 0 && !state.answer.has(app.answer(f.id));
+    findingPane.dataset.severity = f.severity;
+    findingPane.dataset.disposition = f.disposition;
+    findingPane.toggleAttribute('data-ignored', ignored);
+    findingScroll.replaceChildren(
+      h('div', { class: 'pane-band' },
+        h('span', { class: 'pane-sev' }, f.severity),
+        h('span', { class: 'pane-sevtext' }, h('span', null, `${SEVERITY_LABELS[f.severity]}${ignored ? ' · Ignored' : ''}`), h('span', { class: 'pane-id' }, f.id)),
+        h('span', { class: 'pane-nav' }, step(-1, '↑', 'Previous finding'), h('span', { class: 'pane-pos' }, at >= 0 ? `${at + 1}/${flat.length}` : '–'), step(1, '↓', 'Next finding')),
+        fullButton(),
+        h('button', { type: 'button', class: 'pane-close', 'aria-label': 'Close finding (Esc)', title: 'Close (Esc)', dataset: { focusKey: 'pane-close' }, onclick: () => app.select(null) }, '×')),
+      h('div', { class: 'pane-body' },
+        at < 0 ? h('p', { class: 'pane-note' }, outByAnswer
+          ? `Your answer is ${ANSWER_LABELS[app.answer(f.id)]}, so the “Your answer” filter leaves it out of the current view.`
+          : 'Not in the current filtered view.') : null,
+        h('h2', { class: 'pane-title', id: 'pane-title', tabindex: '-1', dataset: { focusKey: 'pane-title' } }, f.title),
+        h('div', { class: 'pane-line' },
+          h('p', { class: 'pane-disp', dataset: { disposition: f.disposition } }, dispGlyph(f.disposition), DISP_LABEL[f.disposition]),
+          ui.findingActions(f, { answer: false })),
+        h('div', { class: 'pane-side' },
+          h('dl', { class: 'pane-meta' },
+            app.hasStack ? [h('dt', null, f.prs.length > 1 ? 'Pull requests' : 'Pull request'), h('dd', null, f.prs.length
+              ? h('span', { class: 'chips' }, f.prs.map((id) => h('span', { class: 'pr-ref' }, ui.prChip(id), h('span', { class: 'pr-ref-title' }, (stack.byId.get(id) || {}).title || ''))))
+              : 'Not tied to one PR')] : null,
+            [h('dt', null, 'Raised by'), h('dd', null, f.reviewers.length ? h('span', { class: 'people' }, f.reviewers.map((name) => h('span', { class: 'person' }, rvTile(name), name))) : 'Coordinator')],
+            [h('dt', null, 'Confidence'), h('dd', null, confidence(f.confidence))],
+            f.tags.length ? [h('dt', null, 'Tags'), h('dd', null, h('span', { class: 'chips' }, f.tags.map((t) => h('button', {
+              type: 'button', class: 'tag-chip', 'aria-pressed': String(state.tag.has(t)), title: `Show only findings tagged ${t}`, onclick: () => app.setFacet('tag', [t]),
+            }, t))))] : null),
+          ui.answer(f)),
+        ui.findingFields(f)));
+  }
+
+  /* Full screen (core's f / html[data-drawer-full]) and the overlay sheet (board/matrix below 1180px) both turn the
+     finding pane into a modal surface; the band's toggle mirrors core's state without re-rendering the pane. */
+  function fullButton() {
+    const on = app.isDrawerFull();
+    return h('button', {
+      type: 'button', class: 'pane-full', 'aria-pressed': String(on), 'aria-label': 'Full screen', title: on ? 'Exit full screen (f)' : 'Full screen (f)',
+      dataset: { focusKey: 'pane-full' }, onclick: () => app.toggleDrawerFull(),
+    }, h('span', { class: 'full-icon', 'aria-hidden': 'true' }), h('span', { class: 'pane-full-label' }, 'Exit full screen'));
+  }
+  function syncFull() {
+    const on = app.isDrawerFull();
+    findingPane.querySelectorAll('.pane-full').forEach((b) => { b.setAttribute('aria-pressed', String(on)); b.title = on ? 'Exit full screen (f)' : 'Full screen (f)'; });
+    if (on && tab !== 'finding') { tab = 'finding'; renderPane(); }
+  }
+  /** The visible list row / card / matrix row button for a finding, to hand keyboard focus back to. */
+  const findingControl = (id) => (id ? ['row', 'card', 'who'].map((k) => document.querySelector(`[data-focus-key="${CSS.escape(`${k}:${id}`)}"]`)).find((el) => el && app.isShown(el)) : null);
+  let overlayOpen = false;
+  let opener = null;
+  let lastSelected = null;
+  function syncSheet() {
+    const full = app.isDrawerFull() && !printing;
+    const sheet = Boolean(state.selected) && !wide.matches && viewId() !== 'list' && !printing;
+    const open = full || sheet;
+    const was = overlayOpen;
+    overlayOpen = open;
+    root.toggleAttribute('data-sheet', sheet && !full);
+    document.documentElement.toggleAttribute('data-lock', open);
+    if (open) {
+      findingPane.setAttribute('role', 'dialog');
+      findingPane.setAttribute('aria-modal', 'true');
+      findingPane.setAttribute('aria-labelledby', 'pane-title');
+      findingPane.removeAttribute('aria-label');
+    } else {
+      findingPane.setAttribute('role', 'tabpanel');
+      findingPane.removeAttribute('aria-modal');
+      findingPane.removeAttribute('aria-labelledby');
+      findingPane.setAttribute('aria-label', 'Selected finding');
+    }
+    if (open && !was) {
+      const active = document.activeElement;
+      const outside = !findingPane.contains(active);
+      opener = active && active.dataset && active.dataset.focusKey && outside ? active.dataset.focusKey : null;
+      const title = outside && findingPane.querySelector('.pane-title');
+      if (title) title.focus({ preventScroll: true });
+    }
+    if (!open && was) {
+      const active = document.activeElement;
+      const lost = !active || active === document.body || (findingPane.contains(active) && !app.isShown(findingPane));
+      const id = state.selected;
+      if (lost) {
+        const back = findingControl(id) || (opener && document.querySelector(`[data-focus-key="${CSS.escape(opener)}"]`));
+        if (back) back.focus({ preventScroll: true });
+      }
+      /* Leaving full screen after j/k: bring the finding you ended on into view in the list. */
+      if (id) { const el = app.findingElement(id); if (el) el.scrollIntoView({ block: 'nearest' }); }
+      opener = null;
+    }
+  }
+  const sheetScrim = h('div', { class: 'sheet-scrim', 'aria-hidden': 'true', onclick: () => app.select(null) });
+
+  /* ---------- Assemble ---------- */
+  const main = h('main', { class: 'main', id: 'main' }, assessment, toolbar, host);
+  root.append(topbar, h('div', { class: 'shell' }, sidebar, main, detail), h('div', { class: 'scrim', onclick: () => setDrawer(false) }), sheetScrim);
+
+  app.subscribe((reason) => {
+    if (reason === 'open' || reason === 'sections') return;
+    if (reason === 'layout') { syncFull(); syncSheet(); return; }
+    if (reason === 'select') {
+      tab = state.selected ? 'finding' : 'report';
+      const f = app.byId.get(state.selected);
+      if (f && viewId() === 'list') {
+        const group = app.view().groups.find((g) => g.items.some((x) => x.id === f.id));
+        if (group && collapsedGroups.has(group.key)) { collapsedGroups.delete(group.key); renderList(); }
+      }
+      const wasIn = lastSelected && !state.selected && (!document.activeElement || document.activeElement === document.body || findingPane.contains(document.activeElement));
+      renderPane();
+      syncSheet();
+      /* Closing the docked pane (Esc / ×) hands focus back to the finding in the list. */
+      if (wasIn && (!document.activeElement || document.activeElement === document.body)) { const el = findingControl(lastSelected); if (el) el.focus({ preventScroll: true }); }
+      lastSelected = state.selected;
+      return;
+    }
+    const rows = app.prBreakdown();
+    sideRefresh.forEach((fn) => fn(rows));
+    teamRefresh.forEach((fn) => fn());
+    refreshHero();
+    renderActiveFilters();
+    render();
+    renderPane();
+    syncSheet();
+    lastSelected = state.selected;
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && root.hasAttribute('data-drawer')) { setDrawer(false); return; }
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.key !== 'v') return;
+    const target = event.target;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable) return;
+    event.preventDefault();
+    const at = VIEWS.findIndex((v) => v.key === currentView());
+    app.set('view', VIEWS[(at + 1) % VIEWS.length].key);
+  });
+  wide.addEventListener('change', () => { keepFocus(render); renderPane(); syncSheet(); });
+  small.addEventListener('change', () => { if (!small.matches) setDrawer(false); if (viewId() === 'board') fitBoard(); });
+  /* Print always shows the readable list with every field, whichever view is on screen. */
+  window.addEventListener('beforeprint', () => { printing = true; render(); syncSheet(); });
+  window.addEventListener('afterprint', () => { printing = false; render(); app.sync(); syncSheet(); });
+
+  app.start();
+})();
+</script>
+</body>
+</html>

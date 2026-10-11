@@ -1,0 +1,1476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="multi-agent-review · @@THEME@@">
+<title>@@TITLE@@</title>
+<style>@@CORE_CSS@@</style>
+<style>
+/* ── Board: a Swiss planning board. Black grotesk, strict grid, signal colors only for meaning. ── */
+:root{
+  --ink:#0a0a0a;--paper:#fff;--wash:#f3f3f0;--wash-2:#e8e8e3;--line:#d6d6cf;--muted:#56564f;--faint:#8b8b84;
+  --p0:#e5202e;--p1:#ff6a00;--p2:#ffc400;--p3:#2f6bff;
+  --purple:#7b2fff;--grey:#b4b4ac;--grey-lt:#e4e4de;--green:#00b25a;--amber:#ffb000;--wire-off:#d3d3cc;
+  --sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --pad:clamp(16px,2.8vw,40px);
+  --strip-h:0px;
+  --hatch-ink:repeating-linear-gradient(-45deg,var(--ink) 0 1.5px,transparent 1.5px 4.5px);
+  --hatch-soft:repeating-linear-gradient(-45deg,rgba(10,10,10,.075) 0 2px,transparent 2px 9px);
+  --hazard:repeating-linear-gradient(-45deg,var(--ink) 0 10px,var(--p2) 10px 20px);
+  color-scheme:light;
+}
+[data-severity="P0"]{--sevc:var(--p0);--sevi:#fff}
+[data-severity="P1"]{--sevc:var(--p1);--sevi:var(--ink)}
+[data-severity="P2"]{--sevc:var(--p2);--sevi:var(--ink)}
+[data-severity="P3"]{--sevc:var(--p3);--sevi:#fff}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:calc(var(--strip-h) + 72px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+h1,h2,h3,p,figure{margin:0}
+button,input,select{font:inherit;color:inherit}
+button{border-radius:0}
+a{color:inherit;text-decoration-thickness:2px;text-underline-offset:3px}
+a:hover{text-decoration-color:var(--p1)}
+code,pre,kbd{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.kicker{display:block;font:800 10.5px/1.15 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.muted{color:var(--muted)}
+noscript{display:block;padding:24px;font-weight:700}
+
+/* Buttons */
+.btn,.reset,.copy,.print,.expand-all,.collapse-all,.action,.bulk-answer,.view-pop>summary,.rv-output>summary{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border:2px solid var(--ink);
+  background:var(--paper);color:var(--ink);font:800 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;white-space:nowrap;text-decoration:none;user-select:none}
+:is(.btn,.reset,.copy,.print,.expand-all,.collapse-all,.action,.bulk-answer,.view-pop>summary,.rv-output>summary):hover:not(:disabled){background:var(--ink);color:var(--paper)}
+.btn-solid{background:var(--ink);color:var(--paper)}
+.btn-solid:hover:not(:disabled){background:var(--paper)!important;color:var(--ink)!important}
+.action[aria-pressed="true"],.btn[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
+.badge:empty{display:none}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;background:var(--p2);color:var(--ink);font:900 10.5px/1 var(--sans);letter-spacing:0}
+
+/* ── Top bar ── */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;padding:10px var(--pad);border-bottom:2px solid var(--ink);font:800 11px/1.2 var(--sans);letter-spacing:.13em;text-transform:uppercase}
+.brand{display:inline-flex;align-items:center;gap:10px}
+.brand-mark{display:inline-grid;grid-template-columns:repeat(4,6px);gap:2px}
+.brand-mark i{height:16px;background:var(--sevc)}
+.topbar-meta{color:var(--muted)}
+.topbar-snap{font:600 11.5px/1.2 var(--mono);letter-spacing:0;text-transform:none;color:var(--muted)}
+.topbar-tools{margin-left:auto;display:flex;gap:8px}
+.view-pop{position:relative}
+.view-pop>summary{list-style:none;height:28px}
+.view-pop>summary::-webkit-details-marker{display:none}
+.view-pop>summary::after{content:"";border:4px solid transparent;border-top:5px solid currentColor;margin:4px 0 0 2px}
+.view-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:70;display:grid;gap:14px;min-width:230px;padding:14px 16px 16px;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 var(--ink);text-transform:none;letter-spacing:0;font-weight:500}
+.section-toggles{display:grid;gap:9px}
+.section-toggles .facet-legend{margin-bottom:4px}
+
+/* ── Masthead ── */
+.masthead{display:grid;grid-template-columns:minmax(250px,25%) minmax(0,1fr);border-bottom:2px solid var(--ink)}
+.status-tile{container-type:inline-size;position:relative;display:flex;flex-direction:column;gap:16px;min-height:330px;padding:26px 24px 24px;border-right:2px solid var(--ink);overflow:hidden;--status-max:86px}
+.status-word{font-size:min(var(--status-max),calc(146cqi / var(--len)));font-weight:900;line-height:.84;letter-spacing:-.055em;text-transform:uppercase;margin-top:auto}
+.status-note{font:600 13.5px/1.42 var(--sans);max-width:34ch}
+.status-tile[data-status="complete"]{background:var(--green)}
+.status-tile[data-status="incomplete"]{background:var(--p2);padding-top:48px}
+.status-tile[data-status="incomplete"]::before{content:"";position:absolute;left:0;right:0;top:0;height:22px;background:var(--hazard);border-bottom:2px solid var(--ink)}
+.status-tile[data-status="setup"]{background:var(--paper) var(--hatch-soft)}
+.status-tile[data-status="setup"] .status-word{background:var(--paper);align-self:flex-start;padding:.06em .08em .02em 0;box-shadow:0 0 0 0 var(--paper)}
+.status-tile[data-status="setup"] .status-note{background:var(--paper);padding:2px 4px 2px 0}
+.mast-main{display:flex;flex-direction:column;gap:20px;min-width:0;padding:28px var(--pad) 30px 36px}
+.mast-title{font:800 13px/1.35 var(--sans);letter-spacing:.1em;text-transform:uppercase;max-width:90ch;overflow-wrap:anywhere}
+.verdict{font-size:clamp(30px,3.7vw,58px);font-weight:900;line-height:.98;letter-spacing:-.042em;max-width:21em;text-wrap:balance;overflow-wrap:anywhere}
+.summary{font-size:17px;line-height:1.5;max-width:68ch;color:#2b2b28;margin-top:auto}
+
+/* ── Metric tiles ── */
+.metrics{display:grid;grid-template-columns:minmax(250px,25%) minmax(0,1fr) minmax(0,1fr) minmax(0,2.4fr);border-bottom:2px solid var(--ink)}
+.metric{position:relative;display:flex;flex-direction:column;gap:12px;min-width:0;padding:22px 24px 22px;border-right:2px solid var(--ink)}
+.metric:last-child{border-right:0}
+.metric-value{font-size:clamp(60px,6.6vw,108px);font-weight:900;line-height:.8;letter-spacing:-.065em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.metric-value small{font-size:.4em;letter-spacing:-.03em;color:var(--muted);margin-left:.06em}
+.metric-note{margin-top:auto;font-size:13px;line-height:1.35;color:var(--muted)}
+.metric[data-warn]{padding-top:30px}
+.metric[data-warn]::before{content:"";position:absolute;left:0;right:0;top:0;height:10px;background:var(--hazard)}
+.metric[data-hatch]{background:var(--hatch-soft)}
+.metric[data-hatch] .metric-value{background:var(--paper);align-self:flex-start;padding-right:.05em}
+.metric-sev{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:26px;row-gap:12px}
+.metric-sev .kicker{grid-column:1/-1}
+.metric-sev .metric-value{align-self:end}
+.sev-block{display:flex;flex-direction:column;gap:10px;min-width:0;align-self:end}
+.herobar{display:flex;height:56px;border:2px solid var(--ink);background:var(--paper)}
+.herobar-seg{flex:1 1 0;min-width:40px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:6px 8px;border:0;border-right:2px solid var(--ink);background:var(--sevc);color:var(--sevi);cursor:pointer;text-align:left}
+.herobar-seg:last-child{border-right:0}
+.herobar-seg .n{font:900 24px/.85 var(--sans);letter-spacing:-.04em}
+.herobar-seg .k{font:800 10px/1 var(--sans);letter-spacing:.12em}
+.herobar[data-filtered] .herobar-seg[aria-pressed="false"]{background:repeating-linear-gradient(-45deg,var(--sevc) 0 3px,var(--paper) 3px 8px);color:var(--ink)}
+.herobar[data-filtered] .herobar-seg[aria-pressed="false"] :is(.n,.k){background:var(--paper);padding:1px 2px}
+.herobar-seg[aria-pressed="true"]{box-shadow:inset 0 -7px 0 var(--ink)}
+.herobar-seg:focus-visible{outline-offset:-6px;outline-color:var(--ink)}
+.herobar.is-empty{align-items:center;justify-content:center;background:var(--hatch-soft);font:800 11px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hero-legend{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.hero-legend li{display:grid;grid-template-columns:12px minmax(0,1fr);column-gap:6px;align-items:baseline;font-size:12px;line-height:1.2}
+.hero-legend .sw{width:12px;height:12px;background:var(--sevc);align-self:center}
+.hero-legend b{font-weight:900}
+.hero-legend .lbl{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero-legend .lbl b{color:var(--ink);margin-right:4px}
+
+/* ── Sections ── */
+.page{counter-reset:sec}
+.section{counter-increment:sec;padding:46px var(--pad) 54px;border-bottom:2px solid var(--ink);min-width:0}
+.sec-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 18px;margin-bottom:26px}
+.sec-num{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:46px;padding:0 6px;background:var(--ink);color:var(--paper);font:900 18px/1 var(--sans);letter-spacing:-.02em}
+.sec-num::before{content:counter(sec,decimal-leading-zero)}
+.sec-title{font-size:clamp(34px,4vw,62px);font-weight:900;line-height:.82;letter-spacing:-.055em}
+.sec-aside{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px;max-width:62ch;text-align:right;font-size:13px;line-height:1.35;color:var(--muted)}
+.sec-aside code{font-size:12px;color:var(--ink);font-weight:700}
+.board-showing{font-weight:800;color:var(--ink)}
+.filter-summary{margin:0}
+
+/* ── Stack map ── */
+.map-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;margin:-6px 0 18px}
+.map-hint{margin-right:auto;font-size:13px;color:var(--muted)}
+.map-tools .toggle{font:800 12px/1 var(--sans)}
+.map-scroll{overflow-x:auto;overscroll-behavior-x:contain;padding:8px 10px 18px 8px;margin:0 -10px 0 -8px;scroll-snap-type:x proximity;scrollbar-width:thin}
+.map-grid{--gx:64px;--gy:22px;--trunk-w:104px;--card-min:226px;--card-max:350px;position:relative;display:grid;grid-auto-rows:1fr;column-gap:var(--gx);row-gap:var(--gy);justify-content:start;width:100%;min-width:min-content}
+.map-node{position:relative;display:flex;min-width:0;scroll-snap-align:start;scroll-margin-left:12px}
+.trunk-tile{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:14px 12px;background:var(--ink);color:var(--paper);min-width:0}
+.trunk-name{font:900 24px/1 var(--sans);letter-spacing:-.04em;overflow-wrap:anywhere}
+[data-wire="on"]{--wire:var(--ink)}
+[data-wire="off"]{--wire:var(--wire-off)}
+.stub{position:absolute;top:calc(50% - 1.5px);height:3px;background:var(--wire,var(--ink));z-index:0}
+.stub-in{right:100%;width:calc(var(--gx) / 2)}
+.stub-out{left:100%;width:calc(var(--gx) / 2)}
+.port{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--paper);border:3px solid var(--wire,var(--ink));z-index:3;pointer-events:none}
+.port-in{left:0}
+.port-out{left:100%}
+.map-elbow{position:relative;justify-self:start;width:0;pointer-events:none;z-index:0}
+.elbow-line{position:absolute;right:0;width:calc(var(--gx) / 2);border-left:3px solid var(--wire,var(--ink));border-bottom:3px solid var(--wire,var(--ink));border-bottom-left-radius:18px}
+.map-card{position:relative;z-index:1;flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding:14px 16px 14px;background:var(--paper);border:2px solid var(--ink);color:var(--ink);text-align:left;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,background-color .12s ease}
+.map-card:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink)}
+.map-card[aria-pressed="true"]{background:var(--ink);color:var(--paper);box-shadow:6px 6px 0 var(--p2);transform:translate(-2px,-2px)}
+.map-node[data-pr]:has(.map-card[aria-pressed="true"]) .port{background:var(--ink)}
+.mc-top{display:flex;align-items:center;gap:8px;min-width:0;padding-right:30px}
+.mc-num{font:900 32px/.82 var(--sans);letter-spacing:-.05em}
+.mc-status{margin-left:auto;padding:4px 6px 3px;border:2px solid currentColor;font:800 9.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.mc-status[data-status="draft"]{border-style:dashed}
+.mc-flag{padding:4px 6px 3px;background:var(--p2);color:var(--ink);font:900 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase}
+.mc-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.56em;margin-top:4px;font:700 14.5px/1.28 var(--sans);letter-spacing:-.01em}
+.mc-line{font:500 11.5px/1.35 var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-card[aria-pressed="true"] .mc-line{color:#c4c4bc}
+.mc-foot{display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:8px}
+.mc-total{font:900 26px/.8 var(--sans);letter-spacing:-.05em;min-width:1.1em;text-align:right;font-variant-numeric:tabular-nums}
+.map-card[data-empty] .mc-foot{opacity:.55}
+.map-node[data-included] .map-card{outline:3px dashed var(--ink);outline-offset:5px}
+.map-link{position:absolute;top:12px;right:12px;z-index:2;display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:900 14px/1 var(--sans);text-decoration:none}
+.map-link:hover{background:var(--ink);color:var(--paper)}
+
+/* Segmented severity bars */
+.segbar{display:flex;flex:1;min-width:0;height:22px;gap:2px}
+.segbar-seg{flex:1 1 0;min-width:18px;display:flex;align-items:center;justify-content:center;background:var(--sevc);color:var(--sevi);font:900 11px/1 var(--sans);font-variant-numeric:tabular-nums}
+.segbar-none{flex:1;display:flex;align-items:center;padding:0 6px;background:var(--hatch-soft);font:800 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden}
+.map-card[aria-pressed="true"] .segbar-none{color:#9a9a92;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.18) 0 2px,transparent 2px 9px)}
+.segbar-sm{height:12px}
+.segbar-sm .segbar-seg{font-size:0;min-width:8px}
+
+/* ── Filter strip ── */
+.strip{position:sticky;top:0;z-index:40;padding:10px var(--pad) 10px;background:rgba(255,255,255,.97);border-top:3px solid var(--ink);border-bottom:3px solid var(--ink)}
+@supports (backdrop-filter:blur(6px)){.strip{background:rgba(255,255,255,.9);backdrop-filter:blur(8px) saturate(1.1)}}
+.strip-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;min-width:0}
+.strip-body .strip-row{margin-top:10px}
+.strip-spacer{flex:1 1 0}
+.strip-toggle{display:none}
+.strip-out,.strip-view{display:flex;align-items:center;gap:8px}
+.strip-view{gap:12px}
+.strip-a .reset{margin-left:-6px}
+.copy-answers{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;height:36px;padding:0 12px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);text-align:left;white-space:nowrap;user-select:none}
+.copy-answers-label{font:800 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase}
+.copy-answers-label::after{content:"  ⧉";letter-spacing:0}
+.copy-answers-count{font:700 10.5px/1 var(--sans);letter-spacing:.02em;color:var(--p2);font-variant-numeric:tabular-nums}
+.copy-answers:hover:not(:disabled){background:var(--paper);color:var(--ink);box-shadow:4px 4px 0 var(--ink);transform:translate(-2px,-2px)}
+.copy-answers:hover:not(:disabled) .copy-answers-count{color:var(--muted)}
+.copy-answers:active:not(:disabled){transform:none;box-shadow:none}
+.facet-answer .facet-swatch{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:2px solid currentColor;font:900 9px/1 var(--sans)}
+.facet-answer[data-value="fix"] .facet-swatch::before{content:"✓"}
+.facet-answer[data-value="ignore"] .facet-swatch{background:var(--hatch-ink)}
+.facet-answer[data-value="ignore"][aria-pressed="true"] .facet-swatch{background:repeating-linear-gradient(-45deg,var(--paper) 0 1.5px,transparent 1.5px 4.5px)}
+.strip-b .facet[data-facet="answer"] .facet-legend{color:var(--ink)}
+.strip-b{column-gap:22px}
+.strip-b .facet{flex-direction:column;align-items:flex-start;gap:5px}
+.search-input{-webkit-appearance:none;appearance:none;height:36px;width:clamp(190px,20vw,320px);min-width:0;padding:0 12px;border:2px solid var(--ink);border-radius:0;background:var(--paper);font:600 14px/1 var(--sans)}
+.search-input::placeholder{color:var(--faint);font-weight:500}
+.search-input::-webkit-search-cancel-button{filter:grayscale(1) brightness(.2);cursor:pointer}
+.presets{display:flex;flex-wrap:wrap}
+.preset{height:36px;padding:0 12px;margin-right:-2px;border:2px solid var(--ink);background:var(--paper);font:800 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;position:relative}
+.preset:hover{background:var(--wash-2)}
+.preset[aria-pressed="true"]{background:var(--ink);color:var(--paper);z-index:1}
+.preset:focus-visible{z-index:2}
+.result-count{margin:0;font:800 13px/1 var(--sans);font-variant-numeric:tabular-nums;white-space:nowrap}
+.facet{display:flex;align-items:center;gap:8px;min-width:0}
+.facet-legend{float:left;padding:0;margin:0;font:800 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.facet-options{row-gap:4px;min-width:0}
+.facet-option{position:relative;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 0 0 9px;margin-right:-2px;border:2px solid var(--ink);background:var(--paper);font:700 12px/1 var(--sans);white-space:nowrap;max-width:100%}
+.facet-option:hover{background:var(--wash-2);z-index:1}
+.facet-option:focus-visible{z-index:2}
+.facet-option[aria-pressed="true"]{background:var(--ink);color:var(--paper);z-index:1}
+.facet-swatch{width:10px;height:10px;flex:none;display:none}
+.facet-label{overflow:hidden;text-overflow:ellipsis}
+.facet-hint{max-width:15em;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--muted)}
+.facet-option[aria-pressed="true"] .facet-hint{color:#c9c9c1}
+.facet-count{align-self:stretch;display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:0 6px;margin-left:2px;border-left:2px solid currentColor;font-weight:900;font-variant-numeric:tabular-nums}
+.facet-option[aria-pressed="true"] .facet-count{border-left-color:rgba(255,255,255,.4)}
+.facet-severity .facet-swatch{display:block;background:var(--sevc);width:12px;height:12px}
+.facet-severity[aria-pressed="true"]{background:var(--sevc);color:var(--sevi)}
+.facet-severity[aria-pressed="true"] .facet-swatch{outline:2px solid currentColor;outline-offset:1px}
+.facet-severity[aria-pressed="true"] .facet-count{border-left-color:currentColor}
+.facet-disposition .facet-swatch,.facet-reviewer .facet-swatch{display:block}
+.facet-reviewer .facet-swatch{width:12px;height:12px;border:2px solid currentColor}
+.facet-reviewer[data-rv="0"] .facet-swatch{background:currentColor}
+.facet-reviewer[data-rv="2"] .facet-swatch{background:#c5c5bd}
+.facet-reviewer[data-rv="3"] .facet-swatch{background:currentColor;box-shadow:inset 0 0 0 2px var(--paper)}
+.facet-reviewer[data-rv="4"] .facet-swatch{background:#6f6f68}
+.facet-reviewer[data-rv="5"] .facet-swatch{border-style:dashed}
+.toggle{font:700 12px/1 var(--sans);white-space:nowrap}
+.toggle input{width:16px;height:16px;margin:0;accent-color:var(--ink);cursor:pointer}
+.toggle-count:not(:empty){display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;background:var(--ink);color:var(--paper);font:900 10.5px/1 var(--sans)}
+.select{display:inline-flex;align-items:center;gap:8px}
+.select-label{font:800 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.select select{-webkit-appearance:none;appearance:none;height:30px;padding:0 30px 0 10px;border:2px solid var(--ink);border-radius:0;font:700 12px/1 var(--sans);cursor:pointer;
+  background:var(--paper) no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;background-size:5px 5px}
+.more-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px 30px;margin-top:12px;padding-top:14px;border-top:2px solid var(--ink)}
+.more-panel .facet{flex-direction:column;align-items:flex-start;gap:8px}
+.more-panel .facet[data-facet="pr"]{grid-column:span 2}
+.more-group{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.more-answers{grid-column:span 2}
+.more-note{max-width:52ch;font-size:12px;line-height:1.4;color:var(--muted)}
+.bulk-answers{gap:6px}
+.bulk-answer{height:30px;padding:0 10px;font-size:10.5px}
+.bulk-reset{border-style:dashed}
+.expand-controls{display:flex;gap:6px}
+.expand-controls button{height:28px;padding:0 9px;font-size:10.5px}
+
+/* Disposition swatches: solid, hatched, purple, grey struck */
+.disp-sw{display:inline-block;width:14px;height:14px;flex:none;border:2px solid var(--ink)}
+:is(.disp-sw,.facet-disposition .facet-swatch){width:13px;height:13px;border:2px solid currentColor}
+[data-disposition="confirmed"]>.facet-swatch,.disp-sw[data-disposition="confirmed"]{background:currentColor}
+[data-disposition="needs validation"]>.facet-swatch,.disp-sw[data-disposition="needs validation"]{background:repeating-linear-gradient(-45deg,currentColor 0 1.5px,transparent 1.5px 4px)}
+[data-disposition="disputed"]>.facet-swatch,.disp-sw[data-disposition="disputed"]{background:var(--purple);border-color:var(--purple)}
+[data-disposition="rejected"]>.facet-swatch,.disp-sw[data-disposition="rejected"]{border-color:var(--grey);background:linear-gradient(to top right,transparent calc(50% - 1.2px),currentColor calc(50% - 1.2px) calc(50% + 1.2px),transparent calc(50% + 1.2px)),var(--grey-lt)}
+.facet-option[aria-pressed="true"][data-disposition="disputed"]{background:var(--purple);border-color:var(--purple)}
+.facet-option[aria-pressed="true"][data-disposition="disputed"] .facet-swatch{border-color:var(--paper)}
+
+/* Reviewer badges: monochrome so color stays reserved for severity */
+.rv-badges{display:inline-flex;gap:3px}
+.rv{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 3px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:900 9px/1 var(--sans);letter-spacing:.04em}
+.rv[data-rv="0"]{background:var(--ink);color:var(--paper)}
+.rv[data-rv="2"]{background:#c5c5bd}
+.rv[data-rv="3"]{background:var(--ink);color:var(--paper);box-shadow:inset 0 0 0 2px var(--paper)}
+.rv[data-rv="4"]{background:#6f6f68;border-color:#6f6f68;color:var(--paper)}
+.rv[data-rv="5"]{border-style:dashed}
+
+/* ── Board ── */
+.board{--fold:66px}
+.board-head{position:sticky;top:var(--strip-h);z-index:30;display:grid;grid-template-columns:var(--cols);background:var(--paper);border-top:3px solid var(--ink);border-bottom:3px solid var(--ink)}
+.col-head{display:flex;align-items:center;gap:10px;min-width:0;padding:12px 10px 12px 14px;border-left:2px solid var(--ink)}
+.col-head:first-child{border-left:0}
+.col-head .disp-sw{width:16px;height:16px}
+.col-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:900 15px/1.05 var(--sans);letter-spacing:-.015em}
+.col-count{margin-left:auto;font:900 32px/.78 var(--sans);letter-spacing:-.06em;font-variant-numeric:tabular-nums}
+.col-toggle{flex:none;height:24px;padding:0 7px;border:2px solid var(--ink);background:var(--paper);font:800 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.col-toggle:hover{background:var(--ink);color:var(--paper)}
+.col-head[data-folded]{justify-content:center;padding:10px 4px;background:var(--hatch-soft)}
+.col-head[data-folded] :is(.disp-sw,.col-label,.col-count){display:none}
+.col-head[data-folded] .col-toggle{font-size:12px;letter-spacing:0;padding:0 8px;height:28px;background:var(--paper)}
+.lane{border-bottom:2px solid var(--ink)}
+.board[data-bare] .lane{border-bottom:0}
+.lane-head{display:flex;align-items:center;gap:14px;width:100%;min-width:0;padding:10px 14px 10px 10px;border:0;background:var(--wash);color:var(--ink);text-align:left;cursor:pointer}
+button.lane-head:hover{background:var(--wash-2)}
+.lane-tile{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:66px;height:42px;padding:0 10px;background:var(--ink);color:var(--paper);font:900 20px/1 var(--sans);letter-spacing:-.04em}
+.lane-tile[data-severity]{background:var(--sevc);color:var(--sevi)}
+.lane-tile[data-kind="cross"]{background:var(--paper);color:var(--ink);border:3px double var(--ink);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.lane-tile[data-kind="none"]{background:var(--paper);color:var(--ink);border:2px dashed var(--ink)}
+.lane-text{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.lane-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:800 17px/1.1 var(--sans);letter-spacing:-.02em}
+.lane-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 11.5px/1.2 var(--mono);color:var(--muted)}
+.lane-bar{display:flex;width:clamp(80px,14vw,220px)}
+.lane-count{min-width:1.3em;text-align:right;font:900 28px/.8 var(--sans);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.lane-chev{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid var(--ink);background:var(--paper);font:900 14px/1 var(--sans)}
+.lane[data-empty] .lane-head{padding-block:7px;background:var(--paper);color:var(--faint);cursor:default}
+.lane[data-empty] .lane-tile{min-width:52px;height:30px;font-size:14px;background:var(--grey-lt);color:var(--muted);border:0}
+.lane[data-empty] .lane-label{font-size:14px;font-weight:700}
+.lane[data-empty] .lane-meta{display:none}
+.lane[data-empty] .lane-count{font-size:18px}
+.lane-empty{font:800 10px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.lane[data-collapsed] .lane-cells{display:none}
+.lane-cells{display:grid;grid-template-columns:var(--cols)}
+.cell{display:flex;flex-direction:column;gap:12px;min-width:0;padding:14px 14px 16px;border-left:1px solid var(--line)}
+.cell:first-child{border-left:0}
+.cell-label{display:none;align-items:center;gap:8px;font:800 10.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.cell-n{margin-left:auto;font-weight:900}
+.cell[data-folded]{align-items:center;padding:14px 0;background:var(--hatch-soft)}
+.cell[data-folded]>.card{display:none}
+.cell-fold{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;background:var(--paper);border:2px solid var(--grey);color:var(--muted);font:900 13px/1 var(--sans)}
+
+/* Cards */
+.card{position:relative;display:grid;grid-template-columns:42px minmax(0,1fr);background:var(--paper);border:2px solid var(--ink);transition:transform .12s ease,box-shadow .12s ease,opacity .12s ease}
+.card:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--ink)}
+.card[data-selected]{transform:translate(-3px,-3px);box-shadow:8px 8px 0 var(--ink)}
+.card-sev{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0 10px;background:var(--sevc);color:var(--sevi);border-right:2px solid var(--ink)}
+.card-sev-code{font:900 15px/1 var(--sans);letter-spacing:-.03em}
+.card-sev-name{writing-mode:vertical-rl;transform:rotate(180deg);font:800 9px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase}
+.card[data-disposition="needs validation"]{border-style:dashed}
+.card[data-disposition="needs validation"] .card-sev{padding-top:0;background:repeating-linear-gradient(-45deg,var(--sevc) 0 4px,var(--paper) 4px 8px);color:var(--ink)}
+.card[data-disposition="needs validation"] .card-sev-code{align-self:stretch;text-align:center;padding:8px 0 6px;background:var(--sevc);color:var(--sevi)}
+.card[data-disposition="needs validation"] .card-sev-name{background:var(--paper);padding:5px 2px}
+.card[data-disposition="disputed"]{border-color:var(--purple);border-top-width:6px}
+.card[data-disposition="disputed"] .card-sev{border-right-color:var(--purple)}
+.card[data-disposition="disputed"]:hover,.card[data-disposition="disputed"][data-selected]{box-shadow:6px 6px 0 var(--purple)}
+.card[data-disposition="rejected"]{border-color:var(--grey);color:#5c5c56}
+.card[data-disposition="rejected"] .card-sev{background:var(--grey-lt);color:#5c5c56;border-right-color:var(--grey)}
+.card[data-disposition="rejected"] .card-open{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:rgba(10,10,10,.55)}
+.card[data-disposition="rejected"]:hover,.card[data-disposition="rejected"][data-selected]{box-shadow:6px 6px 0 var(--grey)}
+.card[data-ignored]{background:var(--paper) var(--hatch-soft)}
+.card[data-ignored] :is(.card-sev,.card-id,.card-body>.card-top .conf,.card-title,.card-loc,.card-comment,.card-foot .pr-chip,.card-foot .rv-badges,.card-details){opacity:.42;transition:opacity .12s ease}
+.card[data-ignored]:is(:hover,:focus-within,[data-selected]) :is(.card-sev,.card-id,.card-body>.card-top .conf,.card-title,.card-loc,.card-comment,.card-foot .pr-chip,.card-foot .rv-badges,.card-details){opacity:.9}
+.card-body{display:flex;flex-direction:column;gap:6px;min-width:0;padding:9px 11px 0}
+.card-top{display:flex;align-items:center;gap:6px;min-height:18px}
+.card-id{font:700 11px/1 var(--mono);color:var(--muted)}
+.card-flags{display:inline-flex;gap:4px}
+.card[data-pinned] .card-flags::before{content:"Pinned";padding:3px 5px 2px;background:var(--ink);color:var(--paper);font:900 9px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.card[data-ignored] .card-flags::after{content:"Ignored";padding:2px 4px 1px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:900 9px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.card[data-pinned]::before{content:"";position:absolute;top:-2px;right:-2px;border-style:solid;border-width:0 18px 18px 0;border-color:transparent var(--ink) transparent transparent;z-index:2}
+.conf{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:800 9.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.conf-bars{display:inline-flex;align-items:flex-end;gap:2px}
+.conf-bars i{width:4px;background:var(--line)}
+.conf-bars i:nth-child(1){height:5px}.conf-bars i:nth-child(2){height:8px}.conf-bars i:nth-child(3){height:11px}
+.conf-bars i.on{background:var(--ink)}
+.card-title{font:700 14.5px/1.27 var(--sans);letter-spacing:-.01em}
+.card-open{display:block;width:100%;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.card-open::after{content:"";position:absolute;inset:-2px;z-index:1}
+.card-open:focus-visible{outline:none}
+.card-open:focus-visible::after{outline:3px solid var(--ink);outline-offset:4px}
+.card-loc{font:500 11px/1.35 var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-foot{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:2px}
+.card-foot .rv-badges{margin-left:auto}
+.card .finding-actions{position:relative;z-index:2;display:flex;gap:4px}
+.card .action{height:22px;padding:0 7px;font-size:9.5px;letter-spacing:.1em;gap:4px}
+.card .action-ignore::before{content:"✕";font-size:10px;letter-spacing:0}
+.card .action-ignore[aria-pressed="false"]{border-color:var(--ink);color:var(--ink)}
+.card .action-ignore[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.card .action-ignore[aria-pressed="true"]:hover{background:var(--paper);color:var(--ink)}
+.card-comment{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 7px;align-items:baseline;margin:2px 0 0;padding:5px 7px;border-left:4px solid var(--p2);background:#fff8d6;font-size:12.5px;line-height:1.35}
+.card-comment-label{font:900 8.5px/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.card-comment-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-line}
+.pr-chip{position:relative;z-index:2;display:inline-flex;align-items:center;height:20px;padding:0 6px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:700 11px/1 var(--mono);cursor:pointer}
+.pr-chip:hover{background:var(--ink);color:var(--paper)}
+.card-details{position:relative;z-index:2;margin:6px -11px 0;border-top:1px solid var(--line)}
+.card-details>summary{display:flex;align-items:center;justify-content:space-between;padding:6px 11px;list-style:none;font:800 9.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.card-details>summary::-webkit-details-marker{display:none}
+.card-details>summary::after{content:"+";font:900 14px/1 var(--sans);color:var(--ink)}
+.card-details[open]>summary::after{content:"−"}
+.card-details>summary:hover{color:var(--ink);background:var(--wash)}
+.card-details>.finding-fields{padding:0 11px 12px}
+.card-details .finding-fields dd{font-size:12.5px}
+.finding-fields{margin:0}
+.finding-fields dt{margin-top:10px;font:800 9.5px/1.1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.finding-fields dd{margin:4px 0 0;font-size:13.5px;line-height:1.45}
+.finding-fields code{font:500 12px/1.4 var(--mono);overflow-wrap:anywhere}
+.finding-fields pre{padding:9px 11px;background:var(--wash);border-left:4px solid var(--ink);font:500 11.5px/1.5 var(--mono)}
+.nomatch{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:44px 40px;border:3px dashed var(--ink);background:var(--hatch-soft)}
+.nomatch>*{background:var(--paper)}
+.nomatch-big{font-size:clamp(34px,4.4vw,64px);font-weight:900;line-height:.86;letter-spacing:-.05em}
+.nomatch-why{font-size:14px;color:var(--muted);padding:2px 4px 2px 0}
+.nomatch-actions{display:flex;flex-wrap:wrap;gap:8px;background:none}
+.empty-state{display:grid;grid-template-columns:minmax(220px,25%) minmax(0,1fr);border:3px solid var(--ink);background:var(--paper)}
+.empty-zero{display:flex;align-items:flex-end;padding:20px 28px 26px;border-right:3px solid var(--ink);background:var(--hatch-soft);font-size:clamp(150px,16vw,250px);font-weight:900;line-height:.72;letter-spacing:-.08em}
+.empty-copy{display:flex;flex-direction:column;justify-content:flex-end;gap:16px;padding:32px 36px 30px}
+.empty-copy .kicker{color:var(--muted)}
+.empty-msg{font-size:clamp(28px,3.2vw,50px);font-weight:900;line-height:1;letter-spacing:-.04em;max-width:24ch;text-wrap:balance}
+.empty-sub{font-size:15px;line-height:1.45;color:#33332f;max-width:62ch}
+
+/* ── Drawer ── */
+.drawer{position:fixed;top:0;right:0;bottom:0;z-index:60;display:flex;flex-direction:column;width:min(var(--drawer-width,520px),100%);background:var(--paper);border-left:3px solid var(--ink);box-shadow:-18px 0 0 rgba(10,10,10,.07)}
+.drawer-band{position:relative;display:flex;align-items:center;gap:14px;min-height:92px;padding:14px 14px 14px 22px;background:var(--sevc);color:var(--sevi);border-bottom:3px solid var(--ink)}
+.drawer[data-disposition="needs validation"] .drawer-band{padding-bottom:26px}
+.drawer[data-disposition="needs validation"] .drawer-band::after{content:"";position:absolute;left:0;right:0;bottom:0;height:12px;background:repeating-linear-gradient(-45deg,var(--ink) 0 2px,transparent 2px 7px);border-top:2px solid var(--ink)}
+.drawer[data-disposition="disputed"] .drawer-band{box-shadow:inset 0 -12px 0 var(--purple);padding-bottom:26px}
+.drawer[data-disposition="rejected"] .drawer-band{background:var(--grey-lt);color:var(--ink)}
+.drawer-sev{font:900 56px/.78 var(--sans);letter-spacing:-.06em}
+.drawer-sevtext{display:flex;flex-direction:column;gap:6px;font:800 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.drawer-id{font:700 12px/1 var(--mono);letter-spacing:0;text-transform:none}
+.drawer-nav{margin-left:auto;display:flex;align-items:center;gap:4px}
+.drawer-step{width:34px;height:34px;border:2px solid currentColor;background:transparent;color:inherit;font:900 15px/1 var(--sans);cursor:pointer}
+.drawer-step:hover:not(:disabled){background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.drawer-pos{min-width:46px;text-align:center;font:900 12px/1 var(--sans);font-variant-numeric:tabular-nums}
+.drawer-close{flex:none;width:42px;height:42px;border:0;background:var(--ink);color:var(--paper);font:300 30px/1 var(--sans);cursor:pointer}
+.drawer-close:hover{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+.drawer-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:22px 24px 56px}
+.drawer-note{margin-bottom:14px;padding:8px 10px;background:var(--p2);font:800 12px/1.3 var(--sans)}
+.drawer-title{font:800 26px/1.12 var(--sans);letter-spacing:-.03em}
+.drawer-title:focus{outline:none}
+.drawer[data-disposition="rejected"] .drawer-title{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:rgba(10,10,10,.5)}
+.drawer-disp{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:14px 0 18px}
+.drawer-disp-label{display:inline-flex;align-items:center;gap:8px;font:900 12px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.drawer-disp .finding-actions{margin-left:auto}
+.drawer-stamp{display:none;align-self:flex-start;padding:4px 6px 3px;background:var(--ink);color:var(--paper);font:900 10px/1 var(--sans);letter-spacing:.14em}
+.drawer[data-ignored] .drawer-stamp{display:inline-block}
+.drawer[data-ignored] .drawer-band{background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.28) 0 3px,transparent 3px 9px)}
+.drawer[data-ignored] .drawer-title{color:#4a4a44}
+
+/* Answer block: the one decision this drawer asks for */
+.answer{margin:0 0 24px;padding:14px 16px 16px;border:3px solid var(--ink);background:var(--paper)}
+.answer[data-answer="ignore"]{background:var(--paper) var(--hatch-soft)}
+.answer-head{gap:10px 14px}
+.answer-legend{flex:1 1 auto;font:900 19px/1 var(--sans);letter-spacing:-.02em}
+.answer-choice{flex:none}
+.answer-option{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 10px;margin-left:-2px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:800 12px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase}
+.answer-option:first-child{margin-left:0}
+.answer-option:hover{background:var(--wash-2)}
+.answer-option:focus-visible{position:relative;z-index:1}
+.answer-mark{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:2px solid currentColor;font:900 12px/1 var(--sans);letter-spacing:0;color:transparent}
+.answer-option[aria-pressed="true"]{background:var(--ink);color:var(--paper);box-shadow:inset 0 -5px 0 var(--p2)}
+.answer-option[data-answer-value="fix"][aria-pressed="true"] .answer-mark{background:var(--green);border-color:var(--green);color:var(--ink)}
+.answer-option[data-answer-value="ignore"][aria-pressed="true"] .answer-mark{background:var(--paper);border-color:var(--paper);color:var(--ink)}
+.answer-option[aria-pressed="true"]:hover{background:#262623}
+.answer-note{flex-basis:100%;font:600 12.5px/1.35 var(--sans);color:var(--muted)}
+.answer-comment{margin-top:14px;gap:6px}
+.answer-comment-label{font:800 9.5px/1.1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.answer-input{min-height:5.2em;padding:10px 12px;border:2px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);font:500 14.5px/1.45 var(--sans)}
+.answer-input::placeholder{color:var(--faint)}
+.answer-input:focus{outline:none;box-shadow:5px 5px 0 var(--p2),5px 5px 0 2px var(--ink)}
+
+/* Full-screen toggle (key f) and its band hint */
+.drawer-full{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:34px;height:34px;padding:0 8px;border:2px solid currentColor;background:transparent;color:inherit;font:800 11px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.drawer-full:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.drawer-full-icon{position:relative;flex:none;width:14px;height:14px;border:2px solid currentColor}
+.drawer-full-icon::after{content:"";position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:currentColor}
+.drawer-full[aria-pressed="true"] .drawer-full-icon::after{top:auto;right:auto;left:1px;bottom:1px;width:6px;height:6px}
+.drawer-full-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.drawer-full[aria-pressed="true"]{padding:0 12px;background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.drawer-full[aria-pressed="true"] .drawer-full-label{position:static;width:auto;height:auto;overflow:visible;clip:auto}
+.drawer-full[aria-pressed="true"]:hover{background:var(--paper);color:var(--ink)}
+.drawer-hint{display:none;align-items:center;gap:4px;font:800 10.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.drawer-hint kbd{min-width:20px;padding:2px 4px;border-color:currentColor;background:transparent;color:inherit;font-size:10.5px}
+
+/* Full screen: the drawer becomes a reading page with a centred column; j/k still move through findings */
+html[data-drawer-full] body{overflow:hidden}
+html[data-drawer-full] .drawer{--gutter:max(24px,calc((100% - 1000px) / 2));border-left:0;box-shadow:none}
+html[data-drawer-full] .drawer-band{min-height:108px;padding-inline:var(--gutter)}
+html[data-drawer-full] .drawer-sev{font-size:72px}
+html[data-drawer-full] .drawer-nav{margin-left:auto}
+html[data-drawer-full] .drawer-hint{display:inline-flex;margin-left:auto}
+html[data-drawer-full] .drawer-hint+.drawer-full{margin-left:0}
+html[data-drawer-full] .drawer-nav+.drawer-hint{margin-left:18px}
+html[data-drawer-full] .drawer-scroll{padding:36px var(--gutter) 96px}
+html[data-drawer-full] .drawer-title{font-size:clamp(30px,3.2vw,46px);line-height:1.02;letter-spacing:-.045em;max-width:24em}
+html[data-drawer-full] .drawer-disp{margin:18px 0 26px}
+html[data-drawer-full] .drawer .finding-fields{grid-template-columns:190px minmax(0,1fr);margin-top:34px;border-top-width:6px}
+html[data-drawer-full] .drawer .finding-fields dt,html[data-drawer-full] .drawer .finding-fields dd{padding:16px 0}
+html[data-drawer-full] .drawer .finding-fields dd{font-size:16.5px;line-height:1.55}
+html[data-drawer-full] .drawer .finding-fields pre{padding:14px 18px;font-size:13px;line-height:1.6}
+html[data-drawer-full] .answer-input{min-height:7em}
+@media screen and (min-width:1000px){
+  html[data-drawer-full] .drawer-lead{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:0 36px;align-items:start}
+  html[data-drawer-full] .drawer-lead>.answer{margin:0}
+  html[data-drawer-full] .drawer-lead>.drawer-meta{margin:0}
+}
+
+/* Resize grip: a black tab on the drawer's left rule */
+.drawer>.resize-handle{left:-10px;width:16px;color:var(--ink)}
+.drawer>.resize-handle::after{left:3px;width:10px;height:64px;margin-top:-32px;border-radius:0;opacity:1;background:var(--ink)}
+.drawer>.resize-handle::before{content:"";position:absolute;top:50%;left:7px;width:2px;height:28px;margin-top:-14px;background:var(--paper);z-index:1}
+.drawer>.resize-handle:hover::after,.drawer>.resize-handle:focus-visible::after,.is-resizing .drawer>.resize-handle::after{background:var(--p2);box-shadow:inset 0 0 0 2px var(--ink)}
+.drawer>.resize-handle:hover::before,.drawer>.resize-handle:focus-visible::before,.is-resizing .drawer>.resize-handle::before{background:var(--ink)}
+.drawer>.resize-handle:focus-visible::after{outline:3px solid var(--ink);outline-offset:2px}
+.drawer-meta{display:grid;grid-template-columns:112px minmax(0,1fr);margin:0 0 18px;border-top:3px solid var(--ink)}
+.drawer-meta dt,.drawer-meta dd{margin:0;padding:10px 0;border-bottom:1px solid var(--line)}
+.drawer-meta dt{font:800 9.5px/1.6 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.drawer-meta dd{font-size:14px;line-height:1.4;min-width:0}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.pr-ref{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.pr-ref-title{font-size:13px;color:var(--muted)}
+.who{display:flex;flex-wrap:wrap;gap:6px 14px}
+.who-item{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.tag-chip{height:24px;padding:0 8px;border:2px solid var(--ink);background:var(--paper);font:700 11.5px/1 var(--mono);cursor:pointer}
+.tag-chip:hover,.tag-chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.drawer .finding-actions{display:flex;gap:8px}
+.drawer .finding-fields{display:grid;grid-template-columns:112px minmax(0,1fr);border-top:3px solid var(--ink);margin-top:14px}
+.drawer .finding-fields dt,.drawer .finding-fields dd{margin:0;padding:12px 0;border-bottom:1px solid var(--line)}
+.drawer .finding-fields dt{line-height:1.6}
+.drawer .finding-fields dd{font-size:14.5px;line-height:1.5}
+.drawer .finding-fields dd[data-field="impact"],.drawer .finding-fields dd[data-field="recommendation"]{font-weight:700}
+.drawer .conf{margin:0;font-size:11px;color:var(--ink)}
+
+/* ── Matrix ── */
+.mx-summary{display:flex;flex-wrap:wrap;margin-bottom:22px;border:2px solid var(--ink);background:var(--ink);gap:2px}
+.mx-stat{flex:1 1 150px;display:flex;align-items:flex-end;gap:12px;padding:14px 16px;background:var(--paper)}
+.mx-stat b{font:900 52px/.78 var(--sans);letter-spacing:-.06em;font-variant-numeric:tabular-nums}
+.mx-stat span{font:800 10.5px/1.25 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.mx-stat[data-k="all"]{background:var(--ink);color:var(--paper)}
+.mx-scroll{overflow-x:auto}
+.matrix{width:100%;min-width:620px;border-collapse:collapse;table-layout:fixed}
+.matrix th,.matrix td{padding:0;border-bottom:1px solid var(--line);vertical-align:middle;font-weight:inherit}
+.matrix thead th{padding:10px 8px 12px;border-bottom:3px solid var(--ink);font:800 10.5px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase;text-align:center;vertical-align:bottom}
+.matrix thead th:first-child{text-align:left;padding-left:0}
+.mx-h-rv{width:140px}
+.mx-h-agree{width:112px}
+.mx-rv{display:inline-flex;flex-direction:column;align-items:center;gap:7px}
+.mx-rv-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+.mx-fin{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px 9px 0}
+.sev-tag{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:22px;background:var(--sevc);color:var(--sevi);font:900 11px/1 var(--sans)}
+.mx-id{flex:none;font:700 11px/1 var(--mono);color:var(--muted)}
+.mx-open{min-width:0;padding:0;border:0;background:none;color:inherit;font:700 14px/1.3 var(--sans);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mx-open:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.mx-row .disp-sw{margin-left:auto}
+.mx-row[data-disposition="rejected"] .mx-open{text-decoration:line-through;color:var(--muted)}
+.mx-cell{text-align:center;position:relative}
+.mx-dot{position:relative;z-index:1;display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--ink);vertical-align:middle}
+.mx-none{display:inline-block;width:12px;height:3px;background:var(--line);vertical-align:middle}
+.mx-agree{text-align:right}
+.mx-agree-tag{display:inline-flex;align-items:center;height:24px;padding:0 8px;border:2px solid var(--ink);font:900 11.5px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.mx-row.is-solo .mx-agree-tag{border-color:var(--line);color:var(--muted)}
+.mx-row.is-all>*{background:var(--ink);color:var(--paper);border-bottom-color:#3a3a36}
+.mx-row.is-all .mx-id{color:#bdbdb5}
+.mx-row.is-all .mx-dot{background:var(--p2);box-shadow:0 0 0 3px var(--ink),0 0 0 5px var(--p2)}
+.mx-row.is-all .mx-agree-tag{background:var(--p2);border-color:var(--p2);color:var(--ink)}
+.mx-row.is-all .mx-fin{padding-left:10px}
+.mx-row.is-all .disp-sw[data-disposition="confirmed"]{border-color:var(--paper);background:var(--paper)}
+.mx-row[data-selected]>th{box-shadow:inset 6px 0 0 var(--p2)}
+.mx-row[data-selected] .mx-fin{padding-left:14px}
+.mx-row[data-selected]>*{background:var(--wash-2)}
+.mx-row.is-all[data-selected]>*{background:#262623}
+.mx-row[data-ignored]>*{opacity:.42}
+.mx-row[data-ignored] .mx-id::before{content:"Ignored · ";font:900 9px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+.mx-row[data-commented] .mx-fin::after{content:"✎";flex:none;font:900 13px/1 var(--sans)}
+.mx-row[data-pinned] .mx-id::after{content:" ▲";color:var(--ink)}
+.mx-row.is-all[data-pinned] .mx-id::after{color:var(--p2)}
+.matrix tfoot th,.matrix tfoot td{padding:12px 8px;border-bottom:0;border-top:3px solid var(--ink);vertical-align:top}
+.matrix tfoot th{text-align:left;padding-left:0;font:800 10.5px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+.mx-total{text-align:center}
+.mx-total b{display:block;font:900 30px/.85 var(--sans);letter-spacing:-.05em}
+.mx-total span{font:700 11px/1.4 var(--sans);color:var(--muted)}
+
+/* ── Team ── */
+.team{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));border-top:2px solid var(--ink);border-left:2px solid var(--ink)}
+.rv-card{display:flex;flex-direction:column;min-width:0;background:var(--paper);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.rv-status{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px;padding:10px 18px;font:900 14px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.rv-status small{font:700 11px/1.2 var(--sans);letter-spacing:.02em;text-transform:none;text-align:right}
+.rv-card[data-tone="ok"] .rv-status{background:var(--ink);color:var(--paper)}
+.rv-card[data-tone="bad"] .rv-status{background:var(--p0);color:#fff}
+.rv-card[data-tone="warn"] .rv-status{background:var(--amber);color:var(--ink)}
+.rv-card[data-tone="idle"] .rv-status{background:var(--grey-lt) var(--hatch-soft);color:var(--ink)}
+.rv-inner{display:flex;flex-direction:column;gap:14px;flex:1;padding:20px 18px 22px}
+.rv-head{display:flex;align-items:center;gap:10px}
+.rv-head .rv{min-width:30px;height:28px;font-size:11px}
+.rv-name{font:900 30px/.92 var(--sans);letter-spacing:-.045em}
+.rv-model{font:600 12.5px/1.35 var(--mono);overflow-wrap:anywhere}
+.rv-stats{display:flex;border:2px solid var(--ink)}
+.rv-stat{flex:1;display:flex;align-items:flex-end;gap:8px;padding:8px 10px}
+.rv-stat+.rv-stat{border-left:2px solid var(--ink)}
+.rv-stat b{font:900 30px/.8 var(--sans);letter-spacing:-.05em}
+.rv-stat span{font:800 9.5px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.rv-kv{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;margin:0;border-top:3px solid var(--ink)}
+.rv-kv dt,.rv-kv dd{margin:0;padding:7px 0;border-bottom:1px solid var(--line)}
+.rv-kv dt{font:800 9.5px/1.7 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.rv-kv dd{font:500 12.5px/1.4 var(--mono);overflow-wrap:anywhere}
+.rv-prov{font-size:13.5px;line-height:1.45}
+.rv-prov .kicker,.rv-limits .kicker{margin-bottom:5px;color:var(--muted)}
+.rv-limits{padding:10px 12px;border-left:6px solid var(--amber);background:#fff6dc;font-size:13.5px;line-height:1.45}
+.rv-output{margin-top:auto}
+.rv-output>summary{list-style:none;height:28px;width:max-content}
+.rv-output>summary::-webkit-details-marker{display:none}
+.rv-output>summary::before{content:"+";font-size:14px}
+.rv-output[open]>summary::before{content:"−"}
+.rv-output pre{margin:10px 0 0;max-height:320px;overflow:auto;padding:12px 14px;background:var(--ink);color:#efefea;font:500 12px/1.55 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* ── Scope & follow-up ── */
+.target{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));margin-bottom:40px;border-top:2px solid var(--ink);border-left:2px solid var(--ink)}
+.kv-tile{display:flex;flex-direction:column;gap:9px;min-width:0;padding:14px 16px 18px;background:var(--paper);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.kv-tile .kicker{color:var(--muted)}
+.kv-val{font:700 15.5px/1.38 var(--sans);letter-spacing:-.01em;overflow-wrap:anywhere}
+.lists{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:6px solid var(--ink)}
+.list-col{position:relative;min-width:0;padding:18px 26px 6px 0}
+.list-col+.list-col{padding-left:26px;border-left:2px solid var(--ink)}
+.list-col[data-kind="gaps"]::before{content:"";position:absolute;left:0;right:0;top:-6px;height:6px;background:var(--hazard)}
+.list-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.list-head h3{font:900 26px/1 var(--sans);letter-spacing:-.04em}
+.list-n{font:900 26px/1 var(--sans);letter-spacing:-.04em;color:var(--faint)}
+.list-col ol{list-style:none;margin:0;padding:0;counter-reset:li}
+.list-col li{counter-increment:li;display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;padding:11px 0;border-top:1px solid var(--line);font-size:14.5px;line-height:1.45}
+.list-col li::before{content:counter(li,decimal-leading-zero);font:900 13px/1.6 var(--sans)}
+.list-none{padding:11px 0;border-top:1px solid var(--line);font-size:14px;color:var(--faint)}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:24px;margin-top:44px}
+.note{padding-top:14px;border-top:6px solid var(--ink)}
+.note h3{margin-bottom:8px;font:900 19px/1.15 var(--sans);letter-spacing:-.02em}
+.note p{font-size:14.5px;line-height:1.5;color:#2b2b28}
+.sources{margin-top:44px}
+.sources ul{list-style:none;margin:10px 0 0;padding:0;border-top:2px solid var(--ink)}
+.sources li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.sources a{font-weight:800}
+.sources a::after{content:" ↗"}
+.src-url{font:500 11.5px/1.3 var(--mono);color:var(--muted);overflow-wrap:anywhere;min-width:0}
+
+/* ── Footer ── */
+.foot{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 30px;padding:22px var(--pad) 44px;font-size:12px;color:var(--muted)}
+.foot b{color:var(--ink)}
+.foot-note{max-width:62ch}
+.shortcuts{margin-left:auto;max-width:100%}
+.shortcuts>summary{cursor:pointer;font:800 10.5px/1.6 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+.shortcuts[open]{flex:1 1 100%;margin-left:0}
+.shortcuts .shortcut-groups{margin-top:12px;color:var(--ink)}
+.shortcuts-open{display:inline-flex;align-items:center;height:28px;padding:0 10px;margin-top:14px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:800 10.5px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase}
+.shortcuts-open:hover{background:var(--ink);color:var(--paper)}
+
+/* ── Keyboard cheatsheet (core modal, key ?) ── */
+.shortcut-overlay{background:rgba(10,10,10,.42) var(--hatch-soft)}
+.shortcut-sheet{width:min(780px,100%);padding:0;border:3px solid var(--ink);background:var(--paper);color:var(--ink);box-shadow:12px 12px 0 var(--ink);font-family:var(--sans)}
+.shortcut-head{margin:0;padding:16px 16px 16px 24px;background:var(--ink);color:var(--paper)}
+.shortcut-title{font:900 clamp(28px,4vw,40px)/.9 var(--sans);letter-spacing:-.05em}
+.shortcut-close{width:42px;height:42px;background:var(--paper);color:var(--ink);font:300 30px/1 var(--sans)}
+.shortcut-close:hover{background:var(--p2)}
+.shortcut-close:focus-visible{outline:3px solid var(--p2);outline-offset:2px}
+.shortcut-sheet .shortcut-groups{padding:22px 24px 6px;gap:22px 34px}
+.shortcut-group{border-top:6px solid var(--ink);padding-top:10px}
+.shortcut-group-title{margin-bottom:6px;font:800 10.5px/1.2 var(--sans);letter-spacing:.14em;text-transform:uppercase;opacity:1}
+.shortcut-group dl{gap:0 14px}
+.shortcut-group dt,.shortcut-group dd{padding:7px 0;border-bottom:1px solid var(--line)}
+.shortcut-group dd{font-size:14px;line-height:1.3}
+.shortcut-group kbd{min-width:26px}
+.kbd-or{font:800 9.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);opacity:1}
+.shortcut-foot{margin:0;padding:12px 24px 20px;font-size:12.5px;color:var(--muted);opacity:1}
+kbd{display:inline-block;min-width:22px;padding:2px 5px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font:700 11px/1.2 var(--mono);text-align:center}
+
+/* ── Responsive ── */
+@media screen and (max-width:1180px){
+  .strip-toggle{display:inline-flex}
+  .strip:not(.is-open) :is(.strip-body,.strip-view,.strip-presets){display:none}
+  .strip.is-open .strip-body{max-height:calc(100vh - 150px);overflow:auto}
+  .strip-presets{order:5}
+  .strip-view{order:6}
+  .search-input{width:clamp(160px,19vw,260px)}
+  .masthead{grid-template-columns:minmax(240px,32%) minmax(0,1fr)}
+  .metrics{grid-template-columns:minmax(240px,32%) minmax(0,1fr) minmax(0,1fr)}
+  .metric:nth-child(3){border-right:0}
+  .metric-sev{grid-column:1/-1;border-top:2px solid var(--ink)}
+  .lists{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .list-col:nth-child(3){grid-column:1/-1;padding-left:0;border-left:0;border-top:2px solid var(--ink);margin-top:16px}
+  .col-label{font-size:14px}
+  .col-count{font-size:26px}
+}
+@media screen and (max-width:760px){
+  body{font-size:14.5px}
+  .topbar{gap:6px 14px}
+  .topbar-meta{order:3;width:100%}
+  .masthead{grid-template-columns:1fr}
+  .status-tile{min-height:0;padding:20px var(--pad);border-right:0;border-bottom:2px solid var(--ink);--status-max:72px}
+  .status-tile[data-status="incomplete"]{padding-top:40px}
+  .mast-main{padding:22px var(--pad) 26px}
+  .summary{font-size:15.5px}
+  .metrics{grid-template-columns:1fr 1fr}
+  .metric{padding:18px var(--pad);border-bottom:2px solid var(--ink)}
+  .metric:nth-child(1){grid-column:1/-1;border-right:0}
+  .metric:nth-child(3){border-right:0}
+  .metric-sev{border-top:0;border-bottom:0;grid-template-columns:1fr}
+  .metric-value{font-size:64px}
+  .hero-legend{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .section{padding:34px var(--pad) 40px}
+  .sec-aside{margin-left:0;align-items:flex-start;text-align:left;width:100%}
+  .map-grid{--gx:34px;--gy:16px;--trunk-w:58px;--card-min:212px;--card-max:212px}
+  .trunk-tile{padding:12px 8px}
+  .trunk-name{font-size:16px}
+  .map-card{padding:12px 12px}
+  .mc-num{font-size:26px}
+  .map-hint::after{content:" Swipe sideways to see the whole stack."}
+  .strip{padding:8px var(--pad)}
+  .strip:not(.is-open) .strip-presets{display:none}
+  .strip-a{gap:8px}
+  .strip-a .search-input{flex:1 1 200px;width:auto}
+  .strip-a .strip-spacer{display:none}
+  .strip-a .result-count{flex:1 1 auto}
+  .strip-a .reset{margin-left:0;height:28px}
+  .strip-presets{order:5;width:100%}
+  .strip-view{order:6;width:100%;justify-content:space-between}
+  .strip-a .copy-answers{order:4;flex:1 1 100%;flex-direction:row;align-items:center;justify-content:space-between;height:34px;padding:0 12px}
+  .strip-b .strip-spacer{display:none}
+  .more-answers{grid-column:auto}
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .preset{margin:0;height:32px}
+  .strip-b{flex-direction:column;align-items:stretch}
+  .more-panel{grid-template-columns:1fr}
+  .more-panel .facet[data-facet="pr"]{grid-column:auto}
+  .facet-hint{max-width:11em}
+  .board-head{position:static;display:flex;flex-wrap:wrap;gap:6px;padding:0 0 14px;border:0}
+  .col-head,.col-head:first-child,.col-head[data-folded]{flex:1 1 calc(50% - 6px);display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"sw count toggle" "label label label";align-items:center;gap:8px;padding:10px;border:2px solid var(--ink)}
+  .col-head .disp-sw{grid-area:sw}
+  .col-head .col-count{grid-area:count;margin:0;font-size:26px}
+  .col-head .col-toggle{grid-area:toggle}
+  .col-head .col-label{grid-area:label;font-size:13px;white-space:normal}
+  .col-head[data-folded] :is(.disp-sw,.col-label,.col-count){display:block}
+  .col-head[data-folded] .col-label{color:var(--muted)}
+  .col-head[data-folded] .col-count{color:var(--muted)}
+  .lane{border-bottom-width:3px}
+  .lane-head{gap:10px;padding:10px 8px}
+  .lane-tile{min-width:54px;height:38px;font-size:17px}
+  .lane-bar{display:none}
+  .lane-label{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:15.5px}
+  .lane-cells{display:block;padding:0 0 6px}
+  .cell,.cell:first-child{padding:12px 0 4px;border-left:0}
+  .cell[data-count="0"],.cell[data-folded]{display:none}
+  .cell-label{display:flex}
+  .board[data-bare] .cell{padding-top:16px}
+  .card:hover{transform:none;box-shadow:none}
+  .card[data-selected]{transform:none;box-shadow:5px 5px 0 var(--ink)}
+  .drawer{width:100%;border-left:0}
+  .drawer-band{padding-left:16px;gap:10px}
+  .drawer-sev{font-size:44px}
+  .drawer-full,html[data-drawer-full] .drawer-hint{display:none}
+  html[data-drawer-full] .drawer-band{min-height:92px;padding-inline:16px}
+  html[data-drawer-full] .drawer-sev{font-size:44px}
+  html[data-drawer-full] .drawer-scroll{padding:18px 16px 48px}
+  html[data-drawer-full] .drawer .finding-fields{grid-template-columns:1fr}
+  .drawer-scroll{padding:18px 16px 48px}
+  .drawer-meta,.drawer .finding-fields{grid-template-columns:1fr}
+  .drawer-meta dt,.drawer .finding-fields dt{padding-bottom:0;border-bottom:0}
+  .drawer-meta dd,.drawer .finding-fields dd{padding-top:4px}
+  .mx-summary{flex-wrap:nowrap}
+  .mx-stat{flex:1 1 0;flex-direction:column;align-items:flex-start;gap:6px;padding:12px}
+  .mx-stat b{font-size:40px}
+  .mx-stat span{font-size:9.5px}
+  .matrix{min-width:0}
+  .mx-h-rv{width:46px}
+  .mx-h-agree{width:64px;font-size:9px!important;letter-spacing:.04em!important;padding-right:0!important}
+  .matrix thead th{padding-inline:2px}
+  .mx-rv-name{display:none}
+  .mx-fin{flex-wrap:wrap;gap:6px 8px;padding:10px 6px 10px 0}
+  .mx-open{flex:1 1 100%;order:5;white-space:normal;font-size:13.5px}
+  .mx-row.is-all .mx-fin{padding-left:8px}
+  .mx-row .disp-sw{margin-left:0}
+  .mx-dot{width:16px;height:16px}
+  .mx-agree-tag{padding:0 5px;font-size:10.5px}
+  .mx-total b{font-size:24px}
+  .mx-total span{display:block;font-size:10px;line-height:1.2}
+  .lists{grid-template-columns:1fr}
+  .list-col,.list-col+.list-col,.list-col:nth-child(3){padding:16px 0 6px;border-left:0;margin-top:0}
+  .list-col+.list-col{border-top:2px solid var(--ink)}
+  .empty-state{grid-template-columns:1fr}
+  .empty-zero{border-right:0;border-bottom:3px solid var(--ink);padding:18px 20px 22px;font-size:120px}
+  .empty-copy{padding:22px 20px 24px}
+  .nomatch{padding:28px 22px}
+  .shortcuts{margin-left:0}
+}
+
+/* ── Print: a readable list, every shown finding with its full fields ── */
+@media print{
+  @page{margin:12mm}
+  :root{--pad:0px}
+  body{font-size:10pt}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .strip,.drawer,.view-pop,.map-tools,.map-link,.col-toggle,.lane-chev,.card-details>summary,.shortcuts,.nomatch-actions{display:none!important}
+  .topbar{padding:0 0 6px}
+  .masthead{grid-template-columns:30% minmax(0,1fr)}
+  .status-tile{min-height:0;padding:14px}
+  .mast-main{padding:14px 0 16px 18px}
+  .verdict{font-size:24pt}
+  .summary{font-size:10.5pt}
+  .metrics{grid-template-columns:30% 1fr 1fr}
+  .metric{padding:12px 14px}
+  .metric:nth-child(3){border-right:0}
+  .metric-sev{grid-column:1/-1;border-top:2px solid var(--ink)}
+  .metric-value{font-size:40pt}
+  .section{padding:18px 0 20px;border-bottom:1.5pt solid #000}
+  .sec-head{margin-bottom:12px;break-inside:avoid;break-after:avoid}
+  .sec-title{font-size:24pt}
+  .map-scroll{overflow:visible;padding:0;margin:0}
+  .map-grid{--gx:26px;--gy:10px;--trunk-w:72px;--card-min:0px;--card-max:1fr;min-width:0;break-inside:avoid}
+  .trunk-tile{padding:10px 8px}
+  .trunk-name{font-size:14pt;overflow-wrap:normal;word-break:normal}
+  .map-card{padding:8px 10px;transform:none!important;box-shadow:none!important}
+  .mc-num{font-size:18pt}
+  .board-head{display:none}
+  .lane{break-inside:auto;border-bottom:0}
+  .lane-head{background:none;padding:10px 0 4px;border-bottom:1.5pt solid #000;break-after:avoid}
+  .lane[data-collapsed] .lane-cells{display:block}
+  .lane-cells{display:block}
+  .cell{padding:8px 0 0;border:0}
+  .cell[data-count="0"]{display:none}
+  .cell-label{display:flex;padding-bottom:6px;break-after:avoid}
+  .cell[data-folded]{display:flex;background:none;padding:8px 0 0;align-items:stretch}
+  .cell[data-folded]>.card{display:grid}
+  .cell-fold{display:none}
+  .card{break-inside:avoid;transform:none!important;box-shadow:none!important;margin-bottom:6px}
+  .card[data-ignored] :is(.card-sev,.card-id,.card-body>.card-top .conf,.card-title,.card-loc,.card-comment,.card-foot .pr-chip,.card-foot .rv-badges,.card-details){opacity:.7}
+  .card:not([data-ignored]) .card-flags::after{content:"Fix";padding:2px 4px 1px;border:2px solid var(--ink);font:900 9px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+  .card .finding-actions{display:none}
+  .card-comment{opacity:1!important;background:none;border-left-color:#000}
+  .card-comment-text{display:block;-webkit-line-clamp:none;overflow:visible}
+  .mx-row[data-ignored]>*{opacity:.6}
+  .card-open::after{display:none}
+  .card-loc{white-space:normal}
+  .card-details{margin:6px 0 8px;border-top:1px solid #999}
+  .card-details>.finding-fields{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:12px;padding:0}
+  .card-details .finding-fields dt{margin-top:6px}
+  .card-details .finding-fields dd{margin-top:6px}
+  .mx-scroll{overflow:visible}
+  .matrix{min-width:0}
+  .mx-open{white-space:normal}
+  .mx-h-rv{width:78px}
+  .mx-h-agree{width:76px}
+  .matrix thead th{padding-inline:2px;font-size:7.5pt;letter-spacing:.06em}
+  .mx-rv-name{max-width:76px}
+  .mx-summary{break-inside:avoid}
+  .mx-row{break-inside:avoid}
+  .team,.target{border:0;gap:8px}
+  .team{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rv-card,.kv-tile{break-inside:avoid;border:1.5pt solid var(--ink)}
+  .rv-output pre{max-height:none;background:#fff;color:#000;border:1px solid #000}
+  .lists{grid-template-columns:1fr 1fr 1fr}
+  .empty-zero{font-size:80pt;padding:10px 14px}
+  .empty-copy{padding:14px 18px}
+}
+</style>
+</head>
+<body>
+<noscript>This report renders with JavaScript. The full report data is embedded in this file.</noscript>
+<div id="app"></div>
+<script type="application/json" id="report-data">@@DATA@@</script>
+<script>@@CORE_JS@@</script>
+<script>
+(() => {
+  'use strict';
+  const app = MultiAgentReview.create();
+  const { h, ui, data, state, stack } = app;
+  const C = app.constants;
+  const SEVS = C.SEVERITIES;
+  const SEV_LABEL = C.SEVERITY_LABELS;
+  const DISPS = C.DISPOSITIONS;
+  const DISP_LABEL = { confirmed: 'Confirmed', 'needs validation': 'Needs validation', disputed: 'Disputed', rejected: 'Rejected' };
+  const findings = app.findings;
+  const hasFindings = findings.length > 0;
+  const reviewerNames = app.options.reviewer.map((o) => o.value);
+  const BAD = ['failed', 'timed_out', 'unavailable', 'cancelled'];
+  const WARN = ['stale', 'running'];
+
+  // Theme-local view state (memory only): folded board columns and swimlanes, strip panels.
+  const foldedCols = new Set();
+  const foldedLanes = new Set();
+  let stripOpen = false;
+  let moreOpen = ['reviewer', 'confidence', 'tag'].some((k) => state[k].size) || state.pinnedOnly;
+  let drawerFor = null;
+  let opener = null; // focus key of the control that opened the drawer, restored on close
+
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || `${one}s`)}`;
+  const lower = (v) => String(v == null ? '' : v).trim().toLowerCase();
+  const kicker = (text) => h('span', { class: 'kicker' }, text);
+  const swatch = (d) => h('span', { class: 'disp-sw', dataset: { disposition: d }, 'aria-hidden': 'true' });
+  const tally = (list) => {
+    const row = { total: 0, P0: 0, P1: 0, P2: 0, P3: 0 };
+    list.forEach((f) => { row.total += 1; row[f.severity] += 1; });
+    return row;
+  };
+  const statusText = (s) => String(s).replace(/_/g, ' ');
+
+  /** Re-render a region outside core's notify() while keeping keyboard focus on the same control. */
+  function keepFocus(fn) {
+    const active = document.activeElement;
+    const key = active && active.dataset ? active.dataset.focusKey : null;
+    fn();
+    if (key && (!document.activeElement || document.activeElement === document.body)) {
+      const el = document.querySelector(`[data-focus-key="${CSS.escape(key)}"]`);
+      if (el) el.focus({ preventScroll: true });
+    }
+  }
+  /** Core syncs these marks only inside notify(); set them at build time for local re-renders too. */
+  function mark(el, id) {
+    el.toggleAttribute('data-selected', state.selected === id);
+    el.toggleAttribute('data-pinned', app.isPinned(id));
+    el.dataset.answer = app.answer(id);
+    el.toggleAttribute('data-ignored', app.isIgnored(id));
+    el.toggleAttribute('data-commented', Boolean(app.comment(id).trim()));
+    return el;
+  }
+  /** Comments are typed without a re-render; mirror them onto the cards (and print) as the user types. */
+  function syncComment(id) {
+    const text = app.comment(id).trim();
+    document.querySelectorAll(`.card-comment[data-comment-for="${CSS.escape(id)}"]`).forEach((el) => {
+      el.hidden = !text;
+      el.querySelector('.card-comment-text').textContent = text;
+    });
+  }
+
+  function segbar(row, opts) {
+    opts = opts || {};
+    const present = SEVS.filter((s) => row[s]);
+    const label = row.total ? present.map((s) => `${row[s]} ${s} ${SEV_LABEL[s]}`).join(', ') : 'No findings in view';
+    return h('span', { class: `segbar${opts.size ? ` segbar-${opts.size}` : ''}`, role: 'img', 'aria-label': label, title: label },
+      row.total
+        ? present.map((s) => h('span', { class: 'segbar-seg', dataset: { severity: s }, style: `flex-grow:${row[s]}` }, String(row[s])))
+        : h('span', { class: 'segbar-none' }, opts.empty || ''));
+  }
+
+  function confidence(value) {
+    const v = lower(value);
+    const level = v === 'high' ? 3 : v === 'medium' ? 2 : v === 'low' ? 1 : 0;
+    return h('span', { class: 'conf', title: `${value} confidence` },
+      h('span', { class: 'conf-bars', 'aria-hidden': 'true' }, [1, 2, 3].map((i) => h('i', { class: i <= level ? 'on' : null }))),
+      h('span', null, value ? `${value}` : 'Unknown'), h('span', { class: 'sr-only' }, ' confidence'));
+  }
+
+  const secHead = (id, title, aside) => h('div', { class: 'sec-head' },
+    h('span', { class: 'sec-num', 'aria-hidden': 'true' }),
+    h('h2', { class: 'sec-title', id }, title),
+    aside ? h('div', { class: 'sec-aside' }, aside) : null);
+
+  /* ── Top bar ── */
+  function buildTopbar() {
+    const defs = [app.hasStack && ['stack', 'Stack map'], hasFindings && ['matrix', 'Who found what'], ['team', 'Reviewers'], ['details', 'Scope & follow-up']].filter(Boolean);
+    const pop = h('details', { class: 'view-pop no-print' }, h('summary', null, 'View'),
+      h('div', { class: 'view-panel' }, ui.sections(defs), ui.print('Print / PDF')));
+    document.addEventListener('click', (event) => { if (pop.open && !pop.contains(event.target)) pop.open = false; });
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !pop.open) return;
+      pop.open = false;
+      event.preventDefault();
+    }, true);
+    const snap = data.snapshot_id
+      ? h('span', { class: 'topbar-snap', title: 'Reviewed snapshot' }, `snapshot ${data.snapshot_id} · ${data.snapshot_verified === true ? 'verified' : 'unverified'}`)
+      : null;
+    return h('header', { class: 'topbar' },
+      h('span', { class: 'brand' }, h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, SEVS.map((s) => h('i', { dataset: { severity: s } }))), 'Multi-agent review'),
+      h('span', { class: 'topbar-meta' }, `Generated ${data.generated_at}`),
+      snap,
+      h('span', { class: 'topbar-tools' }, pop));
+  }
+
+  /* ── Masthead and metric tiles ── */
+  function buildMasthead() {
+    const word = { complete: 'Complete', incomplete: 'Incomplete', setup: 'Setup' }[data.status] || data.status;
+    return h('div', { class: 'masthead' },
+      h('div', { class: 'status-tile', dataset: { status: data.status } },
+        kicker('Review status'),
+        h('p', { class: 'status-word', style: `--len:${Math.max(4.6, word.length)}` }, word),
+        h('p', { class: 'status-note' }, data.meta.status_note)),
+      h('div', { class: 'mast-main' },
+        h('h1', { class: 'mast-title' }, data.title),
+        h('p', { class: 'verdict' }, data.verdict),
+        h('p', { class: 'summary' }, data.summary)));
+  }
+
+  let heroBar = null;
+  let heroSegs = [];
+  function buildMetrics() {
+    const total = data.reviewers.length;
+    const done = data.meta.completed;
+    const short = data.reviewers.filter((r) => r.status !== 'completed');
+    const all = tally(findings);
+    heroSegs = SEVS.filter((s) => all[s]).map((s) => h('button', {
+      type: 'button', class: 'herobar-seg', 'aria-pressed': 'false', style: `flex-grow:${all[s]}`,
+      title: `${all[s]} ${s} ${SEV_LABEL[s]}. Click to filter; shift-click to show only ${s}.`,
+      dataset: { severity: s, focusKey: `hero:${s}` },
+      onclick: (event) => app.toggle('severity', s, event.shiftKey || event.altKey),
+    }, h('span', { class: 'n' }, String(all[s])), h('span', { class: 'k' }, s)));
+    heroBar = all.total
+      ? h('div', { class: 'herobar', role: 'group', 'aria-label': 'Findings by severity; click to filter' }, heroSegs)
+      : h('div', { class: 'herobar is-empty' }, 'No findings recorded');
+    const metric = (label, value, note, flags) => h('div', { class: 'metric', dataset: flags || {} },
+      kicker(label), h('div', { class: 'metric-value' }, value), h('p', { class: 'metric-note' }, note));
+    return h('div', { class: 'metrics' },
+      metric('Reviewers completed', [String(done), h('small', null, `/${total}`)],
+        short.length ? `Not completed: ${short.map((r) => `${r.name} (${statusText(r.status)})`).join(', ')}` : 'Every requested reviewer finished.',
+        done < total ? { warn: '' } : null),
+      metric('Confirmed', String(data.meta.confirmed), hasFindings ? `of ${plural(findings.length, 'finding')}` : 'Nothing to confirm yet'),
+      metric('Unresolved', String(data.meta.unresolved), 'Disputed or still needs validation', data.meta.unresolved ? { hatch: '' } : null),
+      h('div', { class: 'metric metric-sev' },
+        kicker('Findings by severity'),
+        h('div', { class: 'metric-value' }, String(all.total)),
+        h('div', { class: 'sev-block' }, heroBar,
+          h('ul', { class: 'hero-legend' }, SEVS.map((s) => h('li', { dataset: { severity: s } },
+            h('span', { class: 'sw', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, h('b', null, s), SEV_LABEL[s])))))));
+  }
+  function refreshHero() {
+    if (!heroBar) return;
+    heroBar.toggleAttribute('data-filtered', state.severity.size > 0);
+    heroSegs.forEach((b) => b.setAttribute('aria-pressed', String(state.severity.has(b.dataset.severity))));
+  }
+
+  /* ── Stack map: x = depth, y = lane; connectors are CSS borders so they reflow and print ── */
+  function buildStackMap() {
+    const grid = h('div', { class: 'map-grid' });
+    const clear = h('button', { type: 'button', class: 'btn', dataset: { focusKey: 'map-clear' }, onclick: () => app.setFacet('pr', []) }, 'Show all PRs');
+    const section = h('section', { class: 'section section-stack', dataset: { section: 'stack' }, 'aria-labelledby': 'sec-stack' },
+      secHead('sec-stack', 'Stack', h('span', null, `${plural(stack.order.length, 'pull request')} on `, h('code', null, stack.trunk))),
+      h('div', { class: 'map-tools no-print' },
+        h('p', { class: 'map-hint' }, 'Click a PR to show only its findings. Shift-click to add more.'),
+        ui.toggle('prInherited', 'Include lower PRs'), clear),
+      h('div', { class: 'map-scroll' }, grid));
+
+    function node(n, row, o) {
+      const label = app.prLabel(n.id);
+      const diff = [n.additions != null ? `+${n.additions}` : null, n.deletions != null ? `−${n.deletions}` : null].filter(Boolean).join(' ');
+      const diffLine = [diff, n.changed_files != null ? plural(n.changed_files, 'file') : null].filter(Boolean).join(' · ');
+      const branchLine = [n.branch, n.head ? `@ ${n.head}` : null].filter(Boolean).join(' ');
+      const card = h('button', {
+        type: 'button', class: 'map-card', 'aria-pressed': String(state.pr.has(n.id)),
+        title: `${label} ${n.title}. Click to show only this PR; shift-click to add it.`,
+        dataset: { focusKey: `map:${n.id}`, empty: row.total ? null : '' },
+        onclick: (event) => app.toggle('pr', n.id, !(event.shiftKey || event.altKey)),
+      },
+      h('span', { class: 'mc-top' },
+        h('span', { class: 'mc-num' }, label),
+        o.included ? h('span', { class: 'mc-flag', title: 'Included because a higher PR is selected with “Include lower PRs”' }, 'Included') : null,
+        n.status ? h('span', { class: 'mc-status', dataset: { status: lower(n.status) } }, n.status) : null),
+      h('span', { class: 'mc-title' }, n.title),
+      branchLine ? h('span', { class: 'mc-line' }, branchLine) : null,
+      n.forked && n.parent ? h('span', { class: 'mc-line' }, `forks from ${app.prLabel(n.parent)}`) : null,
+      diffLine ? h('span', { class: 'mc-line' }, diffLine) : null,
+      h('span', { class: 'mc-foot' }, segbar(row, { empty: 'Nothing in view' }),
+        h('span', { class: 'mc-total', 'aria-label': plural(row.total, 'finding') }, String(row.total))));
+      return h('div', { class: 'map-node', style: `grid-column:${o.col};grid-row:${n.lane + 1}`, dataset: { pr: n.id, wire: o.wire, included: o.included ? '' : null } },
+        o.joined ? null : h('span', { class: 'stub stub-in', 'aria-hidden': 'true' }),
+        h('span', { class: 'port port-in', 'aria-hidden': 'true' }),
+        card,
+        n.url ? h('a', { class: 'map-link', href: n.url, target: '_blank', rel: 'noopener noreferrer', title: `Open ${label} in a new tab`, 'aria-label': `Open ${label} in a new tab` }, '↗') : null,
+        n.children.length ? [
+          h('span', { class: 'stub stub-out', 'aria-hidden': 'true', dataset: { wire: o.outWire } }),
+          h('span', { class: 'port port-out', 'aria-hidden': 'true', dataset: { wire: o.outWire } }),
+        ] : null);
+    }
+
+    function render() {
+      const rows = app.prBreakdown();
+      const focus = new Set();
+      state.pr.forEach((id) => { if (stack.byId.has(id)) { focus.add(id); stack.ancestors(id).forEach((a) => focus.add(a)); } });
+      const lit = (id) => !focus.size || focus.has(id);
+      const included = new Set();
+      if (state.prInherited) state.pr.forEach((id) => stack.ancestors(id).forEach((a) => { if (!state.pr.has(a)) included.add(a); }));
+      grid.style.gridTemplateColumns = `var(--trunk-w) repeat(${stack.maxDepth + 1}, minmax(var(--card-min), var(--card-max)))`;
+      const trunkWire = stack.roots.some((r) => lit(r.id)) ? 'on' : 'off';
+      const items = [h('div', { class: 'map-node map-trunk', style: 'grid-column:1;grid-row:1' },
+        h('div', { class: 'trunk-tile' }, h('span', { class: 'kicker' }, 'Base'), h('span', { class: 'trunk-name' }, stack.trunk)),
+        h('span', { class: 'stub stub-out', 'aria-hidden': 'true', dataset: { wire: trunkWire } }),
+        h('span', { class: 'port port-out', 'aria-hidden': 'true', dataset: { wire: trunkWire } }))];
+      for (const n of stack.order) {
+        const col = n.depth + 2;
+        const fromLane = n.parentEntry ? n.parentEntry.lane : 0;
+        const wire = lit(n.id) ? 'on' : 'off';
+        if (n.lane > fromLane) {
+          // Fork: drop from the parent's row to this row in the gutter just left of this column.
+          const span = n.lane - fromLane + 1;
+          const inset = `calc((100% - ${span - 1} * var(--gy)) / ${2 * span} - 1.5px)`;
+          items.push(h('div', { class: 'map-elbow', 'aria-hidden': 'true', style: `grid-column:${col};grid-row:${fromLane + 1} / ${n.lane + 2}`, dataset: { wire } },
+            h('span', { class: 'elbow-line', style: `top:${inset};bottom:${inset}` })));
+        }
+        items.push(node(n, rows.get(n.id), {
+          col, wire, included: included.has(n.id), joined: n.lane > fromLane,
+          outWire: n.children.some((c) => lit(c.id)) ? 'on' : 'off',
+        }));
+      }
+      grid.replaceChildren(...items);
+      clear.hidden = !state.pr.size;
+    }
+    return { section, render };
+  }
+
+  /* ── Filter strip ── */
+  function buildStrip() {
+    const filtersBadge = h('span', { class: 'badge' });
+    const moreBadge = h('span', { class: 'badge' });
+    const filtersBtn = h('button', { type: 'button', class: 'btn strip-toggle', 'aria-expanded': 'false', 'aria-controls': 'strip-body', onclick: () => { stripOpen = !stripOpen; sync(); } }, 'Filters', filtersBadge);
+    const moreBtn = h('button', { type: 'button', class: 'btn more-toggle', 'aria-expanded': 'false', 'aria-controls': 'more-panel', onclick: () => { moreOpen = !moreOpen; sync(); } }, 'More', moreBadge);
+    const more = h('div', { class: 'more-panel', id: 'more-panel' },
+      ui.facet('pr'), ui.facet('reviewer', { legend: 'Raised by' }), ui.facet('confidence'), ui.facet('tag'),
+      h('div', { class: 'more-group' }, h('span', { class: 'facet-legend' }, 'Display'),
+        ui.select('groupBy', 'Lanes'), ui.select('sort', 'Sort'), ui.toggle('pinnedOnly', 'Pinned only'), ui.expand()),
+      h('div', { class: 'more-group more-answers' }, h('span', { class: 'facet-legend' }, 'Answer every finding shown'),
+        ui.bulkAnswer(),
+        h('p', { class: 'more-note' }, 'Filter first (say P3), then ignore them in one go. Reset restores every default and deletes your comments.')),
+      h('div', { class: 'more-group' }, h('span', { class: 'facet-legend' }, 'Export'),
+        h('div', { class: 'strip-out' }, ui.copy('Copy Markdown'), ui.print('Print / PDF'))));
+    const el = h('div', { class: 'strip no-print', role: 'region', 'aria-label': 'Filters and answers' },
+      h('div', { class: 'strip-row strip-a' },
+        filtersBtn, ui.search(),
+        h('div', { class: 'strip-presets' }, ui.presets()),
+        h('span', { class: 'strip-spacer' }),
+        ui.count(), ui.reset('Clear'),
+        h('div', { class: 'strip-view' }, moreBtn),
+        ui.copyAnswers('Copy answers JSON')),
+      h('div', { class: 'strip-body', id: 'strip-body' },
+        h('div', { class: 'strip-row strip-b' },
+          ui.facet('severity'), ui.facet('disposition'),
+          h('span', { class: 'strip-spacer' }),
+          ui.facet('answer')),
+        more));
+    function sync() {
+      el.classList.toggle('is-open', stripOpen);
+      filtersBtn.setAttribute('aria-expanded', String(stripOpen));
+      moreBtn.setAttribute('aria-expanded', String(moreOpen));
+      more.hidden = !moreOpen;
+    }
+    function refresh() {
+      const secondary = ['pr', 'reviewer', 'confidence', 'tag'].reduce((n, k) => n + state[k].size, 0) + (state.pinnedOnly ? 1 : 0);
+      moreBadge.textContent = secondary ? String(secondary) : '';
+      const all = C.FACETS.reduce((n, k) => n + state[k].size, 0) + (state.q ? 1 : 0) + (state.pinnedOnly ? 1 : 0);
+      filtersBadge.textContent = all ? String(all) : '';
+    }
+    new ResizeObserver(() => document.documentElement.style.setProperty('--strip-h', `${el.offsetHeight}px`)).observe(el);
+    sync();
+    return { el, refresh };
+  }
+
+  /* ── Board: disposition columns × group swimlanes ── */
+  const boardHost = h('div', { class: 'board-host' });
+  const showing = h('p', { class: 'board-showing' });
+
+  function openFinding(id, opts) {
+    const active = document.activeElement;
+    opener = active && active.dataset && active.dataset.focusKey && !drawer.contains(active) ? active.dataset.focusKey : null;
+    app.select(id, opts);
+    const title = drawer.querySelector('.drawer-title');
+    if (title) title.focus({ preventScroll: true });
+  }
+  /** Select from outside the board without scrolling to the card. */
+  function openQuietly(id) {
+    openFinding(id, { scroll: false });
+  }
+
+  function card(f) {
+    const comment = app.comment(f.id).trim();
+    return mark(h('article', { class: 'card', dataset: { findingId: f.id, severity: f.severity, disposition: f.disposition } },
+      h('div', { class: 'card-sev', 'aria-hidden': 'true' },
+        h('span', { class: 'card-sev-code' }, f.severity), h('span', { class: 'card-sev-name' }, SEV_LABEL[f.severity])),
+      h('div', { class: 'card-body' },
+        h('div', { class: 'card-top' }, h('span', { class: 'card-id' }, f.id), h('span', { class: 'card-flags' }), confidence(f.confidence)),
+        h('h3', { class: 'card-title' }, h('button', {
+          type: 'button', class: 'card-open', dataset: { focusKey: `card:${f.id}` },
+          'aria-label': `${f.severity} ${SEV_LABEL[f.severity]}, ${f.disposition}: ${f.title}`,
+          onclick: () => openFinding(f.id),
+        }, f.title)),
+        h('div', { class: 'card-loc', title: f.location }, f.location),
+        h('p', { class: 'card-comment', dataset: { commentFor: f.id }, hidden: !comment },
+          h('span', { class: 'card-comment-label' }, 'Your comment'), h('span', { class: 'card-comment-text' }, comment)),
+        h('div', { class: 'card-foot' }, f.prs.map((id) => ui.prChip(id)), ui.reviewerBadges(f.reviewers), ui.findingActions(f, { pin: false })),
+        h('details', { class: 'card-details', dataset: { openFor: f.id }, open: app.isOpen(f.id) },
+          h('summary', null, 'Details'), ui.findingFields(f)))), f.id);
+  }
+
+  function colHead(d, n) {
+    const folded = foldedCols.has(d);
+    const verb = folded ? 'Show' : 'Hide';
+    return h('div', { class: 'col-head', dataset: { disposition: d, folded: folded ? '' : null } },
+      swatch(d), h('span', { class: 'col-label' }, DISP_LABEL[d]), h('span', { class: 'col-count' }, String(n)),
+      h('button', {
+        type: 'button', class: 'col-toggle', 'aria-expanded': String(!folded), dataset: { focusKey: `col:${d}` },
+        title: `${verb} the ${DISP_LABEL[d]} column`, 'aria-label': `${verb} the ${DISP_LABEL[d]} column (${plural(n, 'finding')})`,
+        onclick: () => { if (folded) foldedCols.delete(d); else foldedCols.add(d); keepFocus(renderBoard); },
+      }, folded ? `+${n}` : 'Hide'));
+  }
+
+  function laneHead(g, folded, empty) {
+    let tile = 'All';
+    let kind = null;
+    let label = g.label;
+    let meta = null;
+    if (g.pr) {
+      tile = app.prLabel(g.pr.id);
+      label = g.pr.title;
+      meta = [g.pr.branch, g.pr.forked && g.pr.parent ? `forks from ${app.prLabel(g.pr.parent)}` : null, g.pr.status].filter(Boolean).join(' · ');
+    } else if (g.key === C.CROSS_PR) { tile = 'Multi'; kind = 'cross'; meta = 'Root cause spans more than one PR'; }
+    else if (g.key === C.NO_PR) { tile = '—'; kind = 'none'; }
+    else if (g.severity) { tile = g.severity; label = SEV_LABEL[g.severity]; }
+    const parts = [
+      h('span', { class: 'lane-tile', dataset: { severity: g.severity || null, kind } }, tile),
+      h('span', { class: 'lane-text' }, h('span', { class: 'lane-label' }, label), meta ? h('span', { class: 'lane-meta' }, meta) : null),
+      empty ? h('span', { class: 'lane-empty' }, 'Nothing in view') : h('span', { class: 'lane-bar' }, segbar(tally(g.items), { size: 'sm' })),
+      h('span', { class: 'lane-count' }, String(g.items.length)),
+    ];
+    if (empty) return h('div', { class: 'lane-head' }, parts);
+    return h('button', {
+      type: 'button', class: 'lane-head', 'aria-expanded': String(!folded), title: folded ? 'Expand this lane' : 'Collapse this lane',
+      dataset: { focusKey: `lane:${g.key}` },
+      onclick: () => { if (foldedLanes.has(g.key)) foldedLanes.delete(g.key); else foldedLanes.add(g.key); keepFocus(renderBoard); },
+    }, parts, h('span', { class: 'lane-chev', 'aria-hidden': 'true' }, folded ? '+' : '−'));
+  }
+
+  function cell(d, items) {
+    const folded = foldedCols.has(d);
+    return h('div', { class: 'cell', dataset: { disposition: d, count: String(items.length), folded: folded ? '' : null } },
+      h('div', { class: 'cell-label' }, swatch(d), h('span', null, DISP_LABEL[d]), h('span', { class: 'cell-n' }, String(items.length))),
+      folded && items.length ? h('span', { class: 'cell-fold', 'aria-hidden': 'true', title: `${plural(items.length, 'finding')} in the hidden column` }, String(items.length)) : null,
+      items.map(card));
+  }
+
+  function lane(g, bare) {
+    const empty = !g.items.length;
+    const folded = !bare && foldedLanes.has(g.key);
+    return h('section', {
+      class: 'lane', 'aria-label': bare ? 'Findings' : `${g.label}: ${plural(g.items.length, 'finding')}`,
+      dataset: { lane: g.key, empty: empty ? '' : null, collapsed: folded ? '' : null },
+    },
+    bare ? null : laneHead(g, folded, empty),
+    empty ? null : h('div', { class: 'lane-cells' }, DISPS.map((d) => cell(d, g.items.filter((f) => f.disposition === d)))));
+  }
+
+  function noMatch() {
+    const answerOnly = state.answer.size > 0;
+    return h('div', { class: 'nomatch' },
+      h('p', { class: 'nomatch-big' }, 'No findings match'),
+      h('p', { class: 'nomatch-why' }, `Current view: ${app.filterSummary()}`),
+      h('div', { class: 'nomatch-actions' },
+        app.isFiltered() ? h('button', { type: 'button', class: 'btn btn-solid', dataset: { focusKey: 'nomatch-clear' }, onclick: () => app.reset() }, 'Clear filters') : null,
+        answerOnly ? h('button', { type: 'button', class: 'btn', dataset: { focusKey: 'nomatch-answer' }, onclick: () => app.setFacet('answer', []) }, 'Show fix and ignore') : null));
+  }
+
+  function renderBoard() {
+    const v = app.view({ keepEmpty: true });
+    showing.textContent = `${v.flat.length} of ${plural(findings.length, 'finding')} shown`;
+    if (!v.flat.length) { boardHost.replaceChildren(noMatch()); return; }
+    const bare = state.groupBy === 'disposition' || state.groupBy === 'none';
+    const groups = bare ? [{ key: 'all', label: 'All findings', items: v.flat }] : v.groups;
+    const counts = Object.fromEntries(DISPS.map((d) => [d, 0]));
+    v.flat.forEach((f) => { counts[f.disposition] += 1; });
+    const cols = DISPS.map((d) => (foldedCols.has(d) ? 'var(--fold)' : 'minmax(0,1fr)')).join(' ');
+    boardHost.replaceChildren(h('div', { class: 'board', style: `--cols:${cols}`, dataset: { bare: bare ? '' : null } },
+      h('div', { class: 'board-head' }, DISPS.map((d) => colHead(d, counts[d]))),
+      groups.map((g) => lane(g, bare))));
+  }
+
+  function buildBoardSection() {
+    if (!hasFindings) {
+      return h('section', { class: 'section section-board', 'aria-labelledby': 'sec-board' },
+        secHead('sec-board', 'Findings'),
+        h('div', { class: 'empty-state', dataset: { status: data.status } },
+          h('span', { class: 'empty-zero', 'aria-hidden': 'true' }, '0'),
+          h('div', { class: 'empty-copy' },
+            kicker('Findings recorded'),
+            h('p', { class: 'empty-msg' }, data.meta.empty_message),
+            h('p', { class: 'empty-sub' }, `${data.meta.completed} of ${plural(data.reviewers.length, 'reviewer')} completed. ${data.meta.status_note}`))));
+    }
+    return h('section', { class: 'section section-board', 'aria-labelledby': 'sec-board' },
+      secHead('sec-board', 'Board', [showing, ui.filterSummary(), ui.answerSummary()]),
+      boardHost);
+  }
+
+  /* ── Who found what ── */
+  const matrixHost = h('div', { class: 'matrix-host' });
+  function renderMatrix() {
+    const list = app.view().flat;
+    const R = reviewerNames;
+    const n = R.length;
+    if (!list.length) { matrixHost.replaceChildren(h('p', { class: 'muted' }, 'No findings in the current view.')); return; }
+    const hits = (f) => R.filter((r) => f.reviewers.includes(r)).length;
+    const isAll = (k) => n > 1 && k === n;
+    const stats = [];
+    for (let k = n; k >= 0; k -= 1) {
+      const count = list.filter((f) => hits(f) === k).length;
+      if (k === 0 && !count) continue;
+      stats.push(h('div', { class: 'mx-stat', dataset: { k: isAll(k) ? 'all' : String(k) } },
+        h('b', null, String(count)),
+        h('span', null, isAll(k) ? `All ${n} reviewers` : k === 0 ? 'Coordinator only' : k === 1 ? 'One reviewer' : `${k} of ${n} reviewers`)));
+    }
+    const rows = list.map((f) => {
+      const k = hits(f);
+      return h('tr', { class: `mx-row${isAll(k) ? ' is-all' : k <= 1 ? ' is-solo' : ''}`, dataset: { findingId: f.id, disposition: f.disposition } },
+        h('th', { scope: 'row' }, h('span', { class: 'mx-fin' },
+          h('span', { class: 'sev-tag', dataset: { severity: f.severity }, title: SEV_LABEL[f.severity] }, f.severity),
+          h('span', { class: 'mx-id' }, f.id),
+          h('button', { type: 'button', class: 'mx-open', title: f.title, dataset: { focusKey: `mx:${f.id}` }, onclick: () => openQuietly(f.id) }, f.title),
+          h('span', { title: DISP_LABEL[f.disposition] }, swatch(f.disposition)))),
+        R.map((r) => h('td', { class: 'mx-cell' }, f.reviewers.includes(r)
+          ? h('span', { class: 'mx-dot', role: 'img', 'aria-label': `Raised by ${r}` })
+          : h('span', { class: 'mx-none', role: 'img', 'aria-label': `Not raised by ${r}` }))),
+        h('td', { class: 'mx-agree' }, h('span', { class: 'mx-agree-tag' }, isAll(k) ? `All ${n}` : `${k}/${n}`)));
+    });
+    const table = h('table', { class: 'matrix' },
+      h('caption', { class: 'sr-only' }, 'Which reviewer raised each finding in the current view'),
+      h('thead', null, h('tr', null,
+        h('th', { scope: 'col' }, 'Finding'),
+        R.map((r) => h('th', { scope: 'col', class: 'mx-h-rv', title: r }, h('span', { class: 'mx-rv' }, ui.reviewerBadges([r]), h('span', { class: 'mx-rv-name' }, r)))),
+        h('th', { scope: 'col', class: 'mx-h-agree' }, 'Agreement'))),
+      h('tbody', null, rows),
+      h('tfoot', null, h('tr', null,
+        h('th', { scope: 'row' }, 'Raised in view'),
+        R.map((r) => {
+          const raised = list.filter((f) => f.reviewers.includes(r)).length;
+          const solo = list.filter((f) => f.reviewers.length === 1 && f.reviewers[0] === r).length;
+          return h('td', { class: 'mx-total' }, h('b', null, String(raised)), h('span', null, `${solo} alone`));
+        }),
+        h('td', null))));
+    matrixHost.replaceChildren(h('div', { class: 'mx-summary' }, stats), h('div', { class: 'mx-scroll' }, table));
+  }
+
+  /* ── Reviewers ── */
+  function teamCard(r) {
+    const tone = BAD.includes(r.status) ? 'bad' : WARN.includes(r.status) ? 'warn' : r.status === 'not_run' ? 'idle' : r.status === 'completed' ? 'ok' : 'idle';
+    const raised = findings.filter((f) => f.reviewers.includes(r.name)).length;
+    const alone = findings.filter((f) => f.reviewers.length === 1 && f.reviewers[0] === r.name).length;
+    const kv = (label, value) => (value == null || value === '' ? null : [h('dt', null, label), h('dd', null, String(value))]);
+    const snapshot = r.snapshot_id ? `${r.snapshot_id} · ${r.snapshot_verified === true ? 'verified' : 'unverified'}` : null;
+    return h('article', { class: 'rv-card', dataset: { tone } },
+      h('div', { class: 'rv-status' }, h('span', null, statusText(r.status)), r.provider_status ? h('small', null, r.provider_status) : null),
+      h('div', { class: 'rv-inner' },
+        h('div', { class: 'rv-head' }, ui.reviewerBadges([r.name]), h('h3', { class: 'rv-name' }, r.name)),
+        h('p', { class: 'rv-model' }, r.model),
+        hasFindings ? h('div', { class: 'rv-stats' },
+          h('div', { class: 'rv-stat' }, h('b', null, String(raised)), h('span', null, 'Raised')),
+          h('div', { class: 'rv-stat' }, h('b', null, String(alone)), h('span', null, 'Alone'))) : null,
+        h('dl', { class: 'rv-kv' },
+          kv('Effort', r.effort), kv('Transport', r.transport), kv('Run', r.run_id), kv('Round', r.round),
+          kv('Provider status', r.provider_status), kv('Snapshot', snapshot)),
+        h('div', { class: 'rv-prov' }, kicker('Provenance'), r.provenance),
+        r.limitations ? h('div', { class: 'rv-limits' }, kicker('Limitations'), r.limitations) : null,
+        r.output ? h('details', { class: 'rv-output' }, h('summary', null, 'Raw output'), h('pre', null, r.output)) : null));
+  }
+  function buildTeam() {
+    return h('section', { class: 'section', dataset: { section: 'team' }, 'aria-labelledby': 'sec-team' },
+      secHead('sec-team', 'Reviewers', `${data.meta.completed} of ${plural(data.reviewers.length, 'reviewer')} completed`),
+      data.reviewers.length ? h('div', { class: 'team' }, data.reviewers.map(teamCard)) : h('p', { class: 'muted' }, 'No reviewers recorded.'));
+  }
+
+  /* ── Scope & follow-up ── */
+  function buildDetails() {
+    const list = (kind, title, items) => h('div', { class: 'list-col', dataset: { kind } },
+      h('div', { class: 'list-head' }, h('h3', null, title), h('span', { class: 'list-n' }, String(items.length))),
+      items.length ? h('ol', null, items.map((text) => h('li', null, text))) : h('p', { class: 'list-none' }, 'None recorded.'));
+    return h('section', { class: 'section', dataset: { section: 'details' }, 'aria-labelledby': 'sec-details' },
+      secHead('sec-details', 'Scope & follow-up'),
+      data.target.length ? h('div', { class: 'target' }, data.target.map(([k, v]) => h('div', { class: 'kv-tile' }, kicker(k), h('div', { class: 'kv-val' }, v)))) : null,
+      h('div', { class: 'lists' }, list('checks', 'Checks', data.checks), list('gaps', 'Gaps', data.gaps), list('next', 'Next steps', data.next_steps)),
+      data.notes.length ? h('div', { class: 'notes' }, data.notes.map((n) => h('article', { class: 'note' }, n.title ? h('h3', null, n.title) : null, h('p', null, n.body || '')))) : null,
+      data.sources.length ? h('div', { class: 'sources' }, kicker('Sources'),
+        h('ul', null, data.sources.map((s) => h('li', null,
+          h('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer' }, s.title || s.url),
+          h('span', { class: 'src-url' }, s.url))))) : null);
+  }
+
+  /* ── Detail drawer ── */
+  const drawer = h('aside', { class: 'drawer no-print', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'drawer-title', hidden: true });
+  // One handle node, re-appended on every render so a drag survives re-renders. Width lives in --drawer-width.
+  const drawerHandle = ui.resizer(drawer, { key: 'board-drawer', min: 380, label: 'Resize the details drawer' });
+  // Full-screen toggle (core key f). One node, so its focus survives re-renders; 'layout' only re-syncs it.
+  const fullBtn = h('button', {
+    type: 'button', class: 'drawer-full', 'aria-pressed': 'false', dataset: { focusKey: 'drawer-full' }, onclick: () => app.toggleDrawerFull(),
+  }, h('span', { class: 'drawer-full-icon', 'aria-hidden': 'true' }), h('span', { class: 'drawer-full-label' }, 'Full screen'));
+  /** In full screen the board is covered, so keep keyboard focus inside the drawer. Runs after core has
+      restored focus to the control that was re-rendered (a microtask), so it only catches focus left outside. */
+  function focusIntoFullDrawer() {
+    queueMicrotask(() => {
+      if (!app.isDrawerFull() || drawer.contains(document.activeElement)) return;
+      const title = drawer.querySelector('.drawer-title');
+      if (title) title.focus({ preventScroll: true });
+    });
+  }
+  function syncFull() {
+    const on = app.isDrawerFull();
+    fullBtn.setAttribute('aria-pressed', String(on));
+    fullBtn.title = on ? 'Leave full screen (f or Esc)' : 'Full screen (f)';
+  }
+  drawer.addEventListener('input', (event) => {
+    const owner = event.target.closest && event.target.closest('[data-answer-for]');
+    if (owner && event.target.matches('.answer-input')) syncComment(owner.dataset.answerFor);
+  });
+  function renderDrawer() {
+    const f = state.selected ? app.byId.get(state.selected) : null;
+    if (!f) {
+      if (!drawer.hidden) {
+        const hadFocus = drawer.contains(document.activeElement);
+        drawer.hidden = true;
+        drawer.replaceChildren();
+        if (hadFocus || document.activeElement === document.body) {
+          const back = (opener && document.querySelector(`[data-focus-key="${CSS.escape(opener)}"]`))
+            || (drawerFor && document.querySelector(`[data-finding-id="${CSS.escape(drawerFor)}"] .card-open`));
+          if (back) back.focus({ preventScroll: true });
+        }
+        opener = null;
+      }
+      drawerFor = null;
+      return;
+    }
+    const flat = app.view().flat;
+    const at = flat.findIndex((x) => x.id === f.id);
+    const step = (dir, glyph, label) => h('button', {
+      type: 'button', class: 'drawer-step', 'aria-label': label, title: `${label} (${dir > 0 ? 'j' : 'k'})`,
+      disabled: at >= 0 && (dir < 0 ? at === 0 : at === flat.length - 1),
+      dataset: { focusKey: `drawer-${dir > 0 ? 'next' : 'prev'}` }, onclick: () => app.move(dir),
+    }, glyph);
+    const answerFiltered = state.answer.size && !state.answer.has(app.answer(f.id));
+    const outNote = answerFiltered ? `Your answer is ${C.ANSWER_LABELS[app.answer(f.id)]}, so the “Your answer” filter leaves it out of the current view.` : 'Not in the current filtered view.';
+    // Same finding re-rendered (answer, pin, or filter change): keep the reader's place in the drawer.
+    const prevScroll = drawerFor === f.id && drawer.querySelector('.drawer-scroll') ? drawer.querySelector('.drawer-scroll').scrollTop : 0;
+    drawer.dataset.severity = f.severity;
+    drawer.dataset.disposition = f.disposition;
+    drawer.toggleAttribute('data-ignored', app.isIgnored(f.id));
+    const scroll = h('div', { class: 'drawer-scroll' },
+      at < 0 ? h('p', { class: 'drawer-note' }, outNote) : null,
+      h('h2', { class: 'drawer-title', id: 'drawer-title', tabindex: '-1', dataset: { focusKey: 'drawer-title' } }, f.title),
+      h('div', { class: 'drawer-disp' },
+        h('span', { class: 'drawer-disp-label' }, swatch(f.disposition), DISP_LABEL[f.disposition]),
+        ui.findingActions(f, { answer: false })),
+      h('div', { class: 'drawer-lead' },
+        ui.answer(f, { legend: 'Your answer', rows: 3, placeholder: 'Comment for whoever fixes it (optional): what to do differently, or why to ignore it' }),
+        h('dl', { class: 'drawer-meta' },
+        app.hasStack ? [h('dt', null, 'Pull request'), h('dd', null, f.prs.length
+          ? h('span', { class: 'chips' }, f.prs.map((id) => h('span', { class: 'pr-ref' }, ui.prChip(id), h('span', { class: 'pr-ref-title' }, (stack.byId.get(id) || {}).title || ''))))
+          : 'Not tied to one PR')] : null,
+        [h('dt', null, 'Raised by'), h('dd', null, f.reviewers.length
+          ? h('span', { class: 'who' }, f.reviewers.map((name) => h('span', { class: 'who-item' }, ui.reviewerBadges([name]), name)))
+          : 'Coordinator')],
+        [h('dt', null, 'Confidence'), h('dd', null, confidence(f.confidence))],
+        f.tags.length ? [h('dt', null, 'Tags'), h('dd', null, h('span', { class: 'chips' }, f.tags.map((t) => h('button', {
+          type: 'button', class: 'tag-chip', 'aria-pressed': String(state.tag.has(t)), title: `Show only findings tagged ${t}`,
+          onclick: () => app.setFacet('tag', [t]),
+        }, t))))] : null)),
+      ui.findingFields(f));
+    drawer.replaceChildren(
+      drawerHandle,
+      h('div', { class: 'drawer-band' },
+        h('span', { class: 'drawer-sev' }, f.severity),
+        h('span', { class: 'drawer-sevtext' }, h('span', null, SEV_LABEL[f.severity]), h('span', { class: 'drawer-id' }, f.id),
+          h('span', { class: 'drawer-stamp' }, 'Ignored')),
+        h('span', { class: 'drawer-nav' }, step(-1, '↑', 'Previous finding'), h('span', { class: 'drawer-pos' }, at >= 0 ? `${at + 1}/${flat.length}` : '–'), step(1, '↓', 'Next finding')),
+        h('span', { class: 'drawer-hint', 'aria-hidden': 'true' }, h('kbd', null, 'j'), h('kbd', null, 'k'), ' move · ', h('kbd', null, 'Esc'), ' leaves'),
+        fullBtn,
+        h('button', { type: 'button', class: 'drawer-close', 'aria-label': 'Close details (Esc)', title: 'Close (Esc)', dataset: { focusKey: 'drawer-close' }, onclick: () => app.select(null) }, '×')),
+      scroll);
+    drawer.hidden = false;
+    if (prevScroll) scroll.scrollTop = prevScroll;
+    drawerFor = f.id;
+    syncFull();
+  }
+
+  /* ── Footer ── */
+  function buildFooter() {
+    return h('footer', { class: 'foot' },
+      h('span', null, h('b', null, 'Multi-agent review'), ` · generated ${data.generated_at}`),
+      hasFindings ? h('span', { class: 'foot-note' }, 'Every finding is set to Fix unless the coordinator rejected it. Your answers, comments, and pins are saved in this browser only and shared by every design of this report; they never change the report.') : null,
+      hasFindings ? ui.shortcuts() : null);
+  }
+
+  /* ── Mount ── */
+  const map = app.hasStack ? buildStackMap() : null;
+  const strip = hasFindings ? buildStrip() : null;
+  const main = h('main', { class: 'page', id: 'main' },
+    buildMasthead(), buildMetrics(),
+    map ? map.section : null,
+    strip ? strip.el : null,
+    buildBoardSection(),
+    hasFindings ? h('section', { class: 'section', dataset: { section: 'matrix' }, 'aria-labelledby': 'sec-matrix' },
+      secHead('sec-matrix', 'Who found what', 'Rows follow the current filters. Filled dots mark the reviewers that raised a finding.'), matrixHost) : null,
+    buildTeam(), buildDetails());
+  document.getElementById('app').append(buildTopbar(), main, buildFooter(), drawer);
+
+  app.subscribe((reason) => {
+    if (reason === 'open' || reason === 'sections') return;
+    if (reason === 'layout') { syncFull(); focusIntoFullDrawer(); return; } // full screen toggled: no re-render
+    if (reason !== 'select') {
+      refreshHero();
+      if (map) map.render();
+      if (hasFindings) { renderBoard(); renderMatrix(); strip.refresh(); }
+    }
+    renderDrawer();
+    focusIntoFullDrawer();
+  });
+  app.start();
+})();
+</script>
+</body>
+</html>

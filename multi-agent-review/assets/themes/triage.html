@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="multi-agent-review · @@THEME@@">
+<meta name="color-scheme" content="dark">
+<title>@@TITLE@@</title>
+<style>@@CORE_CSS@@</style>
+<style>
+/* triage: dark three-pane console. Sidebar = stack graph + facets, middle = finding list, right = detail. */
+:root{color-scheme:dark;--bg:#0a0c0f;--panel:#0e1217;--raised:#141a21;--hover:#18202a;--line:#1d242d;--line2:#2a333e;--text:#e7ecf2;--soft:#bcc6d1;--muted:#8693a2;--dim:#5a6573;--accent:#7ee0c3;--accent-weak:rgba(126,224,195,.12);--accent-line:rgba(126,224,195,.32);--p0:#ff5c7a;--p1:#ff9f43;--p2:#f2d14b;--p3:#6cb6ff;--violet:#c4a1ff;--ok:#3ddc97;--warn:#ffb547;--bad:#ff6b6b;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,"SF Pro Text","Segoe UI",sans-serif;--top:56px;--rv0:#7ee0c3;--rv1:#f0a6ff;--rv2:#ffcf70;--rv3:#8ab4ff;--rv4:#ff8f8f;--rv5:#b6f09c}
+*{box-sizing:border-box}
+html{scroll-padding-top:calc(var(--top) + 48px)}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--accent);text-decoration-color:var(--accent-line);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,kbd,pre{font-family:var(--mono)}
+kbd{font-size:11px;padding:1px 5px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;color:var(--soft);background:var(--raised)}
+h1,h2,h3{margin:0}
+ul,ol{margin:0;padding-left:18px}
+li{margin:0 0 6px}
+li::marker{color:var(--dim)}
+.muted{color:var(--muted)}
+.eyebrow{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+noscript{display:block;padding:24px}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:20;height:var(--top);display:flex;align-items:center;gap:14px;padding:0 16px;background:rgba(10,12,15,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;max-width:34vw}
+.brand-mark{width:18px;height:18px;flex:none;border-radius:5px;background:conic-gradient(from 200deg,var(--rv0),var(--rv1),var(--rv2),var(--rv0));box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
+.brand-name{font:700 13px var(--mono);letter-spacing:-.01em;color:var(--soft)}
+.brand-sep{color:var(--dim)}
+.brand-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-pill{flex:none;display:inline-flex;align-items:center;gap:6px;font:700 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--soft)}
+.status-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.status-pill.status-complete{color:var(--ok);border-color:rgba(61,220,151,.35)}.status-pill.status-complete::before{background:var(--ok)}
+.status-pill.status-incomplete{color:var(--warn);border-color:rgba(255,181,71,.4);background:rgba(255,181,71,.08)}.status-pill.status-incomplete::before{background:var(--warn);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.top-search{position:relative;flex:1 1 280px;max-width:520px;min-width:160px}
+.search-input{width:100%;height:34px;padding:0 34px 0 34px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);color:var(--text);outline:none}
+.search-input::placeholder{color:var(--dim)}
+.search-input:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-weak)}
+.top-search::before{content:"";position:absolute;left:12px;top:11px;width:9px;height:9px;border:1.5px solid var(--dim);border-radius:50%}
+.top-search::after{content:"";position:absolute;left:21px;top:20px;width:5px;height:1.5px;background:var(--dim);transform:rotate(45deg)}
+.search-kbd{position:absolute;right:8px;top:7px;pointer-events:none}
+.search-input:focus+.search-kbd{display:none}
+.presets{display:flex;flex:none;gap:2px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.preset{border:0;background:transparent;color:var(--muted);padding:5px 10px;border-radius:7px;font-size:12.5px;font-weight:500;white-space:nowrap}
+.preset:hover{color:var(--text)}
+.preset[aria-pressed="true"]{background:var(--raised);color:var(--text);box-shadow:0 0 0 1px var(--line2) inset}
+.top-actions{display:flex;gap:6px;margin-left:auto;flex:none}
+.btn,.copy,.print,.reset,.expand-all,.collapse-all,.icon-btn{height:30px;padding:0 11px;border-radius:7px;border:1px solid var(--line2);background:var(--raised);color:var(--soft);font-size:12.5px;font-weight:500;white-space:nowrap}
+.btn:hover,.copy:hover,.print:hover,.reset:hover:not(:disabled),.expand-all:hover,.collapse-all:hover,.icon-btn:hover:not(:disabled){color:var(--text);border-color:var(--dim)}
+.icon-btn{width:30px;padding:0;display:inline-grid;place-items:center}
+.filters-btn{display:none}
+/* Primary export: the answers JSON. Markdown and print stay as quiet secondary buttons. */
+.copy-answers{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 5px 0 12px;border-radius:7px;border:1px solid transparent;background:var(--accent);color:#04120d;font-size:12.5px;font-weight:650;white-space:nowrap;box-shadow:0 0 0 3px var(--accent-weak)}
+.copy-answers:hover:not(:disabled){background:#a2f2da}
+.copy-answers:focus-visible{outline-color:var(--text)}
+.copy-answers-count{font:600 11px/1 var(--mono);font-variant-numeric:tabular-nums;padding:5px 6px;border-radius:5px;background:rgba(4,18,13,.14)}
+.top-actions .copy,.top-actions .print{background:transparent;border-color:var(--line)}
+
+/* Shell: the detail column reads --drawer-width (set by the resize handle) and always leaves the list ≥420px */
+.shell{display:grid;grid-template-columns:276px minmax(0,1fr) clamp(360px,var(--drawer-width,460px),max(360px,calc(100vw - 696px)));min-height:calc(100vh - var(--top))}
+.sidebar{position:sticky;top:var(--top);height:calc(100vh - var(--top));overflow:auto;border-right:1px solid var(--line);padding:16px 10px 48px;background:var(--panel);scrollbar-width:thin}
+.main{min-width:0;padding:20px 24px 96px;container-type:inline-size}
+.detail{position:sticky;z-index:6;top:var(--top);height:calc(100vh - var(--top));min-width:0;border-left:1px solid var(--line);background:var(--panel)}
+.detail-scroll{height:100%;overflow:auto;scrollbar-width:thin}
+.detail .resize-handle{color:var(--dim)}
+.detail .resize-handle::before{content:"";position:absolute;top:0;bottom:0;left:5px;width:2px;background:var(--accent);opacity:0;transition:opacity .15s}
+.detail .resize-handle:hover,.detail .resize-handle:focus-visible,.is-resizing .detail .resize-handle{color:var(--accent)}
+.detail .resize-handle:hover::before,.detail .resize-handle:focus-visible::before,.is-resizing .detail .resize-handle::before{opacity:.5}
+.scrim{display:none}
+
+/* Sidebar panels and facets */
+.side-block{margin:0 0 20px}
+.side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px 8px}
+.facet{margin:0 0 20px}
+.facet-legend{display:block;font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim);padding:0 8px 8px}
+.facet-options{flex-direction:column;gap:1px}
+.facet-option{display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--soft);text-align:left;font-size:13px}
+.facet-option:hover{background:var(--hover);color:var(--text)}
+.facet-option[aria-pressed="true"]{background:var(--accent-weak);color:var(--text);box-shadow:inset 2px 0 var(--accent)}
+.facet-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.facet-hint{display:none}
+.facet-count{font:12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.facet-swatch{width:10px;height:10px;flex:none;border-radius:3px;background:var(--dim)}
+.facet-severity .facet-swatch{width:8px;height:14px;border-radius:2px}
+[data-severity="P0"]{--sev:var(--p0)}[data-severity="P1"]{--sev:var(--p1)}[data-severity="P2"]{--sev:var(--p2)}[data-severity="P3"]{--sev:var(--p3)}
+.facet-severity .facet-swatch{background:var(--sev)}
+.facet-reviewer .facet-swatch{border-radius:50%;background:var(--rv)}
+.facet-tag .facet-swatch{background:none;width:auto;height:auto;color:var(--dim);font:12px var(--mono)}
+.facet-tag .facet-swatch::before{content:"#"}
+.facet-confidence .facet-swatch{background:none;border:1.5px solid var(--dim);border-radius:50%}
+.facet-confidence[data-value="high"] .facet-swatch{background:var(--soft);border-color:var(--soft)}
+.facet-confidence[data-value="medium"] .facet-swatch{background:linear-gradient(90deg,var(--soft) 50%,transparent 50%);border-color:var(--soft)}
+[data-rv="0"]{--rv:var(--rv0)}[data-rv="1"]{--rv:var(--rv1)}[data-rv="2"]{--rv:var(--rv2)}[data-rv="3"]{--rv:var(--rv3)}[data-rv="4"]{--rv:var(--rv4)}[data-rv="5"]{--rv:var(--rv5)}
+.toggle{padding:5px 8px;border-radius:6px;color:var(--soft);font-size:13px}
+.toggle:hover{background:var(--hover)}
+.toggle input{accent-color:var(--accent);margin:0}
+.toggle-label{flex:1}
+.toggle-count{font:12px var(--mono);color:var(--muted)}
+.section-toggles{margin:0 0 20px}
+/* Your answers (sidebar) */
+.answers-block .facet{margin:0 0 8px}
+.side-hint{margin:0 8px 10px;font-size:12px;line-height:1.45;color:var(--muted)}
+.facet-answer .facet-swatch{background:none;width:12px;height:auto;text-align:center;font:700 12px/1 var(--sans)}
+.facet-answer[data-value="fix"] .facet-swatch::before{content:"✓";color:var(--accent)}
+.facet-answer[data-value="ignore"] .facet-swatch::before{content:"✕";color:var(--muted)}
+.bulk-answers{padding:0 8px;gap:4px}
+.bulk-answer{height:26px;padding:0 9px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:12px;white-space:nowrap}
+.bulk-answer:hover:not(:disabled){color:var(--text);border-color:var(--dim);background:var(--hover)}
+.bulk-fix:hover:not(:disabled){color:var(--accent);border-color:var(--accent-line)}
+.bulk-reset{border-color:transparent;color:var(--muted)}
+.bulk-reset:hover:not(:disabled){color:var(--bad);border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.06)}
+.pin-controls{display:flex;align-items:center;gap:6px;margin-top:10px}
+.pin-controls .toggle{flex:1}
+.pin-controls .action{margin-right:8px}
+.shortcuts{margin:8px 8px 0;color:var(--muted);font-size:12.5px}
+.shortcuts summary{cursor:pointer;font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim);list-style:none}
+.shortcuts summary::-webkit-details-marker{display:none}
+.shortcuts summary::before{content:"▸ "}.shortcuts[open] summary::before{content:"▾ "}
+.shortcuts .shortcut-groups{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.shortcuts .shortcut-group-title{margin:0 0 6px;font:600 10px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.shortcuts .shortcut-group dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:0}
+.shortcuts .shortcut-group dt{white-space:nowrap}
+.shortcuts .shortcut-group dd{margin:0}
+.shortcuts .kbd-or{font-size:11px;color:var(--dim)}
+.shortcuts-open{height:26px;margin-top:12px;padding:0 9px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--soft);font-size:12px}
+.shortcuts-open:hover{color:var(--text);border-color:var(--dim)}
+
+/* ? cheatsheet (core-built modal) */
+.shortcut-overlay{background:rgba(3,5,8,.7);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.shortcut-sheet{width:min(680px,100%);padding:20px 22px 18px;border:1px solid var(--line2);border-radius:14px;background:linear-gradient(180deg,#121820,var(--panel));color:var(--text);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 30px 90px rgba(0,0,0,.65)}
+.shortcut-head{padding-bottom:14px;border-bottom:1px solid var(--line)}
+.shortcut-title{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+.shortcut-title::before{content:"";width:14px;height:14px;border-radius:4px;background:conic-gradient(from 200deg,var(--rv0),var(--rv1),var(--rv2),var(--rv0))}
+.shortcut-close{width:30px;height:30px;border-radius:7px;color:var(--muted);font-size:20px}
+.shortcut-close:hover{color:var(--text);background:var(--raised)}
+.shortcut-group-title{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;color:var(--dim);opacity:1}
+.shortcut-group dd{color:var(--soft);font-size:13px}
+.shortcut-group kbd{display:inline-block;min-width:22px;text-align:center;font-size:11.5px;color:var(--text)}
+.kbd-or{color:var(--dim);opacity:1}
+.shortcut-foot{padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;opacity:1}
+
+/* Disposition glyphs: shape as well as color */
+.disp{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;vertical-align:baseline}
+[data-disposition="confirmed"]{--disp:var(--text)}
+[data-disposition="needs validation"]{--disp:var(--p2)}
+[data-disposition="disputed"]{--disp:var(--violet)}
+[data-disposition="rejected"]{--disp:var(--dim)}
+.disp[data-disposition="confirmed"],.facet-disposition[data-disposition="confirmed"] .facet-swatch{background:var(--text);border-radius:50%}
+.disp[data-disposition="needs validation"],.facet-disposition[data-disposition="needs validation"] .facet-swatch{background:none;border:1.5px dashed var(--p2);border-radius:50%}
+.disp[data-disposition="disputed"],.facet-disposition[data-disposition="disputed"] .facet-swatch{background:linear-gradient(90deg,var(--violet) 50%,transparent 50%);border:1.5px solid var(--violet);border-radius:50%}
+.disp[data-disposition="rejected"],.facet-disposition[data-disposition="rejected"] .facet-swatch{background:linear-gradient(135deg,transparent 44%,var(--dim) 44%,var(--dim) 56%,transparent 56%);border:1.5px solid var(--dim);border-radius:50%}
+
+/* Stack graph */
+.stack-list{list-style:none;margin:0;padding:0}
+.stack-list li{margin:0}
+.stack-row{display:flex;align-items:stretch;gap:8px;width:100%;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--soft);text-align:left}
+.stack-row:hover{background:var(--hover);color:var(--text)}
+.stack-row[aria-pressed="true"]{background:var(--accent-weak);color:var(--text)}
+.stack-row[aria-pressed="true"] .g-dot{box-shadow:0 0 0 3px var(--accent-weak),0 0 0 1.5px var(--accent)}
+.stack-row[data-empty]:not([aria-pressed="true"]) .stack-text{opacity:.55}
+.g{position:relative;flex:none;align-self:stretch}
+.g-v,.g-top,.g-bot{position:absolute;width:2px;margin-left:-1px;background:var(--line2)}
+.g-v{top:0;bottom:0}.g-top{top:0;height:50%}.g-bot{top:50%;bottom:0}
+.g-elbow{position:absolute;top:0;height:50%;border-left:2px solid var(--line2);border-bottom:2px solid var(--line2);border-bottom-left-radius:9px;margin-left:-1px}
+.g-dot{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:var(--panel);border:2px solid var(--dim);z-index:1}
+.g-dot[data-worst]{background:var(--sev);border-color:var(--sev)}
+.g-dot.trunk{background:var(--panel);border-color:var(--soft);border-radius:3px}
+.stack-text{flex:1;min-width:0;padding:7px 0}
+.stack-line{display:flex;align-items:baseline;gap:7px;min-width:0}
+.stack-num{font:600 12px var(--mono);color:var(--accent);flex:none}
+.stack-title{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.stack-count{font:12px var(--mono);color:var(--muted);flex:none}
+.stack-sub{display:flex;align-items:center;gap:8px;margin-top:2px;font:11px var(--mono);color:var(--dim);min-width:0}
+.stack-sub .stack-branch{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sev-pips{margin-left:auto;flex:none}
+.sev-pip{font:700 10px/1 var(--mono);padding:2px 4px;border-radius:3px;color:#0a0c0f;background:var(--sev)}
+.trunk-row{color:var(--muted);cursor:default}
+.trunk-row:hover{background:transparent;color:var(--muted)}
+.stack-inherit{padding:6px 8px 0}
+
+/* Summary */
+.summary{position:relative;border:1px solid var(--line);border-radius:14px;padding:20px 22px 18px;background:radial-gradient(120% 140% at 100% 0%,rgba(126,224,195,.07),transparent 55%),linear-gradient(180deg,#11161d,#0d1116);margin-bottom:22px;overflow:hidden}
+.summary.status-incomplete{border-color:rgba(255,181,71,.45);background:radial-gradient(120% 140% at 100% 0%,rgba(255,181,71,.10),transparent 55%),linear-gradient(180deg,#14130f,#0f0f0d)}
+.summary:has(> [data-section="summary"][hidden]):has(> [data-section="team"][hidden]){display:none}
+.summary-head{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:center}
+.verdict{font-size:clamp(19px,2vw,24px);line-height:1.3;font-weight:650;letter-spacing:-.015em;margin:10px 0 8px;max-width:62ch;text-wrap:balance}
+.status-note{margin:0;color:var(--soft);font-size:13px}
+.summary.status-incomplete .status-note{color:var(--warn)}
+.summary-text{margin:8px 0 0;color:var(--muted);font-size:13px;max-width:80ch}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-top:18px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line)}
+.metric{background:var(--panel);padding:12px 14px;min-width:0}
+.metric-value{font:600 22px/1.2 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.metric-value small{font-size:13px;color:var(--dim)}
+.metric-label{font-size:12px;color:var(--muted);margin-top:2px}
+.sevbar{display:flex;gap:2px;height:6px;margin-top:9px;border-radius:3px;overflow:hidden;background:var(--line)}
+.sevbar span{background:var(--sev)}
+.sevlegend{display:flex;gap:8px;margin-top:6px;font:11px var(--mono);color:var(--muted)}
+.sevlegend b{color:var(--sev);font-weight:600}
+.team{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:14px}
+.team-chip{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.015);text-align:left;min-width:0}
+.team-chip:hover{border-color:var(--line2);background:var(--raised)}
+.team-chip[aria-pressed="true"]{border-color:var(--accent-line);background:var(--accent-weak)}
+.team-text{display:flex;flex-direction:column;min-width:0}
+.team-name{font-weight:600;font-size:13px}
+.team-model{font:11.5px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state{font:700 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:4px;margin-left:auto;flex:none;color:var(--ok);background:rgba(61,220,151,.1)}
+.team-chip .state-completed{font-size:0;width:8px;height:8px;padding:0;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.15)}
+.state-failed,.state-timed_out,.state-unavailable,.state-cancelled{color:var(--bad);background:rgba(255,107,107,.12)}
+.state-stale,.state-running{color:var(--warn);background:rgba(255,181,71,.12)}
+.state-not_run{color:var(--muted);background:rgba(255,255,255,.05)}
+
+/* Reviewer badges */
+.rv-badges{display:inline-flex;flex:none}
+.rv{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;font:700 9px/1 var(--mono);color:#0a0c0f;background:var(--rv);box-shadow:0 0 0 2px var(--bg)}
+.rv-badges .rv+.rv{margin-left:-5px}
+
+/* List */
+.list-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:0 0 12px;border-bottom:1px solid var(--line)}
+.list-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.result-count{margin:0;font:12px var(--mono);color:var(--muted)}
+.answer-summary{margin:0;font:12px var(--mono);color:var(--soft)}
+/* A widened detail pane leaves the list narrow; keep the summary metrics readable */
+@container (max-width:560px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.team{grid-template-columns:minmax(0,1fr)}}
+.filter-summary{display:none}
+.toolbar-right{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto}
+.select{flex-direction:row;align-items:center;display:flex;gap:6px;font-size:12px;color:var(--muted)}
+.select select{height:30px;border-radius:7px;border:1px solid var(--line2);background:var(--raised);color:var(--text);padding:0 8px}
+.expand-controls{display:none;gap:6px}
+.active-filters{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.active-filters:empty{display:none}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:999px;border:1px solid var(--accent-line);background:var(--accent-weak);color:var(--text);font-size:12px}
+.filter-chip b{font-weight:500;color:var(--muted)}
+.filter-chip::after{content:"×";font-size:15px;line-height:1;color:var(--muted);padding:0 4px}
+.filter-chip:hover::after{color:var(--text)}
+.group{margin-top:14px}
+.group-head{position:sticky;top:var(--top);z-index:4;display:flex;align-items:center;gap:10px;padding:10px 4px 8px;background:linear-gradient(var(--bg) 80%,rgba(10,12,15,0))}
+.group-toggle{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:0;background:none;padding:0;text-align:left}
+.caret{width:0;height:0;border-left:5px solid var(--dim);border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .12s;flex:none}
+.group-toggle[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.group-label{display:flex;align-items:baseline;gap:8px;min-width:0;font-weight:600}
+.group-label .stack-num{font-size:13px}
+.group-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.group-meta{font:11.5px var(--mono);color:var(--dim);white-space:nowrap}
+.group-count{font:11.5px var(--mono);color:var(--muted);padding:2px 7px;border-radius:999px;background:var(--raised);flex:none}
+.group-link{font:12px var(--mono);white-space:nowrap}
+.group-sev{font:700 11px/1 var(--mono);padding:3px 6px;border-radius:4px;color:#0a0c0f;background:var(--sev)}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:4px 12px;padding:10px 12px;border-radius:9px;border:1px solid transparent;cursor:pointer}
+.row:hover{background:var(--raised)}
+.row[data-selected]{background:var(--raised);border-color:var(--line2);box-shadow:inset 3px 0 var(--accent)}
+.row[data-pinned]{background:linear-gradient(90deg,rgba(126,224,195,.06),transparent 40%)}
+/* Ignored: still listed, but visibly out of the fix list */
+.row[data-ignored]>:not(.row-details){opacity:.5;transition:opacity .12s}
+.row[data-ignored]:hover>:not(.row-details),.row[data-ignored]:focus-within>:not(.row-details),.row[data-ignored][data-selected]>:not(.row-details){opacity:.85}
+.row[data-ignored] .sev{background:transparent;color:var(--sev);box-shadow:inset 0 0 0 1px var(--sev)}
+.row[data-ignored] .row-title-text{color:var(--muted);font-weight:500}
+.sev{display:inline-block;margin-top:1px;font:700 11px/1 var(--mono);padding:4px 6px;border-radius:4px;color:#0a0c0f;background:var(--sev);letter-spacing:.02em}
+.row-main{all:unset;display:flex;flex-direction:column;gap:4px;min-width:0;cursor:pointer;border-radius:4px}
+.row-main:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.row-title{display:flex;align-items:center;gap:9px;font-weight:550;line-height:1.35;color:var(--text)}
+.row-title-text{min-width:0}
+.row[data-disposition="rejected"] .row-title-text{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--dim)}
+.row[data-severity="P3"]:not([data-selected]) .row-title{font-weight:500;color:var(--soft)}
+.row-sub{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;font-size:12px;color:var(--muted)}
+.row-sub code{font-size:11.5px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(52ch,100%)}
+.row-sub .disp-label{color:var(--disp)}
+.row-id{font:11px var(--mono);color:var(--dim)}
+.tag{font:11px var(--mono);color:var(--dim)}
+.tag::before{content:"#"}
+.flag{font:700 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 5px;border-radius:3px;border:1px solid currentColor;flex:none}
+.flag-pin{color:var(--accent)}
+.flag-ignored,.flag-comment{display:none}
+.row[data-ignored] .flag-ignored{display:inline-block;color:var(--soft);border-color:var(--dim)}
+.row[data-commented] .flag-comment{display:inline-flex;align-items:center;gap:4px;color:var(--rv3)}
+.bubble{position:relative;width:9px;height:7px;border:1.5px solid currentColor;border-radius:2px}
+.bubble::after{content:"";position:absolute;left:1px;bottom:-4px;border:2px solid transparent;border-top-color:currentColor;border-left-color:currentColor}
+.row-side{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pr-chip{height:22px;padding:0 6px;border-radius:5px;border:1px solid var(--accent-line);background:var(--accent-weak);color:var(--accent);font:600 11px var(--mono)}
+.pr-chip:hover{background:rgba(126,224,195,.2)}
+.finding-actions{display:flex;gap:4px}
+.action{height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--muted);font-size:12px}
+.action:hover{color:var(--text);border-color:var(--dim)}
+.action[aria-pressed="true"]{color:var(--accent);border-color:var(--accent-line);background:var(--accent-weak)}
+.action-ignore[aria-pressed="true"]{color:#0a0c0f;border-color:var(--soft);background:var(--soft)}
+.action-ignore[aria-pressed="true"]::before{content:"✕ " / "";font-weight:700}
+@media (hover:hover){.row .finding-actions{opacity:0;transition:opacity .12s}.row:hover .finding-actions,.row:focus-within .finding-actions,.row[data-selected] .finding-actions{opacity:1}}
+.row-details{grid-column:1/-1;display:none;margin-top:6px;border-top:1px solid var(--line);padding-top:8px}
+.row-details summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent)}
+.row-details .answer{margin:10px 0 4px}
+
+/* Answer block: Fix / Ignore segmented control, where the answer came from, and a comment for the fixer */
+.answer{padding:12px 14px 14px;border:1px solid var(--line2);border-radius:10px;background:linear-gradient(180deg,#121820,#0f141a);box-shadow:inset 3px 0 var(--accent)}
+.answer[data-answer="ignore"]{box-shadow:inset 3px 0 var(--soft);background:#101317}
+.answer-legend{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.answer-choice{padding:2px;gap:2px;border:1px solid var(--line2);border-radius:8px;background:var(--bg)}
+.answer-option{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;font-weight:600}
+.answer-option:hover{color:var(--text);background:var(--hover)}
+.answer-mark{font-size:12px;opacity:.55}
+.answer-option[aria-pressed="true"] .answer-mark{opacity:1}
+.answer-option[data-answer-value="fix"][aria-pressed="true"]{background:var(--accent);color:#04120d}
+.answer-option[data-answer-value="ignore"][aria-pressed="true"]{background:var(--soft);color:#0a0c0f}
+.answer-note{flex:1 1 160px;font-size:12px;color:var(--muted)}
+.answer-comment{margin-top:12px}
+.answer-comment-label{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.answer-input{min-height:78px;max-height:60vh;padding:9px 11px;border:1px solid var(--line2);border-radius:8px;background:#06080b;color:var(--text);font-size:13px;line-height:1.5;outline:none}
+.answer-input::placeholder{color:var(--dim)}
+.answer-input:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-weak)}
+.pane-answer{margin:0 0 4px}
+.empty{margin:28px 0;padding:28px;border:1px dashed var(--line2);border-radius:12px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--text);font-size:15px;margin-bottom:4px}
+.empty .btn{margin-top:12px}
+
+/* Detail pane */
+.detail-tabs{position:sticky;top:0;z-index:3;display:flex;gap:2px;padding:10px 14px;background:rgba(14,18,23,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.detail-tabs{align-items:center}
+.tab-list{display:flex;gap:2px}
+.tab{border:0;background:none;color:var(--muted);padding:6px 10px;border-radius:7px;font-size:12.5px;font-weight:600}
+.tab[aria-selected="true"]{color:var(--text);background:var(--raised)}
+.tab:disabled{opacity:.4}
+.full-btn{display:inline-flex;align-items:center;gap:7px;margin-left:auto;height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line2);background:transparent;color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap}
+.full-btn:hover:not(:disabled){color:var(--text);border-color:var(--dim)}
+.full-btn[aria-pressed="true"]{color:var(--accent);border-color:var(--accent-line);background:var(--accent-weak)}
+.full-icon{position:relative;width:11px;height:11px;flex:none}
+.full-icon::before,.full-icon::after{content:"";position:absolute;width:4px;height:4px;border:1.5px solid currentColor}
+.full-icon::before{top:0;left:0;border-right:0;border-bottom:0}
+.full-icon::after{right:0;bottom:0;border-left:0;border-top:0}
+.full-btn[aria-pressed="true"] .full-icon::before{top:auto;bottom:0;left:0;border:1.5px solid currentColor;border-left:0;border-bottom:0}
+.full-btn[aria-pressed="true"] .full-icon::after{top:0;bottom:auto;right:0;border:1.5px solid currentColor;border-right:0;border-top:0}
+.full-btn kbd{font-size:10px;padding:0 4px}
+
+/* Full-screen reading mode (f): the detail pane takes over below the top bar; j/k keep moving through findings */
+html[data-drawer-full] .shell{display:block}
+html[data-drawer-full] .sidebar,html[data-drawer-full] .main,html[data-drawer-full] .filters-btn{display:none!important}
+html[data-drawer-full] .detail{position:sticky;top:var(--top);height:calc(100vh - var(--top));border:0;background:var(--bg)}
+html[data-drawer-full] .detail-scroll{height:100%;overflow:auto}
+html[data-drawer-full] .detail-tabs{display:flex!important;padding-inline:max(16px,calc((100% - 980px) / 2 + 16px))}
+html[data-drawer-full] .detail[data-tab="finding"] .finding-pane{display:block!important}
+html[data-drawer-full] .detail[data-tab="finding"] .report-pane{display:none!important}
+html[data-drawer-full] .finding-pane,html[data-drawer-full] .report-pane{max-width:980px;margin:0 auto;padding:26px 32px 96px}
+html[data-drawer-full] .pane-title{font-size:clamp(22px,2.4vw,28px);max-width:40ch}
+html[data-drawer-full] .finding-fields pre{max-height:none}
+@media (min-width:900px){
+  html[data-drawer-full] .finding-fields{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px 24px;margin-top:22px}
+  html[data-drawer-full] .finding-fields dt{margin:3px 0 0}
+  html[data-drawer-full] .finding-fields dd{margin:0}
+}
+.detail[data-tab="report"] .finding-pane,.detail[data-tab="finding"] .report-pane{display:none}
+.finding-pane,.report-pane{padding:18px 20px 64px}
+.finding-pane .finding-actions{margin-top:2px}
+.pane-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pane-nav .sev{font-size:11.5px;padding:5px 8px}
+.disp-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--disp);padding:3px 8px;border-radius:999px;border:1px solid var(--line2)}
+.pane-id{font:12px var(--mono);color:var(--dim)}
+.pane-arrows{display:flex;gap:4px;margin-left:auto}
+.pane-title{font-size:20px;line-height:1.3;font-weight:650;letter-spacing:-.015em;margin:14px 0 12px;text-wrap:balance}
+.pane-meta{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:14px}
+.pane-prs{display:flex;flex-direction:column;gap:6px}
+.pane-pr{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px}
+.pane-pr span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--soft)}
+.pane-people{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;color:var(--soft)}
+.person{display:inline-flex;align-items:center;gap:6px}
+.person .rv{width:20px;height:20px;box-shadow:none}
+.finding-fields{margin:16px 0 0}
+.finding-fields dt{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-top:16px}
+.finding-fields dt:first-child{margin-top:0}
+.finding-fields dd{margin:6px 0 0;color:var(--soft)}
+.finding-fields dd[data-field="impact"]{color:var(--text);font-size:15px;line-height:1.5}
+.finding-fields dd[data-field="location"] code{font-size:12.5px;color:var(--accent);word-break:break-all}
+.finding-fields pre{font-size:12.5px;line-height:1.65;background:#06080b;border:1px solid var(--line);border-radius:9px;padding:12px 14px;color:#d3dfeb;max-height:440px;overflow:auto;box-shadow:inset 3px 0 var(--line2)}
+.finding-fields dd[data-field="recommendation"]{border-left:2px solid var(--accent);padding:2px 0 2px 12px;color:var(--text)}
+.finding-fields dd[data-field="decision"]{padding:10px 12px;border-radius:8px;background:var(--raised);color:var(--text)}
+.finding-fields dd[data-field="validation"]{color:var(--warn)}
+.pane-empty{padding:40px 8px;text-align:center;color:var(--muted)}
+.report-pane h2{font:600 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
+.rp-block{padding:0 0 20px;margin:0 0 20px;border-bottom:1px solid var(--line)}
+.rp-block:last-child{border-bottom:0}
+.rp-block h2+h2,.rp-block ul+h2,.rp-block ol+h2,.rp-block p+h2{margin-top:18px}
+.rp-block ul,.rp-block ol{color:var(--soft);font-size:13px}
+.kv{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:6px 14px;margin:0;font-size:12.5px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;color:var(--soft);overflow-wrap:anywhere}
+.rv-card{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:rgba(255,255,255,.012)}
+.rv-card header{display:flex;align-items:center;gap:10px}
+.rv-card header div{display:flex;flex-direction:column;min-width:0}
+.rv-card header code{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.rv-card p{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+.rv-card .kv{margin-top:8px;font-size:12px}
+.rv-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.rv-tags span{font:11px var(--mono);padding:2px 7px;border-radius:4px;background:var(--raised);color:var(--soft)}
+.raw{margin-top:8px}
+.raw summary{cursor:pointer;font-size:12px;color:var(--accent)}
+.raw pre{font-size:11.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;background:#06080b;border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--soft);max-height:320px;overflow:auto}
+.note{margin-bottom:12px}
+.note strong{display:block;font-size:13px}
+.note p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+.footnote{font:11px var(--mono);color:var(--dim);margin-top:8px}
+
+/* Below 1600px the top bar also carries the answers button, so the least-used preset steps aside */
+@media (max-width:1599px){
+  .presets .preset[data-preset="disagreements"]{display:none}
+}
+/* Medium: list + sidebar; detail pane flows below and rows expand inline */
+@media (max-width:1179px){
+  .shell{grid-template-columns:256px minmax(0,1fr)}
+  .detail{position:static;height:auto;grid-column:2;border-left:0;border-top:1px solid var(--line)}
+  .detail-scroll{height:auto;overflow:visible}
+  .detail .resize-handle{display:none}
+  .detail-tabs,.finding-pane{display:none!important}
+  /* Two-row top bar: title + answers button, then search + quick views */
+  :root{--top:96px}
+  .topbar{flex-wrap:wrap;align-content:center;row-gap:8px;padding:8px 16px}
+  .brand{flex:1 1 0;max-width:none}
+  .top-search{order:5;flex:1 1 60%;max-width:none}
+  .presets{order:6}
+  .detail .report-pane{display:block!important}
+  .row-details{display:block}
+  .expand-controls{display:flex}
+}
+/* Small: sidebar becomes a drawer */
+@media (max-width:759px){
+  :root{--top:auto}
+  /* No backdrop-filter here: it would become the containing block of the fixed action dock */
+  .topbar{position:static;height:auto;flex-wrap:wrap;padding:10px 12px;gap:10px;background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .brand{max-width:none;flex:1}
+  .top-search{order:5;flex-basis:100%;max-width:none}
+  .presets{order:6;max-width:100%;overflow-x:auto}
+  .top-actions .copy,.top-actions .print{display:none}
+  /* The topbar scrolls away on phones, so its actions dock to the bottom edge to stay in reach */
+  .top-actions{position:fixed;z-index:30;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));margin:0;padding:6px;gap:6px;border:1px solid var(--line2);border-radius:12px;background:rgba(14,18,23,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 12px 40px rgba(0,0,0,.55)}
+  .top-actions .copy-answers{flex:1;min-width:0;justify-content:space-between;height:36px}
+  .top-actions .filters-btn{height:36px;padding:0 12px;width:auto}
+  body{padding-bottom:64px}
+  html[data-drawer-full] .detail{position:static;height:auto}
+  html[data-drawer-full] .detail-scroll{height:auto;overflow:visible}
+  html[data-drawer-full] .finding-pane,html[data-drawer-full] .report-pane{padding:18px 14px 48px}
+  .full-btn kbd{display:none}
+  .filters-btn{display:inline-flex;align-items:center}
+  .shell{display:block}
+  .sidebar{position:fixed;z-index:40;top:0;left:0;bottom:0;height:auto;width:min(320px,88vw);transform:translateX(-102%);transition:transform .18s ease;box-shadow:20px 0 60px rgba(0,0,0,.5)}
+  .app[data-drawer] .sidebar{transform:none}
+  .app[data-drawer] .scrim{display:block;position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.55)}
+  .main{padding:16px 12px 64px}
+  .detail{border-top:1px solid var(--line)}
+  .group-head{position:static}
+  .group-meta{display:none}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row{grid-template-columns:auto minmax(0,1fr);padding:10px 8px}
+  .row-side{grid-column:2;justify-content:flex-start}
+  .toolbar-right{margin-left:0}
+  .finding-pane,.report-pane{padding:16px 12px 48px}
+}
+@media print{
+  :root{color-scheme:light;--bg:#fff;--panel:#fff;--raised:#f4f5f6;--hover:#fff;--line:#d9dde2;--line2:#c4cad1;--text:#111;--soft:#222;--muted:#555;--dim:#6b7280;--accent:#0b7a5c;--accent-weak:#eef8f4;--accent-line:#9fd8c6;--p2:#b58900;--violet:#6d28d9}
+  body{font-size:10.5pt}
+  .topbar{position:static;height:auto;border:0;padding:0 0 8pt}
+  .top-search,.presets,.top-actions,.sidebar,.detail-tabs,.finding-pane,.toolbar-right,.finding-actions,.scrim,.row-details summary{display:none!important}
+  .shell{display:block}.main{padding:0}body{padding:0}
+  .detail{position:static;height:auto;border:0}
+  .detail-scroll{height:auto;overflow:visible}
+  .row[data-ignored]>:not(.row-details){opacity:.6}
+  .answer,.answer[data-answer="ignore"]{background:none;box-shadow:none;border-color:var(--line);padding:6pt 8pt;break-inside:avoid}
+  .answer-option[aria-pressed="false"]{display:none}
+  .answer-option[aria-pressed="true"]{border:1px solid var(--line2);height:auto;padding:2pt 6pt}
+  .answer-option[data-answer-value="fix"][aria-pressed="true"]{background:var(--accent-weak);color:var(--accent)}
+  .answer-option[data-answer-value="ignore"][aria-pressed="true"]{background:var(--raised);color:var(--text)}
+  .answer-choice{border:0;padding:0;background:none}
+  .answer-comment{margin-top:4pt}
+  .answer-comment:has(.answer-input:placeholder-shown){display:none}
+  .answer-input{field-sizing:content;min-height:0;max-height:none;padding:0;border:0;box-shadow:none;background:none;color:var(--text)}
+  .detail .report-pane{display:block!important;padding:12pt 0 0}
+  .summary{background:none;border-color:var(--line);break-inside:avoid}
+  .filter-summary{display:block;margin:0;font:9pt var(--mono);color:var(--muted)}
+  .group-head{position:static;background:none}
+  /* Rows grew an answer block; let long rows split between fields instead of leaving half-empty pages */
+  .row{break-inside:auto;border:1px solid var(--line);margin-bottom:6pt;box-shadow:none!important;background:none!important}
+  .row-main,.row-details .answer,.finding-fields dd{break-inside:avoid}
+  .finding-fields dt{break-after:avoid}
+  .row-details{display:block!important}
+  .finding-fields pre,.raw pre{background:#f6f7f8;color:#111;max-height:none}
+  .rv{box-shadow:none}
+  a{color:inherit}
+}
+</style>
+</head>
+<body>
+<noscript>This report renders with JavaScript. The full report data is embedded in this file.</noscript>
+<div id="app" class="app"></div>
+<script type="application/json" id="report-data">@@DATA@@</script>
+<script>@@CORE_JS@@</script>
+<script>
+(() => {
+  'use strict';
+  const app = MultiAgentReview.create();
+  const { h, ui, data, stack, state } = app;
+  const { SEVERITIES, SEVERITY_LABELS, FACETS, FACET_LABELS, ANSWER_LABELS, NO_PR, CROSS_PR } = app.constants;
+  const root = document.getElementById('app');
+  const wide = window.matchMedia('(min-width: 1180px)');
+  const phone = window.matchMedia('(max-width: 759px)');
+  const STATUS = { complete: 'Complete', incomplete: 'Incomplete', setup: 'Setup' };
+  const human = (value) => String(value).replace(/_/g, ' ');
+  const collapsed = new Set();
+  const hasFindings = data.findings.length > 0;
+  let tab = state.selected ? 'finding' : 'report';
+  let printing = false;
+  // One answer block per finding: in the detail pane when it is visible (wide), otherwise inside the row's inline details.
+  const answersInRows = () => printing || !wide.matches;
+
+  /* ---------- Top bar ---------- */
+  const filtersButton = h('button', { type: 'button', class: 'icon-btn filters-btn', 'aria-controls': 'sidebar', 'aria-expanded': 'false', onclick: () => setDrawer(!root.hasAttribute('data-drawer')) }, 'Filters');
+  const topbar = h('header', { class: 'topbar' },
+    h('div', { class: 'brand' },
+      h('span', { class: 'brand-mark', 'aria-hidden': 'true' }),
+      h('span', { class: 'brand-name' }, 'review'),
+      h('span', { class: 'brand-sep', 'aria-hidden': 'true' }, '/'),
+      h('span', { class: 'brand-title', title: data.title }, data.title)),
+    h('span', { class: `status-pill status-${data.status}`, title: data.meta.status_note }, STATUS[data.status]),
+    h('div', { class: 'top-search' }, ui.search({ placeholder: 'Search titles, files, evidence…' }), h('kbd', { class: 'search-kbd' }, '/')),
+    ui.presets(),
+    h('div', { class: 'top-actions' }, hasFindings ? ui.copyAnswers('Copy answers JSON') : null, ui.copy('Markdown'), ui.print('Print'), filtersButton));
+
+  function setDrawer(open) {
+    root.toggleAttribute('data-drawer', open);
+    filtersButton.setAttribute('aria-expanded', String(open));
+  }
+
+  /* ---------- Stack graph (sidebar) ---------- */
+  // Display order puts forks directly under their parent, before the parent's continuing lane,
+  // so every elbow hangs off an unambiguous line. Column = parent column (+1 for a fork).
+  function graphLayout() {
+    const rows = [{ trunk: true, id: '(trunk)' }];
+    const col = new Map([['(trunk)', 0]]);
+    const parentOf = new Map();
+    const emit = (node, c, parent) => {
+      col.set(node.id, c); parentOf.set(node.id, parent); rows.push(node);
+      node.children.slice(1).forEach((fork) => emit(fork, c + 1, node.id));
+      if (node.children[0]) emit(node.children[0], c, node.id);
+    };
+    stack.roots.slice(1).forEach((r) => emit(r, 1, '(trunk)'));
+    if (stack.roots[0]) emit(stack.roots[0], 0, '(trunk)');
+    const at = new Map(rows.map((r, i) => [r.id, i]));
+    const segs = rows.map(() => ({ full: new Set(), top: new Set(), bottom: new Set(), elbow: null }));
+    rows.slice(1).forEach((node) => {
+      const p = parentOf.get(node.id); const rp = at.get(p); const rn = at.get(node.id);
+      const cp = col.get(p); const cn = col.get(node.id);
+      segs[rp].bottom.add(cp);
+      for (let r = rp + 1; r < rn; r += 1) segs[r].full.add(cp);
+      if (cn === cp) segs[rn].top.add(cp); else segs[rn].elbow = [cp, cn];
+    });
+    return { rows, col, segs, width: Math.max(...col.values()) + 1 };
+  }
+  const STEP = 16;
+  function graphCell(layout, index, row) {
+    const s = layout.segs[index];
+    const x = (c) => c * STEP + STEP / 2;
+    const parts = [];
+    s.full.forEach((c) => parts.push(h('span', { class: 'g-v', style: `left:${x(c)}px` })));
+    s.top.forEach((c) => { if (!s.full.has(c)) parts.push(h('span', { class: 'g-top', style: `left:${x(c)}px` })); });
+    s.bottom.forEach((c) => { if (!s.full.has(c)) parts.push(h('span', { class: 'g-bot', style: `left:${x(c)}px` })); });
+    if (s.elbow) parts.push(h('span', { class: 'g-elbow', style: `left:${x(s.elbow[0])}px;width:${(s.elbow[1] - s.elbow[0]) * STEP}px` }));
+    const dot = h('span', { class: row.trunk ? 'g-dot trunk' : 'g-dot', style: `left:${x(layout.col.get(row.id))}px` });
+    parts.push(dot);
+    return { cell: h('span', { class: 'g', 'aria-hidden': 'true', style: `width:${layout.width * STEP}px` }, parts), dot };
+  }
+  const stackRefresh = [];
+  function stackPanel() {
+    if (!app.hasStack) return null;
+    const layout = graphLayout();
+    const items = layout.rows.map((row, index) => {
+      const { cell, dot } = graphCell(layout, index, row);
+      if (row.trunk) {
+        return h('li', null, h('div', { class: 'stack-row trunk-row' }, cell,
+          h('span', { class: 'stack-text' }, h('span', { class: 'stack-line' }, h('span', { class: 'stack-title' }, stack.trunk), h('span', { class: 'stack-count' }, 'trunk')))));
+      }
+      const count = h('span', { class: 'stack-count' });
+      const pips = h('span', { class: 'sev-pips' });
+      const diff = [row.additions != null ? `+${row.additions}` : null, row.deletions != null ? `−${row.deletions}` : null].filter(Boolean).join(' ');
+      const button = h('button', {
+        type: 'button', class: 'stack-row', 'aria-pressed': 'false', dataset: { focusKey: `stack:${row.id}` },
+        title: `${app.prLabel(row.id)} ${row.title}${row.forked ? ` (forks from ${app.prLabel(row.parent)})` : ''}. Click to show only this PR; shift-click to add it.`,
+        onclick: (event) => app.toggle('pr', row.id, !(event.shiftKey || event.altKey)),
+      }, cell, h('span', { class: 'stack-text' },
+        h('span', { class: 'stack-line' }, h('span', { class: 'stack-num' }, app.prLabel(row.id)), h('span', { class: 'stack-title' }, row.title), count),
+        h('span', { class: 'stack-sub' }, h('span', { class: 'stack-branch' }, [row.branch, row.status === 'draft' ? 'draft' : null, diff].filter(Boolean).join(' · ')), pips)));
+      stackRefresh.push((rows) => {
+        const stats = rows.get(row.id);
+        button.setAttribute('aria-pressed', String(state.pr.has(row.id)));
+        button.toggleAttribute('data-empty', stats.total === 0);
+        count.textContent = String(stats.total);
+        pips.replaceChildren(ui.severityPips(stats));
+        const worst = SEVERITIES.find((s) => stats[s]);
+        if (worst) { dot.dataset.worst = ''; dot.dataset.severity = worst; } else { delete dot.dataset.worst; delete dot.dataset.severity; }
+      });
+      return h('li', null, button);
+    });
+    if (app.options.pr.some((o) => o.value === NO_PR)) {
+      const button = h('button', { type: 'button', class: 'stack-row', 'aria-pressed': 'false', onclick: (e) => app.toggle('pr', NO_PR, !(e.shiftKey || e.altKey)) },
+        h('span', { class: 'g', style: `width:${layout.width * STEP}px` }), h('span', { class: 'stack-text' }, h('span', { class: 'stack-line' }, h('span', { class: 'stack-title' }, 'Not tied to a PR'))));
+      stackRefresh.push(() => button.setAttribute('aria-pressed', String(state.pr.has(NO_PR))));
+      items.push(h('li', null, button));
+    }
+    const clear = h('button', { type: 'button', class: 'action', onclick: () => app.setFacet('pr', []) }, 'All PRs');
+    stackRefresh.push(() => { clear.hidden = !state.pr.size; });
+    return h('section', { class: 'side-block', 'aria-label': 'Stacked pull requests' },
+      h('div', { class: 'side-head' }, h('span', { class: 'eyebrow' }, `Stack · ${stack.order.length} PRs`), clear),
+      h('ol', { class: 'stack-list' }, items),
+      h('div', { class: 'stack-inherit' }, ui.toggle('prInherited', 'Include issues from lower PRs')));
+  }
+
+  /* ---------- Your answers (sidebar) ---------- */
+  const clearPins = h('button', { type: 'button', class: 'action', title: 'Unpin every finding', onclick: () => app.clearPins() }, 'Clear pins');
+  const answersBlock = hasFindings ? h('section', { class: 'side-block answers-block', 'aria-label': 'Your answers' },
+    ui.facet('answer', { legend: 'Your answer' }),
+    h('p', { class: 'side-hint' }, 'Findings start as Fix (rejected ones as Ignore). Ignore what you do not want fixed, then copy the answers JSON.'),
+    ui.bulkAnswer(),
+    h('div', { class: 'pin-controls' }, ui.toggle('pinnedOnly', 'Pinned only'), clearPins)) : null;
+
+  const sidebar = h('aside', { class: 'sidebar', id: 'sidebar', 'aria-label': 'Filters' },
+    stackPanel(),
+    answersBlock,
+    ui.facet('severity', { labels: Object.fromEntries(SEVERITIES.map((s) => [s, `${s} · ${SEVERITY_LABELS[s]}`])) }),
+    ui.facet('disposition'),
+    ui.facet('reviewer'),
+    ui.facet('confidence'),
+    ui.facet('tag'),
+    ui.sections([['summary', 'Assessment'], ['team', 'Review team'], ['reviewers', 'Reviewer details'], ['coverage', 'Checks & gaps'], ['notes', 'Notes & sources']]),
+    ui.shortcuts());
+
+  /* ---------- Summary ---------- */
+  const counts = Object.fromEntries(SEVERITIES.map((s) => [s, data.findings.filter((f) => f.severity === s).length]));
+  const total = data.findings.length;
+  const metric = (value, label, extra) => h('div', { class: 'metric' }, h('div', { class: 'metric-value' }, value), h('div', { class: 'metric-label' }, label), extra);
+  const teamRefresh = [];
+  const team = h('div', { class: 'team', dataset: { section: 'team' } }, data.reviewers.map((r) => {
+    const chip = h('button', {
+      type: 'button', class: 'team-chip', 'aria-pressed': 'false', title: `${r.provenance} Click to show findings raised by ${r.name}.`,
+      onclick: () => app.toggle('reviewer', r.name, true),
+    }, h('span', { class: 'rv', dataset: { rv: String(app.reviewerIndex(r.name)) } }, app.initials(r.name)),
+    h('span', { class: 'team-text' }, h('span', { class: 'team-name' }, r.name), h('span', { class: 'team-model' }, `${r.model} · ${r.effort} · ${r.transport}`)),
+    h('span', { class: `state state-${r.status}` }, human(r.status)));
+    teamRefresh.push(() => chip.setAttribute('aria-pressed', String(state.reviewer.size === 1 && state.reviewer.has(r.name))));
+    return chip;
+  }));
+  const summary = h('section', { class: `summary status-${data.status}`, 'aria-label': 'Assessment' },
+    h('div', { dataset: { section: 'summary' } },
+      h('div', { class: 'summary-head' }, h('span', { class: 'eyebrow' }, `Assessment · ${STATUS[data.status]}`), h('span', { class: 'eyebrow' }, data.generated_at)),
+      h('h1', { class: 'verdict' }, data.verdict),
+      h('p', { class: 'status-note' }, data.meta.status_note),
+      h('p', { class: 'summary-text' }, data.summary),
+      h('div', { class: 'metrics' },
+        metric([String(data.meta.completed), h('small', null, ` / ${data.reviewers.length}`)], 'reviewer runs completed'),
+        metric(String(data.meta.confirmed), 'confirmed findings'),
+        metric(String(data.meta.unresolved), 'disputed or unvalidated'),
+        metric(String(total), 'candidates raised', total ? [
+          h('div', { class: 'sevbar', 'aria-hidden': 'true' }, SEVERITIES.filter((s) => counts[s]).map((s) => h('span', { dataset: { severity: s }, style: `flex:${counts[s]}` }))),
+          h('div', { class: 'sevlegend' }, SEVERITIES.filter((s) => counts[s]).map((s) => h('span', { dataset: { severity: s } }, h('b', null, s), ` ${counts[s]}`))),
+        ] : null))),
+    team);
+
+  /* ---------- Finding list ---------- */
+  const activeFilters = h('div', { class: 'active-filters', 'aria-label': 'Active filters' });
+  const list = h('div', { class: 'list', id: 'findings' });
+  const toolbar = h('div', { class: 'list-toolbar' },
+    h('h2', { class: 'list-title' }, 'Findings'), ui.count(), hasFindings ? ui.answerSummary() : null, ui.filterSummary(),
+    h('div', { class: 'toolbar-right' }, ui.select('groupBy', 'Group'), ui.select('sort', 'Sort'), ui.expand(), ui.reset('Clear filters')),
+    activeFilters);
+
+  function renderActiveFilters() {
+    const chips = [];
+    const chip = (label, value, remove) => h('button', { type: 'button', class: 'filter-chip', title: 'Remove filter', onclick: remove }, h('b', null, label), value);
+    if (state.q) chips.push(chip('Search', `“${state.q}”`, () => app.set('q', '')));
+    FACETS.forEach((facet) => state[facet].forEach((value) => {
+      const label = facet === 'pr' ? app.prLabel(value) : facet === 'answer' ? ANSWER_LABELS[value] : value;
+      chips.push(chip(FACET_LABELS[facet], label, () => app.toggle(facet, value)));
+    }));
+    if (state.pr.size && state.prInherited) chips.push(chip('Stack', 'with lower PRs', () => app.set('prInherited', false)));
+    if (state.pinnedOnly) chips.push(chip('Pins', 'pinned only', () => app.set('pinnedOnly', false)));
+    activeFilters.replaceChildren(...chips);
+  }
+
+  function groupLabel(g) {
+    if (g.pr) {
+      const n = g.pr;
+      return h('span', { class: 'group-label' }, h('span', { class: 'stack-num' }, app.prLabel(n.id)), h('span', { class: 'group-title' }, n.title),
+        h('span', { class: 'group-meta' }, [n.branch, n.forked ? `forks from ${app.prLabel(n.parent)}` : null].filter(Boolean).join(' · ')));
+    }
+    if (g.severity) return h('span', { class: 'group-label' }, h('span', { class: 'group-sev', dataset: { severity: g.severity } }, g.severity), h('span', { class: 'group-title' }, SEVERITY_LABELS[g.severity]));
+    if (g.disposition) return h('span', { class: 'group-label', dataset: { disposition: g.disposition } }, h('span', { class: 'disp', dataset: { disposition: g.disposition } }), h('span', { class: 'group-title' }, g.label));
+    return h('span', { class: 'group-label' }, h('span', { class: 'group-title' }, g.label));
+  }
+
+  function row(f) {
+    const showChips = f.prs.length > 1 || state.groupBy !== 'pr';
+    return h('article', {
+      class: 'row', dataset: { findingId: f.id, severity: f.severity, disposition: f.disposition },
+      onclick: (event) => { if (!event.target.closest('button,a,summary,details')) choose(f.id); },
+    },
+    h('span', { class: 'sev', dataset: { severity: f.severity }, title: SEVERITY_LABELS[f.severity] }, f.severity),
+    h('button', { type: 'button', class: 'row-main', dataset: { focusKey: `row:${f.id}` }, 'aria-describedby': `sub-${f.id}`, onclick: () => choose(f.id) },
+      h('span', { class: 'row-title' }, h('span', { class: 'disp', dataset: { disposition: f.disposition }, 'aria-hidden': 'true' }), h('span', { class: 'row-title-text' }, f.title),
+        app.isPinned(f.id) ? h('span', { class: 'flag flag-pin' }, 'pinned') : null,
+        // Shown by CSS from data-ignored / data-commented, which core keeps current without a re-render.
+        h('span', { class: 'flag flag-ignored', title: 'Left out of the fix list' }, 'ignored'),
+        h('span', { class: 'flag flag-comment', title: 'You commented on this finding' }, h('span', { class: 'bubble', 'aria-hidden': 'true' }), 'comment')),
+      h('span', { class: 'row-sub', id: `sub-${f.id}` },
+        h('span', { class: 'disp-label', dataset: { disposition: f.disposition } }, f.disposition),
+        h('code', null, f.location),
+        h('span', null, `${f.confidence} confidence`),
+        f.tags.slice(0, 3).map((t) => h('span', { class: 'tag' }, t)),
+        h('span', { class: 'row-id' }, f.id))),
+    h('div', { class: 'row-side' }, showChips ? f.prs.map((id) => ui.prChip(id)) : null, ui.reviewerBadges(f.reviewers), ui.findingActions(f)),
+    h('details', { class: 'row-details', dataset: { openFor: f.id } },
+      h('summary', null, answersInRows() ? 'Answer, evidence & decision' : 'Evidence & decision'),
+      answersInRows() ? ui.answer(f, { rows: printing ? commentRows(f.id) : 3 }) : null,
+      ui.findingFields(f)));
+  }
+  // Textareas print at their box height, so size printed comments to their text (field-sizing covers newer browsers).
+  function commentRows(id) {
+    return Math.max(1, app.comment(id).split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 90)), 0));
+  }
+  function choose(id) {
+    app.select(id);
+    if (!wide.matches) app.setOpen(id, !app.isOpen(id));
+  }
+
+  function renderList() {
+    const view = app.view();
+    if (!data.findings.length) {
+      list.replaceChildren(h('div', { class: 'empty' }, h('strong', null, 'No findings'), data.meta.empty_message));
+      return;
+    }
+    if (!view.flat.length) {
+      list.replaceChildren(h('div', { class: 'empty' }, h('strong', null, 'No findings match these filters'),
+        state.answer.size ? `Filtered to your “${[...state.answer].map((v) => ANSWER_LABELS[v]).join(' / ')}” answers. ` : '',
+        h('div', null, h('button', { type: 'button', class: 'btn', onclick: () => app.reset() }, 'Clear filters'))));
+      return;
+    }
+    list.replaceChildren(...view.groups.map((g) => {
+      const isCollapsed = collapsed.has(g.key);
+      const toggle = h('button', { type: 'button', class: 'group-toggle', 'aria-expanded': String(!isCollapsed), onclick: () => { if (collapsed.has(g.key)) collapsed.delete(g.key); else collapsed.add(g.key); renderList(); } },
+        h('span', { class: 'caret', 'aria-hidden': 'true' }), groupLabel(g), h('span', { class: 'group-count' }, String(g.items.length)));
+      const link = g.pr && g.pr.url ? h('a', { class: 'group-link', href: g.pr.url, target: '_blank', rel: 'noreferrer' }, 'Open ↗') : null;
+      return h('section', { class: 'group', dataset: { group: g.key } },
+        state.groupBy === 'none' ? null : h('div', { class: 'group-head' }, toggle, link),
+        isCollapsed ? null : h('div', { class: 'rows' }, g.items.map(row)));
+    }));
+  }
+
+  /* ---------- Detail pane ---------- */
+  const tabFinding = h('button', { type: 'button', class: 'tab', role: 'tab', onclick: () => { tab = 'finding'; renderPane(); } }, 'Finding');
+  const tabReport = h('button', { type: 'button', class: 'tab', role: 'tab', onclick: () => { tab = 'report'; renderPane(); } }, 'Report');
+  const findingPane = h('div', { class: 'finding-pane', role: 'tabpanel' });
+  const list_ = (items, ordered) => items.length ? h(ordered ? 'ol' : 'ul', null, items.map((item) => h('li', null, item))) : h('p', { class: 'muted' }, 'None recorded.');
+  function reviewerCard(r) {
+    const extras = [['run_id', 'Task / process'], ['round', 'Round'], ['provider_status', 'Provider state'], ['snapshot_id', 'Snapshot'], ['limitations', 'Limits']].filter(([key]) => r[key]);
+    return h('article', { class: 'rv-card' },
+      h('header', null, h('span', { class: 'rv', dataset: { rv: String(app.reviewerIndex(r.name)) } }, app.initials(r.name)),
+        h('div', null, h('strong', null, r.name), h('code', null, r.model)), h('span', { class: `state state-${r.status}` }, human(r.status))),
+      h('div', { class: 'rv-tags' }, h('span', null, `${r.effort} effort`), h('span', null, r.transport)),
+      h('p', null, r.provenance),
+      extras.length ? h('dl', { class: 'kv' }, extras.map(([key, label]) => [h('dt', null, label), h('dd', null, String(r[key]))])) : null,
+      'snapshot_verified' in r ? h('p', null, `Snapshot verification: ${r.snapshot_verified === true ? 'verified' : 'unverified'}`) : null,
+      r.output ? h('details', { class: 'raw' }, h('summary', null, 'Raw reviewer output'), h('pre', null, r.output)) : null);
+  }
+  const reportPane = h('div', { class: 'report-pane', role: 'tabpanel' },
+    h('section', { class: 'rp-block' }, h('h2', null, 'Target'), h('dl', { class: 'kv' }, data.target.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))),
+    h('section', { class: 'rp-block', dataset: { section: 'reviewers' } }, h('h2', null, 'Reviewers'), data.reviewers.map(reviewerCard)),
+    h('section', { class: 'rp-block', dataset: { section: 'coverage' } },
+      h('h2', null, 'Validation performed'), list_(data.checks),
+      h('h2', null, 'Coverage & limitations'), list_(data.gaps),
+      h('h2', null, 'Next steps'), list_(data.next_steps, true)),
+    data.notes.length || data.sources.length ? h('section', { class: 'rp-block', dataset: { section: 'notes' } },
+      data.notes.length ? [h('h2', null, 'Notes'), data.notes.map((n) => h('div', { class: 'note' }, h('strong', null, n.title), h('p', null, n.body)))] : null,
+      data.sources.length ? [h('h2', null, 'Sources'), h('ul', null, data.sources.map((s) => h('li', null, h('a', { href: s.url, target: '_blank', rel: 'noreferrer' }, s.title))))] : null) : null,
+    h('p', { class: 'footnote' }, 'Standalone HTML · no network requests · answers, comments and pins are saved in this browser only and shared by every design of this report.'));
+  // The scroller sits inside the sticky pane so the resize handle stays put while the content scrolls.
+  // Full-screen reading mode (core key f). aria-label stays constant for the toggle; the visible text names the way out.
+  const fullText = h('span', null, 'Full screen');
+  const fullButton = h('button', {
+    type: 'button', class: 'full-btn', 'aria-pressed': 'false', 'aria-label': 'Full screen', title: 'Full screen (f)',
+    onclick: () => app.toggleDrawerFull(),
+  }, h('span', { class: 'full-icon', 'aria-hidden': 'true' }), fullText, h('kbd', { 'aria-hidden': 'true' }, 'f'));
+  function syncFull() {
+    const on = app.isDrawerFull();
+    fullButton.setAttribute('aria-pressed', String(on));
+    fullText.textContent = on ? 'Exit full screen' : 'Full screen';
+  }
+  const detailScroll = h('div', { class: 'detail-scroll' },
+    h('div', { class: 'detail-tabs' }, h('div', { class: 'tab-list', role: 'tablist', 'aria-label': 'Detail pane' }, tabFinding, tabReport), hasFindings ? fullButton : null), findingPane, reportPane);
+  const detail = h('aside', { class: 'detail', id: 'detail', 'aria-label': 'Finding and report details' }, detailScroll);
+  // Sidebar (276px) + a 420px minimum for the list; the grid column clamps the same way in CSS.
+  detail.append(ui.resizer(detail, { key: 'triage-drawer', min: 360, gutter: 696, label: 'Resize the detail pane' }));
+
+  function renderPane() {
+    const f = app.byId.get(state.selected);
+    detail.dataset.tab = f ? tab : 'report';
+    tabFinding.disabled = !f;
+    tabFinding.setAttribute('aria-selected', String(detail.dataset.tab === 'finding'));
+    tabReport.setAttribute('aria-selected', String(detail.dataset.tab === 'report'));
+    if (!f) { findingPane.replaceChildren(h('div', { class: 'pane-empty' }, 'Select a finding.')); return; }
+    const flat = app.view().flat;
+    const at = flat.findIndex((x) => x.id === f.id);
+    findingPane.replaceChildren(
+      h('div', { class: 'pane-nav' },
+        h('span', { class: 'sev', dataset: { severity: f.severity } }, `${f.severity} · ${SEVERITY_LABELS[f.severity]}`),
+        h('span', { class: 'disp-tag', dataset: { disposition: f.disposition } }, h('span', { class: 'disp', dataset: { disposition: f.disposition }, 'aria-hidden': 'true' }), f.disposition),
+        h('span', { class: 'pane-id' }, f.id),
+        h('span', { class: 'pane-arrows' },
+          h('button', { type: 'button', class: 'icon-btn', title: 'Previous (k)', 'aria-label': 'Previous finding', disabled: at <= 0, onclick: () => app.move(-1) }, '↑'),
+          h('button', { type: 'button', class: 'icon-btn', title: 'Next (j)', 'aria-label': 'Next finding', disabled: at < 0 || at >= flat.length - 1, onclick: () => app.move(1) }, '↓'),
+          h('button', { type: 'button', class: 'icon-btn', title: 'Close (Esc)', 'aria-label': 'Close finding', onclick: () => app.select(null) }, '✕'))),
+      h('h2', { class: 'pane-title' }, f.title),
+      h('div', { class: 'pane-meta' },
+        app.hasStack && f.prs.length ? h('div', { class: 'pane-prs' }, f.prs.map((id) => h('div', { class: 'pane-pr' }, ui.prChip(id), h('span', null, (stack.byId.get(id) || {}).title || '')))) : null,
+        h('div', { class: 'pane-people' },
+          f.reviewers.map((name) => h('span', { class: 'person' }, h('span', { class: 'rv', dataset: { rv: String(app.reviewerIndex(name)) } }, app.initials(name)), name)),
+          h('span', { class: 'muted' }, `· ${f.confidence} confidence`),
+          f.tags.map((t) => h('span', { class: 'tag' }, t))),
+        ui.findingActions(f, { answer: false })),
+      h('div', { class: 'pane-answer' }, ui.answer(f, { rows: 4 })),
+      ui.findingFields(f));
+  }
+
+  /* ---------- Assemble ---------- */
+  const main = h('main', { class: 'main' }, summary, toolbar, list);
+  root.append(topbar, h('div', { class: 'shell' }, sidebar, main, detail), h('div', { class: 'scrim', onclick: () => setDrawer(false) }));
+  // Esc closes the phone filter drawer first; claiming the event keeps core from also closing the finding.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && root.hasAttribute('data-drawer')) { setDrawer(false); filtersButton.focus(); event.preventDefault(); }
+  }, true);
+  // Print the answer and comment under each finding; core opens every <details> before printing, so reopen re-rendered ones.
+  const rerender = () => { renderList(); renderPane(); app.sync(); if (printing) list.querySelectorAll('details').forEach((el) => { el.open = true; }); };
+  wide.addEventListener('change', rerender);
+  window.addEventListener('beforeprint', () => { printing = true; rerender(); });
+  window.addEventListener('afterprint', () => { printing = false; rerender(); });
+
+  app.subscribe((reason) => {
+    if (reason === 'open' || reason === 'sections') return;
+    syncFull();
+    if (reason === 'layout') {
+      // Full screen only swaps CSS; just make sure the open finding (not the report) is what fills it.
+      if (app.isDrawerFull() && tab !== 'finding') { tab = 'finding'; renderPane(); }
+      detailScroll.scrollTop = 0;
+      if (app.isDrawerFull()) { if (phone.matches) window.scrollTo(0, 0); } else {
+        const el = app.findingElement(state.selected);
+        if (el) el.scrollIntoView({ block: 'center' });
+      }
+      return;
+    }
+    if (reason === 'select') {
+      tab = state.selected ? 'finding' : 'report';
+      const group = app.view().groups.find((g) => g.items.some((f) => f.id === state.selected));
+      if (group && collapsed.has(group.key)) { collapsed.delete(group.key); renderList(); }
+      renderPane();
+      detailScroll.scrollTop = 0;
+      if (app.isDrawerFull() && phone.matches) window.scrollTo(0, 0);
+      return;
+    }
+    // A pane control (Fix / Ignore / Pin) keeps focus inside the pane even when the rows carry their own copy of it.
+    const active = document.activeElement;
+    const paneKey = active && detail.contains(active) && active.dataset.focusKey;
+    clearPins.disabled = !app.pinnedCount();
+    const rows = app.prBreakdown();
+    stackRefresh.forEach((fn) => fn(rows));
+    teamRefresh.forEach((fn) => fn());
+    renderActiveFilters();
+    renderList();
+    renderPane();
+    if (paneKey) {
+      const control = paneKey.includes(':') ? `${paneKey.slice(0, paneKey.lastIndexOf(':'))}:${state.selected}` : paneKey;
+      const target = detail.querySelector(`[data-focus-key="${CSS.escape(paneKey)}"]`) || detail.querySelector(`[data-focus-key="${CSS.escape(control)}"]`);
+      if (target) target.focus({ preventScroll: true });
+    }
+  });
+  app.start();
+})();
+</script>
+</body>
+</html>

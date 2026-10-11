@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="multi-agent-review · index">
+<title>Idempotent payments stack — four PRs, three reviewers · designs</title>
+<style>
+:root{color-scheme:dark;--bg:#0a0c0f;--panel:#11151a;--line:#232a33;--text:#e7ecf2;--muted:#8693a2;--accent:#7ee0c3;--warn:#ffb547}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:48px 24px 64px}
+.kicker{font:700 11px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(28px,4vw,44px);line-height:1.08;letter-spacing:-.03em;font-weight:800;margin:12px 0 14px;max-width:24ch}
+.status{display:inline-block;margin-right:10px;padding:3px 8px;border:2px solid currentColor;font:800 11px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
+.status-incomplete{color:var(--warn)}.status-complete{color:var(--accent)}.status-setup{color:var(--muted)}
+.note{color:var(--muted);max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:2px;margin-top:36px;background:var(--line);border:2px solid var(--line)}
+.card{display:flex;flex-direction:column;gap:10px;padding:24px;background:var(--panel);color:inherit;text-decoration:none;min-height:200px}
+.card strong{font-size:28px;font-weight:800;letter-spacing:-.02em}.card span{color:var(--muted)}
+.card .open{margin-top:auto;color:var(--accent);font-weight:700}
+.card:hover,.card:focus-visible{background:#161c23;outline:2px solid var(--accent);outline-offset:-2px}
+footer{margin-top:28px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<div class="kicker">Multi-agent review · 2026-10-07 10:42 CEST</div>
+<h1>Illustrative: hold #413 and #414 until the duplicate-charge race and retry key are fixed.</h1>
+<p><span class="status status-setup">setup</span>Setup walkthrough only. This page does not claim a completed project review.</p>
+<p class="note">Idempotent payments stack — four PRs, three reviewers — 13 findings, 3/3 reviewer runs completed. Every design below renders the same report data.</p>
+<nav class="grid" aria-label="Report designs"><a class="card" href="command.html"><span class="kicker">--theme command</span><strong>Command</strong><span>Triage console with list, board, and matrix views. Best for working through every finding.</span><span class="open">Open &rarr;</span></a><a class="card" href="train.html"><span class="kicker">--theme train</span><strong>Merge train</strong><span>Stack-first merge readiness, a bottom-up merge plan, and per-PR dossiers. Best for stacked PRs.</span><span class="open">Open &rarr;</span></a><a class="card" href="focus.html"><span class="kicker">--theme focus</span><strong>Focus queue</strong><span>One finding at a time: fix or ignore it, comment, and move on.</span><span class="open">Open &rarr;</span></a><a class="card" href="triage.html"><span class="kicker">--theme triage</span><strong>Triage</strong><span>Dark three-pane console: stack graph, faceted sidebar, list, and detail pane.</span><span class="open">Open &rarr;</span></a><a class="card" href="board.html"><span class="kicker">--theme board</span><strong>Board</strong><span>Swiss-style board with disposition columns and per-PR swimlanes.</span><span class="open">Open &rarr;</span></a></nav>
+<footer>Standalone files · no network requests · answers, comments, and pins are stored in this browser and shared by every design · Copy answers exports them as JSON.</footer>
+</main>
+</body>
+</html>
