@@ -107,41 +107,18 @@ class RenderTests(unittest.TestCase):
     def run_cli(self, *args):
         return subprocess.run([sys.executable, str(SKILL / "scripts/render_report.py"), *map(str, args)], capture_output=True, text=True)
 
-    def test_output_dir_renders_trial_designs_and_index(self):
-        self.assertTrue(set(render_report.TRIAL_THEMES) <= set(render_report.THEMES))
-        for theme in render_report.TRIAL_THEMES:
-            self.assertTrue((SKILL / "references/designs" / f"{theme}.md").is_file(), f"missing design notes for {theme}")
+    def test_cli_renders_train_by_default(self):
+        self.assertTrue((SKILL / "references/designs" / f"{render_report.DEFAULT_THEME}.md").is_file())
         with tempfile.TemporaryDirectory() as temp:
-            out = Path(temp) / "review"
-            result = self.run_cli(SKILL / "assets/example-stack-report.json", "--output-dir", out)
+            out = Path(temp) / "review" / "review.html"
+            result = self.run_cli(SKILL / "assets/example-stack-report.json", "--output", out)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sorted(p.name for p in out.iterdir()), sorted([*(f"{t}.html" for t in render_report.TRIAL_THEMES), "index.html"]))
-            index = (out / "index.html").read_text(encoding="utf-8")
-            for theme in render_report.TRIAL_THEMES:
-                self.assertIn(f'href="{theme}.html"', index)
-                self.assertIn(f'content="multi-agent-review · {theme}"', (out / f"{theme}.html").read_text(encoding="utf-8"))
-            self.assertNotIn("<script", index)
-
-    def test_output_dir_honors_themes_and_rejects_mixed_flags(self):
-        with tempfile.TemporaryDirectory() as temp:
-            out = Path(temp) / "review"
-            self.assertEqual(self.run_cli(SKILL / "assets/example-report.json", "--output-dir", out, "--themes", "board").returncode, 0)
-            self.assertEqual(sorted(p.name for p in out.iterdir()), ["board.html", "index.html"])
-            for args in (("--output-dir", out, "--theme", "board"), ("--output", out / "x.html", "--themes", "board"), ("--output-dir", out, "--themes", "nope")):
-                with self.subTest(args=args):
-                    self.assertNotEqual(self.run_cli(SKILL / "assets/example-report.json", *args).returncode, 0)
-
-    def test_index_escapes_report_text(self):
-        report = copy.deepcopy(STACK)
-        report["verdict"] = "<img src=x onerror=alert(1)>"
-        page = render_report.render_index(report, [("command", "command.html")])
-        self.assertNotIn("<img", page)
-        self.assertIn("&lt;img", page)
+            self.assertEqual(sorted(p.name for p in out.parent.iterdir()), ["review.html"])
+            self.assertIn('content="multi-agent-review · train"', out.read_text(encoding="utf-8"))
 
     def test_cli_rejects_unknown_theme(self):
         with tempfile.TemporaryDirectory() as temp:
-            result = subprocess.run([sys.executable, str(SKILL / "scripts/render_report.py"), str(SKILL / "assets/example-report.json"),
-                                     "--output", str(Path(temp) / "out.html"), "--theme", "nope"], capture_output=True, text=True)
+            result = self.run_cli(SKILL / "assets/example-report.json", "--output", Path(temp) / "out.html", "--theme", "nope")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("invalid choice", result.stderr)
 

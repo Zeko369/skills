@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Render standalone, offline review pages from report.json using only the Python standard library.
-
-One design: --output review.html [--theme NAME]. Every trial design plus a chooser: --output-dir DIR [--themes a,b,c]."""
+"""Render a standalone, offline review page from report.json using only the Python standard library."""
 import argparse
 import copy
 import hashlib
@@ -14,16 +12,7 @@ from urllib.parse import urlsplit
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 THEMES = {path.stem: path for path in sorted((ASSETS / "themes").glob("*.html"))}
-DEFAULT_THEME = "triage"
-# Designs rendered together on every run while the user compares them (see references/designs/).
-TRIAL_THEMES = ("command", "train", "focus")
-DESIGNS = {
-    "command": ("Command", "Triage console with list, board, and matrix views. Best for working through every finding."),
-    "train": ("Merge train", "Stack-first merge readiness, a bottom-up merge plan, and per-PR dossiers. Best for stacked PRs."),
-    "focus": ("Focus queue", "One finding at a time: fix or ignore it, comment, and move on."),
-    "triage": ("Triage", "Dark three-pane console: stack graph, faceted sidebar, list, and detail pane."),
-    "board": ("Board", "Swiss-style board with disposition columns and per-PR swimlanes."),
-}
+DEFAULT_THEME = "train"
 DISPOSITIONS = {"confirmed", "disputed", "rejected", "needs validation"}
 STATES = {"completed", "failed", "timed_out", "unavailable", "not_run", "cancelled", "running", "stale"}
 TOKEN = re.compile(r"@@([A-Z_]+)@@")
@@ -194,91 +183,21 @@ def render(data, theme=DEFAULT_THEME):
     return TOKEN.sub(substitute, THEMES[theme].read_text(encoding="utf-8"))
 
 
-def render_index(data, pages):
-    """Offline chooser page linking every rendered design of one report."""
-    page = normalize(data)
-    esc = lambda value: html.escape(str(value), quote=True)
-    cards = "".join(
-        f'<a class="card" href="{esc(name)}"><span class="kicker">--theme {esc(theme)}</span>'
-        f'<strong>{esc(DESIGNS.get(theme, (theme, ""))[0])}</strong><span>{esc(DESIGNS.get(theme, ("", ""))[1])}</span>'
-        f'<span class="open">Open &rarr;</span></a>'
-        for theme, name in pages)
-    meta = page["meta"]
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<meta name="generator" content="multi-agent-review · index">
-<title>{esc(page["title"])} · designs</title>
-<style>
-:root{{color-scheme:dark;--bg:#0a0c0f;--panel:#11151a;--line:#232a33;--text:#e7ecf2;--muted:#8693a2;--accent:#7ee0c3;--warn:#ffb547}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif}}
-main{{max-width:1080px;margin:0 auto;padding:48px 24px 64px}}
-.kicker{{font:700 11px/1.3 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}}
-h1{{font-size:clamp(28px,4vw,44px);line-height:1.08;letter-spacing:-.03em;font-weight:800;margin:12px 0 14px;max-width:24ch}}
-.status{{display:inline-block;margin-right:10px;padding:3px 8px;border:2px solid currentColor;font:800 11px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}}
-.status-incomplete{{color:var(--warn)}}.status-complete{{color:var(--accent)}}.status-setup{{color:var(--muted)}}
-.note{{color:var(--muted);max-width:70ch}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:2px;margin-top:36px;background:var(--line);border:2px solid var(--line)}}
-.card{{display:flex;flex-direction:column;gap:10px;padding:24px;background:var(--panel);color:inherit;text-decoration:none;min-height:200px}}
-.card strong{{font-size:28px;font-weight:800;letter-spacing:-.02em}}.card span{{color:var(--muted)}}
-.card .open{{margin-top:auto;color:var(--accent);font-weight:700}}
-.card:hover,.card:focus-visible{{background:#161c23;outline:2px solid var(--accent);outline-offset:-2px}}
-footer{{margin-top:28px;color:var(--muted);font-size:13px}}
-</style>
-</head>
-<body>
-<main>
-<div class="kicker">Multi-agent review · {esc(page["generated_at"])}</div>
-<h1>{esc(page["verdict"])}</h1>
-<p><span class="status status-{esc(page["status"])}">{esc(page["status"])}</span>{esc(meta["status_note"])}</p>
-<p class="note">{esc(page["title"])} — {len(page["findings"])} findings, {meta["completed"]}/{len(page["reviewers"])} reviewer runs completed. Every design below renders the same report data.</p>
-<nav class="grid" aria-label="Report designs">{cards}</nav>
-<footer>Standalone files · no network requests · answers, comments, and pins are stored in this browser and shared by every design · Copy answers exports them as JSON.</footer>
-</main>
-</body>
-</html>
-"""
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
-    destination = parser.add_mutually_exclusive_group(required=True)
-    destination.add_argument("--output", type=Path, help="write one page in the --theme design")
-    destination.add_argument("--output-dir", type=Path, help="write <theme>.html for every --themes design, plus index.html")
-    parser.add_argument("--theme", choices=sorted(THEMES), help=f"design for --output (default: {DEFAULT_THEME})")
-    parser.add_argument("--themes", help=f"comma-separated designs for --output-dir (default: {','.join(TRIAL_THEMES)})")
+    parser.add_argument("--output", type=Path, required=True, help="page to write")
+    parser.add_argument("--theme", choices=sorted(THEMES), default=DEFAULT_THEME, help=f"design (default: {DEFAULT_THEME})")
     args = parser.parse_args()
-    if args.output and args.themes:
-        parser.error("--themes requires --output-dir; use --theme with --output")
-    if args.output_dir and args.theme:
-        parser.error("--theme requires --output; use --themes with --output-dir")
-    themes = [t.strip() for t in (args.themes or ",".join(TRIAL_THEMES)).split(",") if t.strip()]
-    unknown = [t for t in themes if t not in THEMES]
-    if unknown or not themes:
-        parser.error(f"Unknown design(s): {', '.join(unknown) or '(none)'}; choose from {', '.join(THEMES)}")
-    if args.output:
-        outputs = {args.output: args.theme or DEFAULT_THEME}
-    else:
-        outputs = {args.output_dir / f"{theme}.html": theme for theme in dict.fromkeys(themes)}
-    if any(args.input.resolve() == path.resolve() for path in [*outputs, *([args.output_dir / "index.html"] if args.output_dir else [])]):
+    if args.input.resolve() == args.output.resolve():
         parser.error("Input and output must be different files")
     try:
-        data = json.loads(args.input.read_text(encoding="utf-8"))
-        pages = {path: render(data, theme) for path, theme in outputs.items()}
-        index = render_index(data, [(theme, path.name) for path, theme in outputs.items()]) if args.output_dir else None
+        page = render(json.loads(args.input.read_text(encoding="utf-8")), args.theme)
     except (ValueError, KeyError, TypeError) as error:
         parser.error(str(error))
-    for path, text in pages.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        print(path.resolve())
-    if index is not None:
-        (args.output_dir / "index.html").write_text(index, encoding="utf-8")
-        print((args.output_dir / "index.html").resolve())
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(page, encoding="utf-8")
+    print(args.output.resolve())
 
 
 if __name__ == "__main__":

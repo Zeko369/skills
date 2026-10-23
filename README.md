@@ -46,22 +46,19 @@ Requested defaults: GPT-6.1 Sol / xhigh, Claude Opus 5.5 / xhigh, and Cursor Gro
 
 Invoke `$multi-agent-review` in Codex or `/multi-agent-review` in Claude Code/Cursor, or ask the agent to use the skill to review a PR, branch, working tree, plan, or document. Reviewers do not implement fixes or publish comments unless separately requested.
 
-Each run renders the same report in three designs, plus an `index.html` chooser:
-- `command`: a dark console with list, board, and matrix views.
-- `train`: stack-first merge readiness, with a merge plan and per-PR dossiers.
-- `focus`: a keyboard review queue for answering every finding.
+Each run renders the report as one `train` page: stack-first merge readiness, with a merge plan and per-PR dossiers. The design is described in [`multi-agent-review/references/designs/train.md`](multi-agent-review/references/designs/train.md). The older `triage` and `board` designs are still available with `--theme`. Stacked PRs get a hierarchy view and per-PR filtering.
 
-Each design is described in [`multi-agent-review/references/designs/`](multi-agent-review/references/designs/). The older `triage` and `board` designs are still available with `--theme`. Stacked PRs get a hierarchy view and per-PR filtering.
-
-Every finding starts approved for fixing. Mark the ones you don't want fixed as Ignore, add comments where needed, then use **Copy answers** to get JSON you can paste back to the agent. The skill's "Apply review answers" section tells it how to act on that JSON. Answers stay in your browser and are shared by every design of the same report. Finding drawers can be dragged wider.
+Every finding starts approved for fixing. Mark the ones you don't want fixed as Ignore, add comments where needed, then use **Copy answers** to get JSON you can paste back to the agent. The skill's "Apply review answers" section tells it how to act on that JSON. Answers stay in your browser and are shared by every page of the same report. Finding drawers can be dragged wider.
 
 The pages in [`multi-agent-review/examples/`](multi-agent-review/examples/) use illustrative data, not a real code review. To regenerate them:
 
 ```sh
-python3 multi-agent-review/scripts/render_report.py multi-agent-review/assets/example-stack-report.json \
-  --output-dir multi-agent-review/examples/stack --themes command,train,focus,triage,board
+for theme in train triage board; do
+  python3 multi-agent-review/scripts/render_report.py multi-agent-review/assets/example-stack-report.json \
+    --output multi-agent-review/examples/stack/$theme.html --theme $theme
+done
 python3 multi-agent-review/scripts/render_report.py multi-agent-review/assets/example-report.json \
-  --output-dir multi-agent-review/examples/setup
+  --output multi-agent-review/examples/setup/train.html
 ```
 
 ### human-review

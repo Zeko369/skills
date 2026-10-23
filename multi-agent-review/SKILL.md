@@ -75,25 +75,21 @@ Do not turn a review request into fixes. If fixes were separately requested, fin
 
 ## Deliver HTML artifacts
 
-The deliverable is usable **HTML pages**, not just Markdown or a chat summary. Build one `report.json` following the [report contract](references/report.md). While the user compares designs, **render all three trial designs on every run**, each from the same `report.json`:
+The deliverable is a usable **HTML page**, not just Markdown or a chat summary. Build one `report.json` following the [report contract](references/report.md), then render it in the `train` design:
 
 ```sh
-python3 /path/to/multi-agent-review/scripts/render_report.py /path/to/report.json --output-dir /path/to/run/review
+python3 /path/to/multi-agent-review/scripts/render_report.py /path/to/report.json --output /path/to/run/review.html
 ```
 
-This writes `command.html`, `train.html`, `focus.html`, and an `index.html` chooser into the directory. Read the design notes before inspecting them:
+Read the [train design notes](references/designs/train.md) before inspecting the page. It shows stack-first merge readiness, a merge plan, and per-PR dossiers; a single PR or other single target opens on the findings.
 
-- [command](references/designs/command.md): triage console with list, board, and matrix views.
-- [train](references/designs/train.md): stack-first merge readiness, merge plan, and per-PR dossiers.
-- [focus](references/designs/focus.md): a one-finding-at-a-time review queue for answering every finding.
+The page must show the target/version, verdict, coverage and failed reviewers, model/effort provenance, prioritized findings with evidence, disagreements and their disposition, tests actually run, gaps, and practical next steps. Include raw reviewer output or durable links when useful. A completed review with no supported findings and an incomplete review are distinct outcomes. The page renders offline data, with the PR stack hierarchy when `stack` is present; faceted filters by severity, disposition, reviewer, PR, confidence, tag, and answer; presets; pins; section toggles; a detail drawer the user can drag wider or make full screen (`f`); a `?` keyboard cheatsheet; Markdown copy; and print styling.
 
-Each page must show the target/version, verdict, coverage and failed reviewers, model/effort provenance, prioritized findings with evidence, disagreements and their disposition, tests actually run, gaps, and practical next steps. Include raw reviewer output or durable links when useful. A completed review with no supported findings and an incomplete review are distinct outcomes. Every design renders the same offline data, with the PR stack hierarchy when `stack` is present; faceted filters by severity, disposition, reviewer, PR, confidence, tag, and answer; presets; pins; section toggles; a detail drawer the user can drag wider or make full screen (`f`); a `?` keyboard cheatsheet; Markdown copy; and print styling.
+Every finding starts **approved for fixing**, except those the coordinator rejected, which start as Ignore. The user marks the findings they do not want fixed as **Ignore**, can comment on any finding, and presses **Copy answers** to copy their decisions as JSON. Answers live in that browser's localStorage, keyed by report.
 
-Every finding starts **approved for fixing**, except those the coordinator rejected, which start as Ignore. The user marks the findings they do not want fixed as **Ignore**, can comment on any finding, and presses **Copy answers** to copy their decisions as JSON. Answers live in that browser's localStorage, keyed by report, so all designs of one report share them.
+The older `triage` and `board` designs remain available with `--theme NAME` if the user asks for one. An available Executor artifact or Claude Code document is also suitable if it presents the same report as a rendered page; inspect that tool's current contract first. Keep the HTML file when practical. Do not publish the report externally unless requested.
 
-If the user asks for one design, render only that one with `--output review.html --theme NAME`. `--themes a,b` overrides the trio for `--output-dir`. The older `triage` and `board` designs remain available by name. An available Executor artifact or Claude Code document is also suitable if it presents the same report as a rendered page; inspect that tool's current contract first. Keep the HTML files when practical. Do not publish the report externally unless requested.
-
-Open and inspect every rendered page if browser tools are available; in T3 use `preview_status`, then `preview_open` if necessary. Run each design's inspection checklist, including the stack hierarchy when present and a 390px mobile check. Finish with clickable links to `index.html` and each design, one line on which design fits this review best (for example `train` for a stack), a brief statement of verdict and limitations, and a reminder that **Copy answers** produces the JSON to paste back for fixes. The bundled pages in `examples/` use illustrative data and are not evidence of a completed code review.
+Open and inspect the rendered page if browser tools are available; in T3 use `preview_status`, then `preview_open` if necessary. Run the design's inspection checklist, including the stack hierarchy when present and a 390px mobile check. Finish with a clickable link to the page, a brief statement of verdict and limitations, and a reminder that **Copy answers** produces the JSON to paste back for fixes. The bundled pages in `examples/` use illustrative data and are not evidence of a completed code review.
 
 ## Apply review answers
 

@@ -48,21 +48,14 @@ Example finding:
 
 ## Render
 
-Use `assets/example-report.json` (single target, no findings) or `assets/example-stack-report.json` (stacked PRs with findings) as a structural starting point, replacing all illustrative content with actual review evidence. Render every trial design plus an `index.html` chooser:
+Use `assets/example-report.json` (single target, no findings) or `assets/example-stack-report.json` (stacked PRs with findings) as a structural starting point, replacing all illustrative content with actual review evidence. Render it:
 
 ```sh
-python3 /path/to/multi-agent-review/scripts/render_report.py report.json --output-dir review/            # command, train, focus
-python3 /path/to/multi-agent-review/scripts/render_report.py report.json --output-dir review/ --themes train,command
-python3 /path/to/multi-agent-review/scripts/render_report.py report.json --output review.html --theme focus
+python3 /path/to/multi-agent-review/scripts/render_report.py report.json --output review.html
+python3 /path/to/multi-agent-review/scripts/render_report.py report.json --output review.html --theme triage
 ```
 
-Trial designs, each documented in `references/designs/`:
-
-- [`command`](designs/command.md): dark console with list, board, and matrix views.
-- [`train`](designs/train.md): stack-first merge readiness, a merge plan, and per-PR dossiers.
-- [`focus`](designs/focus.md): a one-finding-at-a-time review queue for answering every finding.
-
-Older designs, available by name: `triage` (default for `--output`; dark three-pane console) and `board` (Swiss-style board with disposition columns and per-PR swimlanes).
+The default design is [`train`](designs/train.md): stack-first merge readiness, a merge plan, and per-PR dossiers. Older designs, available by name: `triage` (dark three-pane console) and `board` (Swiss-style board with disposition columns and per-PR swimlanes).
 
 Every design supports client-side filtering:
 
@@ -70,7 +63,7 @@ Every design supports client-side filtering:
 - Presets: Actionable, Blocking, and Disagreements.
 - Grouping and sorting.
 - **Answers:** every finding starts as Fix, except coordinator-rejected findings, which start as Ignore. The user flips findings to Ignore (or back), one at a time or for every shown finding, and can leave a comment on any finding.
-- Pins, answers, and comments are stored only in that browser's localStorage, keyed by report, so every design rendered from one `report.json` shares them.
+- Pins, answers, and comments are stored only in that browser's localStorage, keyed by report, so every page rendered from one `report.json` shares them.
 - A detail drawer the user can drag wider (the width is remembered) or make full screen with `f`.
 - Show or hide page sections, and expand or collapse findings.
 - **Copy answers** copies the answers JSON described below. Copy Markdown copies the filtered findings.
@@ -82,4 +75,4 @@ Keyboard (press `?` for the cheatsheet): `j`/`k` move, `f` full-screen the open 
 
 `format` is `multi-agent-review/answers@1`. `instructions` tells the fixing agent what to do, and `report` identifies the review: title, verdict, status, `generated_at`, `snapshot_id`, `key`, and `target`. `stack` lists PRs bottom-up with their branch and head. `counts` gives totals. `fix` lists approved findings in stack order with the full finding fields, plus the user's `comment` when present. `ignore` lists the rest, each with `decided_by` (`you`, or the default for rejected findings) and any comment. See "Apply review answers" in `SKILL.md` for how to act on it.
 
-The files are self-contained and work offline; they can be served locally for T3 preview. Report data is embedded as inert JSON and rendered with text nodes only. Inspect each rendered page against its design checklist: narrow layout, filters and empty results, expandable evidence, the stack hierarchy when present, and visible incomplete states. A short final message links to the pages; do not substitute a Markdown report for them.
+The pages are self-contained and work offline; they can be served locally for T3 preview. Report data is embedded as inert JSON and rendered with text nodes only. Inspect the rendered page against its design checklist: narrow layout, filters and empty results, expandable evidence, the stack hierarchy when present, and visible incomplete states. A short final message links to the page; do not substitute a Markdown report for it.
