@@ -62,7 +62,7 @@ body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
   <span class="spacer"></span>
   <span class="progress"><span id="t-progress"></span><span class="bar"><i id="t-bar"></i></span></span>
   <span id="t-theme"></span>
-  <a class="btn" href="plan.html">Plan</a>
+  <a class="btn" id="t-plan" href="plan.html">Plan</a>
   <button class="btn" id="t-shortcuts" title="Keyboard shortcuts">?</button>
   <button class="btn btn-solid" id="t-export">Export <span class="count" id="t-count">0</span></button>
 </div>
@@ -127,6 +127,10 @@ body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
 
   document.getElementById("t-title").textContent = HR.titleOf();
   document.getElementById("t-meta").textContent = HR.metaOf();
+  if (plan.summary) {
+    document.getElementById("t-plan").href = "plan.html#summary";
+    document.getElementById("t-plan").textContent = "PR intro";
+  }
 
   function checkbox(paths, after, title) {
     var box = el("button", "box");

@@ -125,6 +125,7 @@
     <h2 id="l-title"></h2>
     <p class="meta" id="l-meta"></p>
   </div>
+  <section class="pr-summary" id="summary" aria-label="PR introduction" hidden></section>
   <div class="metrics" id="metrics"></div>
   <div class="band" id="band" hidden>
     <div class="band-top"></div>
@@ -169,6 +170,7 @@
   document.getElementById("l-title").textContent = HR.titleOf();
   document.getElementById("t-meta").textContent = HR.metaOf();
   document.getElementById("l-meta").textContent = HR.metaOf();
+  HR.mountSummary(document.getElementById("summary"));
 
   var stats = plan.stats;
   [["Changed files", stats.files, false], ["Need your eyes", stats.critical + stats.read, true],

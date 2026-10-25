@@ -66,6 +66,12 @@ python3 multi-agent-review/scripts/render_report.py multi-agent-review/assets/ex
 A reading plan for a change, then a tool to read it in. Where `multi-agent-review` answers "what is
 wrong", this answers "what did this change do, and have I looked at it".
 
+The review opens with a short PR introduction: roughly five sentences with clickable phrases
+inside the prose. Each phrase expands into a few more sentences about that topic; phrases there
+can open a deeper explanation, with links to the changed files. The agent writes this from the
+pinned diff using the [summary contract](human-review/references/summary.md). Expanding a summary
+does not mark the code as read.
+
 Per-project rules in `<repo>/.claude/reading-rules.json` sort every changed file into **stop and
 read**, **read**, **skim**, or **skip**, and seven modifiers correct what a flat glob list gets
 wrong: identical fan-outs fold into one row, tests cap below the code they cover, a spec inheriting
@@ -82,12 +88,13 @@ covers it rather than below it.
 
 ```sh
 python3 human-review/scripts/plan_reading.py --pr 412 --repo-path ~/work/app -o reading-plan.json
-python3 human-review/scripts/render_reading.py reading-plan.json --output-dir review/
+python3 human-review/scripts/render_reading.py reading-plan.json --summary pr-summary.json --output-dir review/
 ```
 
-`plan.html` is the whole review in one page: the questions you can answer without opening a diff,
-then the reading order as a numbered rail of groups, each holding a collapsible directory tree with
-a checkbox at every level. Tick a file, a folder, or a whole group - ticking a group folds it away.
+`plan.html` is the whole review in one page: the expandable introduction, then the questions you
+can answer without opening a diff and the reading order as a numbered rail of groups, each holding
+a collapsible directory tree with a checkbox at every level. Tick a file, a folder, or a whole
+group - ticking a group folds it away.
 Clicking a file opens its diff inline with the comment composer beside it. `review.html` is focus
 mode for one file at a time, with a full-height editor and keyboard navigation.
 
