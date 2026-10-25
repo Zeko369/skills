@@ -4,8 +4,8 @@
     plan_reading.py --pr 412 --repo-path ~/work/app -o reading-plan.json
     plan_reading.py --range main...HEAD --repo-path . -o reading-plan.json
 
-Rules are deterministic and run first. The model, if one runs at all, only names
-groups and escalates; it never silently demotes what the config marked critical.
+Rules are deterministic and run first. The agent then authors the layered introduction
+for render_reading.py; it never silently demotes what the config marked critical.
 """
 
 import argparse

@@ -75,6 +75,91 @@ window.HR = (function () {
     toast._t = setTimeout(function () { node.classList.remove("on"); }, 1600);
   }
 
+  /* ── Layered PR introduction ───────────────────────────────────────────
+     Expanding context never changes the file reading state. All authored text goes
+     through textContent; topic links are data, not HTML or Markdown. */
+  function mountSummary(host) {
+    if (!plan.summary) return;
+    var summary = plan.summary, topics = Object.create(null), seq = 0;
+    summary.topics.forEach(function (topic) { topics[topic.id] = topic; });
+    host.hidden = false;
+    var head = el("div", "summary-head");
+    head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
+    var reset = el("button", "btn btn-sm", "Overview only");
+    reset.type = "button";
+    reset.addEventListener("click", function () {
+      host.querySelectorAll(".summary-detail").forEach(function (panel) { panel.hidden = true; });
+      host.querySelectorAll(".summary-tag").forEach(function (button) {
+        button.setAttribute("aria-expanded", "false");
+      });
+    });
+    if (summary.topics.length) head.appendChild(reset);
+    host.appendChild(head);
+    if (summary.topics.length) {
+      host.appendChild(el("p", "summary-hint", "Click an underlined phrase to go deeper."));
+    }
+
+    function paragraphs(parent, blocks, level) {
+      blocks.forEach(function (parts) {
+        var prose = el("div", "summary-prose");
+        var p = el("p");
+        prose.appendChild(p);
+        parent.appendChild(prose);
+        parts.forEach(function (part) {
+          if (typeof part === "string") {
+            p.appendChild(document.createTextNode(part));
+            return;
+          }
+          var topic = topics[part.topic];
+          var button = el("button", "summary-tag", part.text);
+          button.type = "button";
+          var panel = el("section", "summary-detail");
+          panel.id = host.id + "-topic-" + (++seq);
+          panel.hidden = true;
+          button.setAttribute("aria-controls", panel.id);
+          button.setAttribute("aria-expanded", "false");
+          panel.setAttribute("aria-label", topic.title);
+          var mounted = false;
+          button.addEventListener("click", function () {
+            if (!mounted) {
+              mounted = true;
+              var heading = el("div", "summary-head");
+              heading.appendChild(el("span", "kicker", "Level " + (level + 1) + " · More context"));
+              var close = el("button", "btn btn-sm", "Collapse");
+              close.type = "button";
+              close.setAttribute("aria-label", "Collapse " + topic.title);
+              close.addEventListener("click", function () {
+                panel.hidden = true;
+                button.setAttribute("aria-expanded", "false");
+                button.focus();
+              });
+              heading.appendChild(close);
+              panel.appendChild(heading);
+              panel.appendChild(el("h" + Math.min(level + 2, 6), "", topic.title));
+              paragraphs(panel, topic.paragraphs, level + 1);
+              if (topic.files && topic.files.length) {
+                var files = el("div", "summary-files");
+                files.appendChild(el("span", "kicker", "Read the change"));
+                topic.files.forEach(function (path) {
+                  var link = el("a", "", path);
+                  link.href = "review.html#" + encodeURIComponent(path);
+                  files.appendChild(link);
+                });
+                panel.appendChild(files);
+              }
+            }
+            panel.hidden = !panel.hidden;
+            button.setAttribute("aria-expanded", String(!panel.hidden));
+          });
+          p.appendChild(button);
+          // Panels follow their paragraph, so opening one keeps the sentence intact.
+          parent.appendChild(panel);
+        });
+      });
+    }
+    paragraphs(host, [summary.overview], 1);
+  }
+
   /* ── Patch → display lines ──────────────────────────────────────────────
      One array of {text, kind, oldNo, newNo}. The patch already encodes the diff, so
      Monaco only has to colour it - no diff worker, which is what keeps this offline-safe. */
@@ -512,6 +597,6 @@ window.HR = (function () {
     onMonaco: onMonaco, mountDiff: mountDiff,
     themeChoice: themeChoice, themeMode: themeMode, mountTheme: mountTheme,
     exportPayload: exportPayload, mountExport: mountExport,
-    titleOf: titleOf, metaOf: metaOf
+    titleOf: titleOf, metaOf: metaOf, mountSummary: mountSummary
   };
 })();

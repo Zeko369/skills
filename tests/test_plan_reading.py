@@ -6,6 +6,7 @@ import re
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "human-review"
@@ -241,6 +242,63 @@ class Rendering(unittest.TestCase):
 
     def test_example_plan_is_valid(self):
         render_reading.validate(EXAMPLE)
+
+
+class SummaryRendering(unittest.TestCase):
+    def test_legacy_plan_without_an_introduction_still_renders(self):
+        legacy = copy.deepcopy(EXAMPLE)
+        legacy.pop("summary")
+        render_reading.validate(legacy)
+        self.assertNotIn("summary", json.loads(DATA.search(render_reading.render(legacy, "plan")).group(1)))
+
+    def test_external_summary_is_attached_without_mutating_the_plan_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "plan.json"
+            summary = Path(tmp) / "summary.json"
+            out = Path(tmp) / "review"
+            original = copy.deepcopy(EXAMPLE)
+            original.pop("summary")
+            source.write_text(json.dumps(original), encoding="utf-8")
+            summary.write_text(json.dumps(EXAMPLE["summary"]), encoding="utf-8")
+            with patch.object(sys, "argv", ["render_reading.py", str(source), "--summary",
+                                            str(summary), "--output-dir", str(out)]):
+                render_reading.main()
+            self.assertEqual(json.loads(source.read_text(encoding="utf-8")), original)
+            for name in ("plan.html", "review.html"):
+                embedded = json.loads(DATA.search((out / name).read_text(encoding="utf-8")).group(1))
+                self.assertEqual(embedded["summary"], EXAMPLE["summary"])
+                self.assertEqual(embedded["order"], original["order"])
+
+    def test_invalid_topics_and_stale_summaries_are_rejected(self):
+        cases = {
+            "stale revision": lambda s: s.update(head_sha="1" * 40),
+            "missing revision": lambda s: s.pop("head_sha"),
+            "unknown topic": lambda s: s["overview"].append({"text": "x", "topic": "missing"}),
+            "duplicate id": lambda s: s["topics"].append(copy.deepcopy(s["topics"][0])),
+            "unreachable topic": lambda s: s["topics"].append(
+                {"id": "unused", "title": "Unused", "paragraphs": [["Unused."]]}),
+            "cycle": lambda s: s["topics"][1]["paragraphs"][0].append(
+                {"text": "back", "topic": "tokens"}),
+            "unknown file": lambda s: s["topics"][0].update(files=["missing.rb"]),
+            "empty overview": lambda s: s.update(overview=[]),
+            "blank paragraph": lambda s: s["topics"][0].update(paragraphs=[[" "]]),
+            "malformed segment": lambda s: s["overview"].append({"text": "x", "topic": []}),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                broken = copy.deepcopy(EXAMPLE)
+                mutate(broken["summary"])
+                with self.assertRaises(ValueError):
+                    render_reading.validate(broken)
+
+    def test_summary_prose_round_trips_without_becoming_executable_markup(self):
+        hostile = copy.deepcopy(EXAMPLE)
+        payload = '</script><img src=x onerror="alert(1)"> @@CORE_JS@@'
+        hostile["summary"]["overview"].append(payload)
+        render_reading.validate(hostile)
+        page = render_reading.render(hostile, "plan")
+        self.assertNotIn('<img src=x', page)
+        self.assertEqual(json.loads(DATA.search(page).group(1))["summary"]["overview"][-1], payload)
 
 
 if __name__ == "__main__":

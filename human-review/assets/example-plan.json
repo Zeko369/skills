@@ -17,6 +17,74 @@
     "name": "rails-default",
     "source": "configs/rails.json (example)"
   },
+  "summary": {
+    "head_sha": "0000000000000000000000000000000000000000",
+    "overview": [
+      "This illustrative PR adds account API keys, connecting stored records to management routes and a settings entry point. Its ",
+      {"text": "token handling", "topic": "tokens"},
+      " returns a token on creation and introduces digest storage plus log filtering. The ",
+      {"text": "account and permission changes", "topic": "access"},
+      " connect keys to accounts and declare who can manage them, making the data contract and access checks central to review. The change also adds request coverage and removes legacy coverage, so ",
+      {"text": "what the tests establish", "topic": "coverage"},
+      " needs attention. These snippets are synthetic and no tests were run; use the introduction to orient yourself, then follow the reading order to inspect the code."
+    ],
+    "topics": [
+      {
+        "id": "tokens",
+        "title": "Token handling",
+        "paragraphs": [
+          [
+            "The create action delegates to a service and returns key.plaintext in a created response. The migration adds token_digest with a unique index, rather than a plaintext-token column. A separate ",
+            {"text": "digest implementation", "topic": "digest"},
+            " supplies the hashing operation, and the logging initializer adds token-related filter names. These pieces express the intended secret lifecycle, but the snippets omit the creation service and do not prove that every write or response follows it."
+          ]
+        ],
+        "files": [
+          "app/controllers/api_keys_controller.rb",
+          "db/migrate/20260114093000_create_api_keys.rb",
+          "config/initializers/filter_parameter_logging.rb"
+        ]
+      },
+      {
+        "id": "digest",
+        "title": "How the digest is derived",
+        "paragraphs": [
+          [
+            "TokenDigest uses HMAC-SHA256 with Rails.application.secret_key_base as the key and the token as the message. The stored value therefore depends on both inputs. If verification recomputes this digest, rotating secret_key_base would change the result for an existing token; that consequence is an inference because the lookup path is absent here. Review that path before deciding how existing keys should behave during secret rotation."
+          ]
+        ],
+        "files": ["app/services/api_keys/token_digest.rb"]
+      },
+      {
+        "id": "access",
+        "title": "Account ownership and management permissions",
+        "paragraphs": [
+          [
+            "The migration requires an account reference, and ApiKey belongs to an account. Account receives a dependent-destroy association, while the active scope selects records whose revoked_at is empty. The permission map lists owners and admins for api_keys.manage, and the routes expose index, create and destroy. The snippets show the declaration but omit authorization enforcement and revocation actions, so those behaviors remain unverified."
+          ]
+        ],
+        "files": [
+          "app/models/api_key.rb",
+          "app/models/account.rb",
+          "config/permissions.json",
+          "config/routes.rb"
+        ]
+      },
+      {
+        "id": "coverage",
+        "title": "What the tests establish",
+        "paragraphs": [
+          [
+            "The new request example posts a name and checks that a token is present in the response. Its description says the token is returned exactly once, but the shown assertion does not exercise a later read. The plan also flags substantial removal in the legacy request spec, so compare the old cases with their replacements. No test execution is recorded in this illustrative review."
+          ]
+        ],
+        "files": [
+          "spec/requests/api_keys_spec.rb",
+          "spec/requests/legacy_tokens_spec.rb"
+        ]
+      }
+    ]
+  },
   "stats": {
     "critical": 5,
     "read": 11,

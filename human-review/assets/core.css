@@ -70,6 +70,29 @@ code,pre,kbd{font-family:var(--mono)}
 .chip{display:inline-flex;align-items:center;height:21px;padding:0 8px;background:var(--wbg);color:var(--wi);border:2px solid var(--wr);font:900 9.5px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase;flex:none}
 .note{display:inline-block;padding:1px 6px;background:var(--p2);color:var(--on-p2);font:700 10px/1.5 var(--sans)}
 
+/* The introduction stays prose; underlined phrases disclose the next level. */
+.pr-summary{margin-top:26px;max-width:88ch;scroll-margin-top:90px}
+.summary-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.summary-head .kicker{flex:1;color:var(--muted)}
+.summary-hint{font-size:12px;color:var(--muted);margin-bottom:12px}
+.summary-prose{font-size:16px;line-height:1.8;overflow-wrap:anywhere}
+.summary-prose p+p{margin-top:12px}
+.summary-prose+.summary-prose,.summary-detail+.summary-prose{margin-top:12px}
+.summary-tag{display:inline;padding:0 2px;border:0;border-bottom:1px dashed var(--blue);background:transparent;color:var(--blue);font:inherit;line-height:inherit;text-align:left;cursor:pointer}
+.summary-tag::after{content:" +";font:700 11px/1 var(--mono)}
+.summary-tag[aria-expanded="true"]{background:var(--wash-2);border-bottom-style:solid}
+.summary-tag[aria-expanded="true"]::after{content:" −"}
+.summary-tag:hover{background:var(--wash)}
+.summary-detail{margin:14px 0 18px;padding:15px 18px;border-left:3px solid var(--blue);background:var(--wash)}
+.summary-detail[hidden]{display:none}
+.summary-detail .summary-head{margin-bottom:8px}
+.summary-detail h3,.summary-detail h4,.summary-detail h5,.summary-detail h6{font:700 16px/1.35 var(--sans);margin:0 0 9px}
+.summary-detail .summary-prose{font-size:14px;line-height:1.75}
+.summary-files{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:14px;font:400 11.5px/1.6 var(--mono)}
+.summary-files a{color:var(--blue);overflow-wrap:anywhere}
+.summary-files .kicker{color:var(--muted);margin-bottom:2px}
+@media(max-width:620px){.pr-summary{scroll-margin-top:150px}.summary-prose{font-size:15px}.summary-detail{padding:12px}.summary-detail .summary-detail{padding-left:10px}}
+
 /* Checkbox: a square that fills in. Used for files, folders and whole groups. */
 .box{flex:none;width:16px;height:16px;padding:0;border:2px solid var(--grey);background:var(--paper);cursor:pointer;position:relative}
 .box:hover{border-color:var(--ctl)}

@@ -1,15 +1,15 @@
 ---
 name: human-review
-description: Build a reading plan for a pull request or diff - what a human must read, skim, or can skip - from per-project rules, then render it with a Monaco-backed review tool that exports line comments as JSON for an agent to act on. Use when asked to review a PR yourself, decide what matters in a large diff, or prepare a change for human reading.
+description: Introduce a pull request or diff with a short summary whose inline topics expand into deeper explanations, then build a reading plan from per-project rules and render a Monaco-backed review tool that exports line comments as JSON. Use when asked to review a PR yourself, decide what matters in a large diff, or prepare a change for human reading.
 ---
 
 # Human review
 
 Agent review answers "what is wrong". This answers "what did this change do, and have I looked at
-it". The deliverable is a reading plan plus a review tool, not a list of findings. It is a companion
+it". The deliverable is a layered PR introduction, a reading plan and a review tool. It is a companion
 to `multi-agent-review`, not a replacement, and the two are run separately.
 
-Rules are deterministic and run first. A model, when one runs at all, names groups and escalates;
+Rules are deterministic and run first. The agent writes the introduction, names groups and escalates;
 it never silently demotes what the config marked critical. That ordering is the point: a predictable
 floor you can trust, with judgment layered on top.
 
@@ -71,22 +71,42 @@ not explain, whether the change is too big for one sitting. Keep them scarce. A 
 on every change - "db/schema.rb changed, is that expected?" when the migration is right there - is
 noise, and noise is read past. Give `report` a condition so it speaks only when surprised.
 
+## Write the PR introduction
+
+Before rendering, read the pinned diff and the surrounding code needed to explain it, then author
+`pr-summary.json` using [the summary contract](references/summary.md). The deterministic planner
+does not write prose; this is part of the agent's work on every review.
+
+Start with one short paragraph of roughly five sentences explaining the problem, the resulting
+behavior and the main review considerations. Put a few clickable words or phrases inside those
+sentences. Each opens another three to five sentences about that particular topic, in one or two
+paragraphs. Where useful, a phrase inside that explanation opens a third level for a mechanism,
+tradeoff or evidence. Keep each level readable on its own and add detail instead of repeating it.
+
+Link topics to changed files so the reader can go from explanation to diff. Ground claims in the
+reviewed code; identify inferred intent, unknowns and validation limits. Tests present in the diff
+are not proof they passed. Keep material risks visible in the opening paragraph even when their
+details expand. The introduction does not alter file priorities or count toward reading progress.
+
 ## Render and review
 
 ```sh
-python3 /path/to/human-review/scripts/render_reading.py reading-plan.json --output-dir review/
+python3 /path/to/human-review/scripts/render_reading.py reading-plan.json \
+  --summary pr-summary.json --output-dir review/
 ```
 
 Writes `plan.html`, `review.html`, and an `index.html` chooser. Both pages embed the same plan JSON,
 share `assets/core.css` and `assets/core.js`, and work offline from `file://`.
 
-- **plan.html** - the whole review in one page, and the one to start in. Questions first, then the
-  reading order as a numbered rail of groups. Each group holds a collapsible directory tree with a
+- **plan.html** - the whole review in one page, and the one to start in. The expandable introduction
+  comes first, followed by metrics, questions and the reading order as a numbered rail of groups.
+  Each group holds a collapsible directory tree with a
   checkbox at every level: tick a file, a folder, or a whole group, and ticking a group folds it
   away. Clicking a file opens its diff inline, with the comment composer beside it, so triage and
   reading are the same page.
 - **review.html** - focus mode for one file at a time: full-height editor, keyboard navigation,
-  the file list as a flat rail. Reach for it when a file is long enough that the drawer is cramped.
+  the file list as a flat rail, and a **PR intro** link back to the explanation. Reach for it when
+  a file is long enough that the drawer is cramped.
 
 Both render the diff with a plain Monaco editor plus custom decorations rather than a diff editor,
 because the patch already encodes the diff. That avoids the diff worker entirely. Monaco loads from
@@ -98,7 +118,9 @@ tool instead of walking every file you opened.
 
 Open and check the rendered pages when browser tools are available. Confirm the reading order matches
 the plan, the critical group is first, a gutter click anchors a comment to the right line, and the
-console is clean.
+console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
+follow a file link. These actions must leave reading progress unchanged. Summary controls must
+work with the keyboard and without Monaco or a network connection.
 
 ## Hand comments back
 
