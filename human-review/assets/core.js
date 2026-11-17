@@ -549,8 +549,19 @@ window.HR = (function () {
   }
 
   /* ── A diff view for one file ───────────────────────────────────────────
-     Monaco when it loaded, a plain <pre> otherwise. Both report gutter clicks through
-     `onAnchor`, so the commenting flow is identical either way. */
+     Monaco when it loaded, a plain <pre> otherwise. Line comments live in the diff, the
+     way a code host shows them: a line number opens a comment box under its line, and saved
+     comments stay under the line they are about. Both renderers place those blocks through
+     one `place(index, node, ordinal)`, so commenting behaves the same either way. The view
+     owns line comments end to end; the page passes `onChange` to hear that one was added or
+     removed, and keeps file-level notes and the comment list beside the diff. */
+
+  /* A half-written line comment, one per PR and file. It lives outside the view so it
+     survives the view being rebuilt - Monaco arriving late, a comment added from the side
+     list, moving to another file and back. Memory only: a reload drops it. */
+  var drafts = {};
+  var KINDS = ["fix", "question", "nit", "praise"];
+
   function mountDiff(host, file, options) {
     options = options || {};
     var lines = parsePatch(file.patch);
@@ -558,38 +569,227 @@ window.HR = (function () {
       lines = [{ text: "No textual diff (binary, rename, or too large to include).",
                  kind: "hunk", oldNo: null, newNo: null }];
     }
+    var draftKey = entry.id + "\n" + file.path;
     var view = { lines: lines, editor: null, dispose: function () {}, paint: function () {},
-                 reveal: function () {} };
+                 reveal: function () {}, compose: function () { return false; } };
+    var place = null;           // (index, node, ordinal) -> {remove}, set by the renderer
+    var threads = [], composer = null, lastLine = -1;
 
-    function marked() {
-      var set = {};
-      commentsFor(file.path).forEach(function (c) {
-        if (c.line != null) set[c.side + ":" + c.line] = true;
-      });
-      return set;
+    function indexOf(side, number) {
+      for (var i = 0; i < lines.length; i++) {
+        var a = anchorOf(lines[i]);
+        if (a && a.side === side && a.line === number) return i;
+      }
+      return -1;
     }
+    function byLine() {
+      var out = {};
+      commentsFor(file.path).forEach(function (c) {
+        var i = c.line == null ? -1 : indexOf(c.side, c.line);
+        if (i >= 0) (out[i] = out[i] || []).push(c);
+      });
+      return out;
+    }
+    function changed() {
+      view.paint();
+      if (options.onChange) options.onChange();
+    }
+
+    function threadNode(items) {
+      var box = el("div", "inline");
+      items.forEach(function (c) {
+        var card = el("div", "cmt");
+        var head = el("div", "cmt-head");
+        var kind = el("span", "cmt-kind", c.kind);
+        kind.setAttribute("data-kind", c.kind);
+        head.appendChild(kind);
+        head.appendChild(el("span", "spacer"));
+        var remove = el("button", "cmt-x", "×");
+        remove.type = "button";
+        remove.title = "Delete comment";
+        remove.addEventListener("click", function () { removeComment(c.id); changed(); });
+        head.appendChild(remove);
+        card.appendChild(head);
+        card.appendChild(el("div", "cmt-body", c.body));
+        box.appendChild(card);
+      });
+      return box;
+    }
+
+    function composerNode(draft) {
+      var box = el("div", "inline");
+      var form = el("div", "composer inline-composer");
+      var head = el("div", "composer-head");
+      var kinds = el("span", "kinds");
+      KINDS.forEach(function (kind) {
+        var button = el("button", "", kind);
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(kind === draft.kind));
+        button.addEventListener("click", function () {
+          draft.kind = kind;
+          kinds.querySelectorAll("button").forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b === button));
+          });
+        });
+        kinds.appendChild(button);
+      });
+      head.appendChild(kinds);
+      head.appendChild(el("span", "anchor", (draft.side === "left" ? "removed line " : "line ") +
+                                            draft.line));
+      form.appendChild(head);
+      var text = el("textarea");
+      text.value = draft.text;
+      text.placeholder = "Comment on this line. Ctrl/⌘ + Enter adds it.";
+      text.setAttribute("aria-label", "Comment on line " + draft.line);
+      text.addEventListener("input", function () { draft.text = text.value; });
+      text.addEventListener("keydown", function (event) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault(); submit();
+        } else if (event.key === "Escape") {
+          // Esc never throws away writing: it closes an empty box and steps out of a full one.
+          event.preventDefault();
+          if (text.value.trim()) text.blur(); else cancel();
+        }
+      });
+      form.appendChild(text);
+      var foot = el("div", "composer-foot");
+      foot.appendChild(el("span", "spacer"));
+      var no = el("button", "btn btn-sm", "Cancel");
+      no.type = "button";
+      no.addEventListener("click", cancel);
+      foot.appendChild(no);
+      var yes = el("button", "btn btn-sm btn-solid", "Comment");
+      yes.type = "button";
+      yes.addEventListener("click", submit);
+      foot.appendChild(yes);
+      form.appendChild(foot);
+      box.appendChild(form);
+      return { node: box, text: text };
+    }
+
+    /* Show the draft's comment box, or take it away. One box per file at a time. */
+    function showComposer(focus) {
+      if (composer) { composer.slot.remove(); composer = null; }
+      var draft = drafts[draftKey];
+      if (!draft || !place) return;
+      var index = indexOf(draft.side, draft.line);
+      if (index < 0) { delete drafts[draftKey]; return; }
+      var made = composerNode(draft);
+      composer = { slot: place(index, made.node, 1), text: made.text, index: index };
+      if (view.editor) view.editor.revealLineInCenterIfOutsideViewport(index + 1);
+      if (focus) focusComposer();
+    }
+    function focusComposer() {
+      if (!composer) return false;
+      var text = composer.text;
+      // A Monaco zone is shown on the editor's next render, and a hidden box takes no focus.
+      setTimeout(function () {
+        text.focus({ preventScroll: true });
+        if (text.scrollIntoView) text.scrollIntoView({ block: "nearest" });
+      }, 40);
+      return true;
+    }
+    function openAt(index) {
+      var a = lines[index] ? anchorOf(lines[index]) : null;
+      if (!a) return false;
+      lastLine = index;
+      var draft = drafts[draftKey];
+      var same = draft && draft.side === a.side && draft.line === a.line;
+      if (draft && draft.text.trim()) {
+        if (!same) toast("Finish or cancel the open comment first");
+        return focusComposer();
+      }
+      if (same) { delete drafts[draftKey]; showComposer(false); return true; }
+      drafts[draftKey] = { side: a.side, line: a.line, kind: draft ? draft.kind : "fix",
+                           text: "", code: lines[index].text };
+      showComposer(true);
+      return true;
+    }
+    function submit() {
+      var draft = drafts[draftKey];
+      if (!draft) return;
+      var body = draft.text.trim();
+      if (!body) { focusComposer(); return; }
+      addComment(file.path, body, draft.kind,
+                 { line: { side: draft.side, line: draft.line }, text: draft.code });
+      delete drafts[draftKey];
+      showComposer(false);
+      changed();
+    }
+    function cancel() {
+      delete drafts[draftKey];
+      showComposer(false);
+    }
+    function paintThreads() {
+      threads.forEach(function (slot) { slot.remove(); });
+      threads = [];
+      if (!place) return;
+      var all = byLine();
+      Object.keys(all).forEach(function (index) {
+        threads.push(place(+index, threadNode(all[index]), 0));
+      });
+    }
+    /* Keep the box when the view goes away, and its focus if it had it. */
+    function release() {
+      var draft = drafts[draftKey];
+      if (draft && composer) draft.refocus = composer.text === document.activeElement;
+    }
+    function restore() {
+      var draft = drafts[draftKey];
+      showComposer(!!(draft && draft.refocus));
+      if (draft) delete draft.refocus;
+    }
+    /* `c` in focus mode: the open box, else a box on the line last clicked. */
+    view.compose = function () {
+      return composer ? focusComposer() : (lastLine >= 0 && openAt(lastLine));
+    };
 
     if (!monacoState.ok) {
       var pre = el("pre", "fallback");
       if (options.autoHeight) pre.style.maxHeight = "520px";
-      lines.forEach(function (line) {
+      var rows = lines.map(function (line, index) {
         var row = el("div", "ln " + line.kind);
         var num = el("span", "n", line.kind === "hunk" ? "⋯"
           : (line.newNo != null ? String(line.newNo) : line.oldNo + " −"));
-        num.addEventListener("click", function () {
-          if (options.onAnchor) options.onAnchor(line);
-        });
+        if (anchorOf(line)) {
+          num.title = "Comment on this line";
+          num.addEventListener("click", function () { openAt(index); });
+        }
         row.appendChild(num);
         row.appendChild(el("span", "c",
           (line.kind === "add" ? "+" : line.kind === "del" ? "−" : " ") + line.text));
         pre.appendChild(row);
+        return row;
       });
+      var marks = function () {
+        var all = byLine();
+        rows.forEach(function (row, index) { row.classList.toggle("commented", !!all[index]); });
+      };
+      place = function (index, node, ordinal) {
+        var zone = el("div", "fallback-zone");
+        zone.setAttribute("data-ordinal", String(ordinal));
+        zone.appendChild(node);
+        var before = rows[index];
+        while (before.nextSibling && before.nextSibling.classList.contains("fallback-zone") &&
+               +before.nextSibling.getAttribute("data-ordinal") <= ordinal) {
+          before = before.nextSibling;
+        }
+        before.after(zone);
+        return { remove: function () { zone.remove(); } };
+      };
       host.appendChild(pre);
-      view.dispose = function () { pre.remove(); };
+      view.paint = function () { marks(); paintThreads(); };
+      view.reveal = function (side, number) {
+        var index = indexOf(side, number);
+        if (index >= 0 && rows[index].scrollIntoView) rows[index].scrollIntoView({ block: "center" });
+      };
+      view.dispose = function () { release(); pre.remove(); };
+      view.paint();
+      restore();
       return view;
     }
 
-    var box = el("div");
+    var box = el("div", "hr-diff");
     box.style.height = options.autoHeight
       ? Math.min(Math.max(lines.length * 19 + 14, 90), 560) + "px"
       : "100%";
@@ -610,43 +810,111 @@ window.HR = (function () {
         return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
       }
     });
-    var decorations = [];
+    var decorations = [], hover = [], hovered = 0, observers = [], commented = {};
     view.editor = editor;
+
+    /* A drawer is as tall as its content, comment blocks included, up to a cap past which
+       the editor scrolls inside itself. */
+    if (options.autoHeight) {
+      var fit = function () {
+        var height = Math.min(Math.max(editor.getContentHeight(), 60), 640) + "px";
+        if (box.style.height !== height) { box.style.height = height; editor.layout(); }
+      };
+      editor.onDidContentSizeChange(fit);
+      fit();
+    }
+
+    /* Monaco treats clicks and keys inside the editor as its own: a click would move its
+       cursor and a key could open its find widget. Blocks of ours keep their events. */
+    function keepEvents(node) {
+      ["mousedown", "mouseup", "pointerdown", "pointerup", "click", "dblclick",
+       "contextmenu", "keydown", "keyup", "keypress"].forEach(function (type) {
+        node.addEventListener(type, function (event) { event.stopPropagation(); });
+      });
+    }
+    place = function (index, node, ordinal) {
+      var dom = el("div", "hr-zone");
+      dom.appendChild(node);
+      keepEvents(dom);
+      var zone = { afterLineNumber: index + 1, heightInPx: 40, domNode: dom,
+                   suppressMouseDown: true, ordinal: ordinal };
+      var id = null;
+      editor.changeViewZones(function (zones) { id = zones.addZone(zone); });
+      // Monaco needs a zone's height up front; measure the block once it is laid out, and
+      // again whenever it changes - wrapping, a resized textarea, a longer thread.
+      var observer = new ResizeObserver(function () {
+        var height = Math.ceil(node.getBoundingClientRect().height);
+        if (height && height !== zone.heightInPx && id !== null) {
+          zone.heightInPx = height;
+          editor.changeViewZones(function (zones) { zones.layoutZone(id); });
+        }
+      });
+      observer.observe(node);
+      observers.push(observer);
+      return { remove: function () {
+        observer.disconnect();
+        if (id !== null) editor.changeViewZones(function (zones) { zones.removeZone(id); });
+        id = null;
+      } };
+    };
+
     view.paint = function () {
-      var set = marked();
+      commented = byLine();
       decorations = editor.deltaDecorations(decorations, lines.map(function (line, i) {
         var base = { add: "dec-add", del: "dec-del", hunk: "dec-hunk", ctx: "" }[line.kind];
-        var a = anchorOf(line);
-        var hit = a && set[a.side + ":" + a.line];
+        var hit = !!commented[i];
         return { range: new monaco.Range(i + 1, 1, i + 1, 1),
                  options: { isWholeLine: true, className: hit ? "dec-commented" : base,
                             glyphMarginClassName: hit ? "glyph-comment" : null } };
       }));
+      paintThreads();
     };
-    view.reveal = function (side, line) {
-      for (var i = 0; i < lines.length; i++) {
-        var a = anchorOf(lines[i]);
-        if (a && a.side === side && a.line === line) {
-          editor.revealLineInCenter(i + 1);
-          editor.setPosition({ lineNumber: i + 1, column: 1 });
-          return;
-        }
-      }
+    view.reveal = function (side, number) {
+      var index = indexOf(side, number);
+      if (index < 0) return;
+      editor.revealLineInCenter(index + 1);
+      editor.setPosition({ lineNumber: index + 1, column: 1 });
+      lastLine = index;
     };
     view.dispose = function () {
+      release();
+      observers.forEach(function (observer) { observer.disconnect(); });
       var model = editor.getModel();
       editor.dispose();
       if (model) model.dispose();
       box.remove();
     };
-    editor.onMouseDown(function (event) {
+
+    function lineAt(event) {
+      var target = event.target;
+      return target.position ? target.position.lineNumber - 1 : -1;
+    }
+    function inGutter(event) {
       var kinds = monaco.editor.MouseTargetType;
-      if (event.target.type !== kinds.GUTTER_LINE_NUMBERS &&
-          event.target.type !== kinds.GUTTER_GLYPH_MARGIN) return;
-      var line = lines[event.target.position.lineNumber - 1];
-      if (line && options.onAnchor) options.onAnchor(line);
+      return event.target.type === kinds.GUTTER_LINE_NUMBERS ||
+             event.target.type === kinds.GUTTER_GLYPH_MARGIN;
+    }
+    editor.onMouseDown(function (event) {
+      var index = lineAt(event);
+      if (index < 0) return;
+      if (inGutter(event)) openAt(index);
+      else if (lines[index] && anchorOf(lines[index])) lastLine = index;
+    });
+    // A "+" on the line under the pointer says the number is clickable.
+    editor.onMouseMove(function (event) {
+      var index = lineAt(event);
+      var n = index >= 0 && lines[index] && anchorOf(lines[index]) && !commented[index] ? index + 1 : 0;
+      if (n === hovered) return;
+      hovered = n;
+      hover = editor.deltaDecorations(hover, n ? [{ range: new monaco.Range(n, 1, n, 1),
+        options: { glyphMarginClassName: "glyph-add" } }] : []);
+    });
+    editor.onMouseLeave(function () {
+      hovered = 0;
+      hover = editor.deltaDecorations(hover, []);
     });
     view.paint();
+    restore();
     return view;
   }
 

@@ -119,6 +119,25 @@ code,pre,kbd{font-family:var(--mono)}
 .fallback .add{background:rgba(0,178,90,.12)}
 .fallback .del{background:rgba(229,32,46,.1)}
 .fallback .hunk{background:var(--wash-2);color:var(--muted)}
+.fallback .commented{background:rgba(255,196,0,.22)}
+:root[data-mode="dark"] .fallback .commented{background:rgba(255,196,0,.26)}
+.glyph-add{cursor:pointer}
+.glyph-add::before{content:"+";display:grid;place-items:center;width:15px;height:15px;margin:2px 0 0 3px;background:var(--blue);color:#fff;font:900 13px/1 var(--sans)}
+.hr-diff .margin-view-overlays .line-numbers{cursor:pointer!important}
+.hr-diff .margin-view-overlays .line-numbers:hover{color:var(--ink)}
+
+/* Line comments, under the line they are about. In Monaco they are view zones that sit
+   in the code column, so they keep their own type, colours and text selection. */
+/* Monaco stacks its code layer over the zone layer, which would take every click meant
+   for a block. Zones only cover their own rows, so lifting them leaves the code clickable. */
+.hr-diff .view-zones{z-index:2}
+.hr-zone{overflow:hidden;cursor:auto;user-select:text;-webkit-user-select:text;white-space:normal}
+.inline{max-width:760px;padding:6px 14px 8px 2px;font:400 13px/1.45 var(--sans);color:var(--ink);letter-spacing:normal}
+.inline .cmt{margin:0 0 6px;box-shadow:3px 3px 0 var(--wash-2)}
+.inline .cmt:last-child{margin-bottom:0}
+.inline-composer{border:2px solid var(--rule);padding:8px 10px}
+.inline-composer .anchor{flex:1;text-align:right}
+.fallback-zone{display:block;padding-left:86px;background:var(--paper);white-space:normal}
 
 /* Comments */
 .cmt{border:2px solid var(--rule);margin:0 0 10px;background:var(--paper)}

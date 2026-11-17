@@ -116,13 +116,16 @@ file (`#view=focus&pr=pr-413&file=…`), so a link reopens the same spot.
 - **Plan** - the whole review, and where a single PR opens. The expandable introduction comes
   first, then metrics, questions and the reading order as a numbered rail of groups. Each group
   holds a collapsible directory tree with a checkbox at every level: tick a file, a folder, or a
-  whole group, and ticking a group folds it away. Clicking a file opens its diff inline, with the
-  comment composer beside it, so triage and reading are the same page.
+  whole group, and ticking a group folds it away. Clicking a file opens its diff inline, so
+  triage and reading are the same page. Clicking a line number opens a comment box under that
+  line, with Fix / Question / Nit / Praise, and saved comments stay under their lines. The panel
+  beside the diff lists the file's comments and takes file-level notes.
 - **Focus** - one file at a time: full-height editor, keyboard navigation (`j`/`k`, `x`, `c`) and
-  a rail with the PR introduction on top and the file list below. The introduction folds away and
-  keeps its expanded topics while you move between files; it marks the file on screen wherever a
-  topic links to it. Reach for focus mode when a file is long enough that the drawer is cramped. **Plan** / **Focus** in the top bar, or `v`, switch views. Focus mode resumes the last
-  file.
+  a rail with the PR introduction on top and the file list below. `c` comments on the line last
+  clicked. The introduction folds away and keeps its expanded topics while you move between
+  files; it marks the file on screen wherever a topic links to it. Reach for focus mode when a
+  file is long enough that the drawer is cramped. **Plan** / **Focus** in the top bar, or `v`,
+  switch views. Focus mode resumes the last file.
 - **Stack** - stack renders only, and where they open. Every PR bottom-up, with its branch, its
   parent, its size, the first sentence of its introduction, its own progress, and links into it.
   A stack bar under the top bar links every PR, `[` / `]` step down and up, and a file another PR
@@ -130,15 +133,15 @@ file (`#view=focus&pr=pr-413&file=…`), so a link reopens the same spot.
 
 The diff is a plain Monaco editor plus custom decorations rather than a diff editor, because the
 patch already encodes the diff. That avoids the diff worker entirely. Monaco loads once from
-jsDelivr. Without a network, the page falls back to a plain diff view that still anchors comments.
+jsDelivr. Without a network, the page falls back to a plain diff view with the same line comments.
 
 Progress, comments and collapse state live in that browser's `localStorage`, keyed by repo, PR and
 head SHA. Changing view or PR adds a history entry; moving between files replaces it, so Back
 leaves the file list instead of walking every file you opened.
 
 Open and check the rendered page when browser tools are available. Confirm the reading order matches
-the plan, the critical group is first, a gutter click anchors a comment to the right line, and the
-console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
+the plan, the critical group is first, clicking a line number opens a comment box under that line
+and the saved comment stays there, and the console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
 follow a file link into focus mode and back. These actions must leave reading progress unchanged.
 Summary controls must work with the keyboard and without Monaco or a network connection. For a
 stack, also switch PRs from the stack bar and with `[` / `]`, and check that each PR keeps its own

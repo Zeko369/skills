@@ -95,7 +95,9 @@ The result is one self-contained HTML file with three views, switched in place. 
 expandable introduction, the questions you can answer without opening a diff, and the reading
 order as a numbered rail of groups. Each group holds a collapsible directory tree with a checkbox
 at every level - tick a file, a folder, or a whole group, and ticking a group folds it away.
-Clicking a file opens its diff inline with the comment composer beside it. **Focus** shows one
+Clicking a file opens its diff inline. Clicking a line number opens a comment box under that
+line, and saved comments stay under their lines; the panel beside the diff lists the file's
+comments and takes file-level notes. **Focus** shows one
 file at a time, with a full-height editor, keyboard navigation, and the PR introduction above the
 file list so the context stays beside the diff. The URL hash names the view,
 PR and file, so links and reloads land in the same place.

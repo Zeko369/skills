@@ -21,10 +21,15 @@ One file, every view. The URL hash is the route, e.g. #view=focus&pr=pr-413&file
 Switching view or PR pushes a history entry; moving between files replaces it, so Back
 leaves the file list instead of walking every file you glanced at.
 
-An open file stays open while it is being commented on. Adding, deleting or anchoring a
-comment, and Monaco arriving late, repaint the open diff, its comment list and the counts
-in place - never re-render the tree or re-mount the drawer, which would close the file and
-drop a draft. Marking read and collapsing are the only actions that redraw the tree.
+Line comments live in the diff: HR.mountDiff opens a comment box under a clicked line
+number, shows saved comments under their lines, keeps a half-written one across re-mounts,
+and calls options.onChange after adding or deleting. The page keeps file-level notes and
+the per-file comment list beside the diff.
+
+An open file stays open while it is being commented on. Adding or deleting a comment, and
+Monaco arriving late, repaint the open diff, its comment list and the counts in place -
+never re-render the tree or re-mount the drawer, which would close the file and drop a
+draft. Marking read and collapsing are the only actions that redraw the tree.
 
 Build every in-tool link with HR.link({view, pr, file, at}) and read the selected PR
 from HR.plan / HR.target / HR.state at render time: HR.select() swaps them when the
@@ -280,10 +285,9 @@ body:not([data-view="plan"]) #t-collapse{display:none}
           <button data-kind="praise" aria-pressed="false">Praise</button>
         </span>
       </div>
-      <textarea id="composer" placeholder="Click a line number to anchor a comment, or write a file-level note here."></textarea>
+      <textarea id="composer" placeholder="A note on the whole file. To comment on a line, click its number in the diff."></textarea>
       <div class="composer-foot">
-        <span class="anchor" id="anchor">file-level</span>
-        <button class="btn btn-sm" id="clear-anchor">Clear</button>
+        <span class="anchor">file-level note</span>
         <button class="btn btn-sm btn-solid" id="add">Add</button>
       </div>
     </div>
@@ -413,11 +417,6 @@ body:not([data-view="plan"]) #t-collapse{display:none}
     });
     return items.length;
   }
-  function anchorLabel(line, width) {
-    var a = HR.anchorOf(line);
-    return a ? (a.side === "left" ? "removed line " : "line ") + a.line + " · " +
-               line.text.trim().slice(0, width) : "file-level";
-  }
   function metricTiles(host, tiles) {
     host.textContent = "";
     tiles.forEach(function (tile) {
@@ -430,7 +429,7 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 
   /* ── Plan view ──────────────────────────────────────────────────────── */
   var Plan = (function () {
-    var open = {};        // path -> {row, drawer, view, kind, anchor}
+    var open = {};        // path -> {row, drawer, view, kind, mount}
     var showFolded = {};  // group key -> bool
 
     function render() {
@@ -521,18 +520,13 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       row.after(drawer);
       row.classList.add("open");
 
-      var entry = { row: row, drawer: drawer, view: null, kind: "fix", anchor: null };
+      var entry = { row: row, drawer: drawer, view: null, kind: "fix" };
       open[f.path] = entry;
       entry.mount = function () {
         if (entry.view) entry.view.dispose();
         entry.view = HR.mountDiff(diff, f, {
           autoHeight: true,
-          onAnchor: function (line) {
-            var a = HR.anchorOf(line);
-            entry.anchor = a ? { line: a, text: line.text } : null;
-            drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
-            drawer.querySelector("textarea").focus();
-          }
+          onChange: function () { refresh(f, entry, list); }
         });
       };
       entry.mount();
@@ -568,18 +562,16 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       head.appendChild(kinds);
       box.appendChild(head);
       var text = el("textarea");
-      text.placeholder = "Click a line number in the gutter to anchor a comment, or write a file-level note.";
+      text.placeholder = "A note on the whole file. To comment on a line, click its number in the diff.";
       box.appendChild(text);
       var foot = el("div", "composer-foot");
-      foot.appendChild(el("span", "anchor", "file-level"));
+      foot.appendChild(el("span", "anchor", "file-level note"));
       var add = el("button", "btn btn-sm btn-solid", "Add");
       function submit() {
         var body = text.value.trim();
         if (!body) { text.focus(); return; }
-        HR.addComment(f.path, body, entry.kind, entry.anchor);
-        entry.anchor = null;
+        HR.addComment(f.path, body, entry.kind, null);
         text.value = "";
-        box.querySelector(".anchor").textContent = "file-level";
         changed(f, entry, list);
       }
       add.addEventListener("click", submit);
@@ -592,9 +584,13 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       box.appendChild(foot);
       return box;
     }
-    /* A comment was added or removed: repaint this drawer in place, keep it open. */
+    /* A comment was added or removed: repaint this drawer in place, keep it open. The diff
+       repaints itself for comments made in it, and calls refresh() for the rest. */
     function changed(f, entry, list) {
       if (entry.view) entry.view.paint();
+      refresh(f, entry, list);
+    }
+    function refresh(f, entry, list) {
       renderComments(f, entry, list);
       var n = HR.commentsFor(f.path).length;
       var count = entry.row.querySelector(".count");
@@ -728,7 +724,7 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 
   /* ── Focus view ─────────────────────────────────────────────────────── */
   var Focus = (function () {
-    var current = null, view = null, anchor = null, kind = "fix", showFolded = {};
+    var current = null, view = null, kind = "fix", showFolded = {};
     var last = null;      // {pr, path}: where focus mode was, so coming back resumes it
 
     function order() {
@@ -867,7 +863,6 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       last = { pr: HR.entry.id, path: current };
       renderHead(HR.byPath[current]);
       renderRail();
-      setAnchor(null);
       renderComments();
       mountEditor();
     }
@@ -877,7 +872,9 @@ body:not([data-view="plan"]) #t-collapse{display:none}
     function mountEditor() {
       dispose();
       if (!monacoSettled) return;   // Monaco's arrival calls remount()
-      view = HR.mountDiff(document.getElementById("editor"), HR.byPath[current], { onAnchor: setAnchor });
+      view = HR.mountDiff(document.getElementById("editor"), HR.byPath[current], {
+        onChange: function () { renderComments(); renderRail(); renderProgress(); exporter.refresh(); }
+      });
     }
     function dispose() {
       if (view) { view.dispose(); view = null; }
@@ -889,11 +886,9 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       renderRail(); renderProgress();
       renderHead(HR.byPath[current]);
     }
-    function setAnchor(line) {
-      var a = line ? HR.anchorOf(line) : null;
-      anchor = a ? { line: a, text: line.text } : null;
-      document.getElementById("anchor").textContent = line ? anchorLabel(line, 40) : "file-level";
-      if (line) document.getElementById("composer").focus();
+    /* `c`: the open line comment, else a new one on the line last clicked, else a note. */
+    function compose() {
+      if (!(view && view.compose())) document.getElementById("composer").focus();
     }
     function renderComments() {
       var host = document.getElementById("comments");
@@ -905,7 +900,7 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       if (!n) {
         host.textContent = "";
         host.appendChild(el("p", "muted", current
-          ? "No comments on this file yet. Click a line number to anchor one."
+          ? "No comments on this file yet. Click a line number to comment on that line."
           : "Pick a file from the list."));
       }
     }
@@ -914,9 +909,8 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       var body = box.value.trim();
       if (!body) { box.focus(); return; }
       if (!current) { HR.toast("Pick a file first"); return; }
-      HR.addComment(current, body, kind, anchor);
+      HR.addComment(current, body, kind, null);
       box.value = "";
-      setAnchor(null);
       if (view) view.paint();
       renderComments(); renderRail(); renderProgress(); exporter.refresh();
     }
@@ -939,9 +933,8 @@ body:not([data-view="plan"]) #t-collapse{display:none}
         event.preventDefault(); submit();
       }
     });
-    document.getElementById("clear-anchor").addEventListener("click", function () { setAnchor(null); });
 
-    return { enter: enter, step: step, toggleRead: toggleRead, resume: resume,
+    return { enter: enter, step: step, toggleRead: toggleRead, resume: resume, compose: compose,
              leave: function () { dispose(); current = null; },
              remount: function () { if (current) mountEditor(); } };
   })();
@@ -1075,11 +1068,15 @@ body:not([data-view="plan"]) #t-collapse{display:none}
   document.getElementById("t-collapse").addEventListener("click", Plan.toggleAll);
   document.getElementById("t-shortcuts").addEventListener("click", function () {
     HR.toast((route.view === "focus" ? "j/k file · x mark read · c comment · " : "") +
+             "click a line number to comment · " +
              "v plan/focus · e export" + (HR.stack ? " · [ ] lower/upper PR" : ""));
   });
   document.addEventListener("keydown", function (event) {
-    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.metaKey ||
-        event.ctrlKey || event.altKey) return;
+    // Monaco's own hidden input is a textarea too. The diff is read-only, so after a click
+    // into the code the shortcuts still apply - `c` then comments on the clicked line.
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) &&
+                 !event.target.closest(".monaco-editor .inputarea");
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
     var key = event.key;
     if (key === "Escape") {
       if (document.getElementById("overlay").classList.contains("open")) exporter.close();
@@ -1097,7 +1094,7 @@ body:not([data-view="plan"]) #t-collapse{display:none}
     else if (focus && key === "j") Focus.step(1);
     else if (focus && key === "k") Focus.step(-1);
     else if (focus && key === "x") Focus.toggleRead();
-    else if (focus && key === "c") document.getElementById("composer").focus();
+    else if (focus && key === "c") Focus.compose();
     else return;
     event.preventDefault();
   });
