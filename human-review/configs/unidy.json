@@ -17,12 +17,14 @@
       "id": "authz",
       "weight": "critical",
       "rank": 20,
+      "never_demote": true,
       "match": [
         "app/policies/**",
-        "config/permissions.json"
+        "config/permissions.json",
+        "config/permission_resources.yml"
       ],
       "label": "Authorization",
-      "why": "Decides who can do what. A mistake here is a security bug, not a bug report."
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report. Removing an entry is as much a permission change as adding one."
     },
     {
       "id": "secrets",
@@ -191,6 +193,17 @@
       ],
       "label": "Frontend entrypoints",
       "why": "Mounting and bundling glue."
+    },
+    {
+      "id": "db-data",
+      "weight": "skim",
+      "rank": 30,
+      "match": [
+        "db/seeds.rb",
+        "db/settings/**"
+      ],
+      "label": "DB seeds and settings",
+      "why": "Data, not schema. Check which records and values changed, not every line."
     },
     {
       "id": "e2e",

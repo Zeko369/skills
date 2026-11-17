@@ -159,6 +159,15 @@ class NeverDemote(unittest.TestCase):
         self.assertEqual(weights(built)["app/models/user.rb"], "critical")
 
 
+    def test_a_removed_permission_resource_stays_critical(self):
+        built = plan([("config/permission_resources.yml", 0, 2), ("config/permissions.json", 1, 1),
+                      ("app/controllers/a_controller.rb", 30, 4)])
+        files = {f["path"]: f for f in built["files"]}
+        self.assertEqual(files["config/permission_resources.yml"]["weight"], "critical")
+        self.assertEqual(files["config/permission_resources.yml"]["rule_id"], "authz")
+        self.assertEqual(files["config/permissions.json"]["rule_id"], "authz")
+
+
 class GeneratedQuestions(unittest.TestCase):
     """A generated file earns a question only when its delta is not already explained."""
 
@@ -215,6 +224,15 @@ class PlanShape(unittest.TestCase):
         built = plan([("spec/models/user_spec.rb", 40, 0), ("app/views/users/show.html.erb", 8, 0)])
         skim = [f["path"] for f in built["files"] if f["weight"] == "skim"]
         self.assertEqual(skim, ["app/views/users/show.html.erb", "spec/models/user_spec.rb"])
+
+
+    def test_seeds_and_settings_are_skimmed_as_db_data(self):
+        built = plan([("db/seeds.rb", 12, 3), ("db/settings/brands.yml", 40, 0),
+                      ("db/migrate/20260101000000_add_x.rb", 5, 0)])
+        files = {f["path"]: f for f in built["files"]}
+        for path in ("db/seeds.rb", "db/settings/brands.yml"):
+            self.assertEqual((files[path]["weight"], files[path]["rule_id"]), ("skim", "db-data"))
+        self.assertEqual(files["db/migrate/20260101000000_add_x.rb"]["weight"], "critical")
 
 
 class Rendering(unittest.TestCase):

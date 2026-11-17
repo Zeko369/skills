@@ -44,7 +44,7 @@
       "rule": "authz",
       "label": "Authorization",
       "weight": "critical",
-      "why": "Decides who can do what. A mistake here is a security bug, not a bug report.",
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report. Removing an entry is as much a permission change as adding one.",
       "files": [
         "config/permissions.json"
       ]
@@ -158,12 +158,12 @@
       "previous": null,
       "rule_id": "authz",
       "weight": "critical",
-      "why": "Decides who can do what. A mistake here is a security bug, not a bug report.",
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report. Removing an entry is as much a permission change as adding one.",
       "label": "Authorization",
       "collapse": null,
       "report": null,
       "rank": 20,
-      "never_demote": false,
+      "never_demote": true,
       "notes": []
     },
     {
