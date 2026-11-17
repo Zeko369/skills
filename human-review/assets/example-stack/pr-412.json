@@ -14,8 +14,8 @@
     "draft": false
   },
   "config": {
-    "name": "rails-default",
-    "source": "configs/rails.json (example)"
+    "name": "unidy",
+    "source": "configs/unidy.json (example)"
   },
   "summary": {
     "head_sha": "0000000000000000000000000000000000000000",
@@ -791,7 +791,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folds": 4
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/en.yml",
@@ -809,7 +809,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folds": 4
     },
     {
       "path": "config/locales/fr.yml",
@@ -827,7 +827,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/it.yml",
@@ -845,7 +845,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/nl.yml",
@@ -863,7 +863,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "Gemfile.lock",

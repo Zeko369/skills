@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "rails-default",
-  "description": "Fallback rules for a Rails app with an RSpec suite and a Vite frontend. Array order decides which rule matches (first wins, so specific before general); `rank` decides reading order inside a weight.",
+  "name": "unidy",
+  "description": "Rules for UnidyID/unidy, our Rails app with an RSpec suite and a Vite frontend - its paths, its fan-outs, its expensive places. Not a general Rails config; other repos used it only as the fallback and worked example. Array order decides which rule matches (first wins, so specific before general); `rank` decides reading order inside a weight.",
   "rules": [
     {
       "id": "migration",
@@ -87,6 +87,10 @@
       "weight": "skip",
       "rank": 10,
       "collapse": "shape",
+      "collapse_prefer": [
+        "config/locales/en.yml",
+        "**/en.yml"
+      ],
       "match": [
         "config/locales/**"
       ],

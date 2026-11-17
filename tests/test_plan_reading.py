@@ -14,7 +14,7 @@ sys.path.insert(0, str(SKILL / "scripts"))
 import plan_reading  # noqa: E402
 import render_reading  # noqa: E402
 
-CONFIG = json.loads((SKILL / "configs/rails.json").read_text(encoding="utf-8"))
+CONFIG = json.loads((SKILL / "configs/unidy.json").read_text(encoding="utf-8"))
 EXAMPLE = json.loads((SKILL / "assets/example-plan.json").read_text(encoding="utf-8"))
 DATA = re.compile(r'<script type="application/json" id="plan">(.*?)</script>', re.S)
 TARGET = {"kind": "pr", "repo": "acme/example", "number": 1, "title": "t",
@@ -58,6 +58,19 @@ class Modifiers(unittest.TestCase):
             folded = [f for f in built["files"] if f.get("folded_into")]
             self.assertEqual(len(folded), 4, "one representative, the rest folded")
             self.assertEqual(built["stats"]["folded"], 4)
+
+    def test_translations_fold_into_en_rather_than_the_first_alphabetically(self):
+        built = plan([(f"config/locales/{x}.yml", 10, 0) for x in ("cs", "de", "en", "fr", "it")])
+        shown = [f["path"] for f in built["files"] if not f.get("folded_into")]
+        self.assertEqual(shown, ["config/locales/en.yml"])
+        self.assertTrue(all(f["folded_into"] == "config/locales/en.yml"
+                            for f in built["files"] if f.get("folded_into")))
+        self.assertNotIn("_prefer", built["files"][0])
+
+    def test_without_a_preferred_file_the_fold_falls_back_to_path_order(self):
+        built = plan([(f"config/locales/{x}.yml", 10, 0) for x in ("cs", "de", "fr")])
+        shown = [f["path"] for f in built["files"] if not f.get("folded_into")]
+        self.assertEqual(shown, ["config/locales/cs.yml"])
 
     def test_shape_collapse_needs_an_identical_signature(self):
         built = plan([("config/locales/a.yml", 7, 0), ("config/locales/b.yml", 8, 0),

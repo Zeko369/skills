@@ -26,7 +26,9 @@ parent and head SHA, bottom of the stack first. See [stack](references/stack.md)
 ## Resolve the rules
 
 Read `<repo>/.claude/reading-rules.json`, else `<repo>/.reading-rules.json`, else fall back to
-`configs/rails.json`. The contract is in [rules](references/rules.md).
+`configs/unidy.json`. The contract is in [rules](references/rules.md). That file holds the rules for
+`UnidyID/unidy`, our Rails app, not general Rails rules. For any other repo it is only a worked
+example, and a plan built on it should say the repo needs its own rules.
 
 Rules are per project because the noise is per project. Before writing a new one, look at what the
 last ten merged PRs actually touch: the fan-outs, the generated files, and the handful of paths where

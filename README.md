@@ -113,8 +113,9 @@ plan, introduction and progress. A **Stack** view gives the overview, a stack ba
 (`[` / `]` step down and up), a file changed in several PRs links between them, and export offers
 this PR or the whole stack. See [`human-review/references/stack.md`](human-review/references/stack.md).
 
-`configs/rails.json` is the fallback and a worked example. Write your own by looking at what your
-last ten merged PRs actually touch. The pages in
+`configs/unidy.json` holds the rules for `UnidyID/unidy`, our Rails app, not a general Rails config.
+It doubles as the fallback and a worked example. For any other repo, write your own by looking at
+what its last ten merged PRs actually touch. The pages in
 [`human-review/examples/`](human-review/examples/) use a synthetic change, not a real review:
 
 ```sh

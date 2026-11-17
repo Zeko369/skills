@@ -14,18 +14,27 @@
     "draft": false
   },
   "config": {
-    "name": "rails-default",
-    "source": "configs/rails.json (example)"
+    "name": "unidy",
+    "source": "configs/unidy.json (example)"
   },
   "summary": {
     "head_sha": "0000000000000000000000000000000000000000",
     "overview": [
       "This illustrative PR adds account API keys, connecting stored records to management routes and a settings entry point. Its ",
-      {"text": "token handling", "topic": "tokens"},
+      {
+        "text": "token handling",
+        "topic": "tokens"
+      },
       " returns a token on creation and introduces digest storage plus log filtering. The ",
-      {"text": "account and permission changes", "topic": "access"},
+      {
+        "text": "account and permission changes",
+        "topic": "access"
+      },
       " connect keys to accounts and declare who can manage them, making the data contract and access checks central to review. The change also adds request coverage and removes legacy coverage, so ",
-      {"text": "what the tests establish", "topic": "coverage"},
+      {
+        "text": "what the tests establish",
+        "topic": "coverage"
+      },
       " needs attention. These snippets are synthetic and no tests were run; use the introduction to orient yourself, then follow the reading order to inspect the code."
     ],
     "topics": [
@@ -35,7 +44,10 @@
         "paragraphs": [
           [
             "The create action delegates to a service and returns key.plaintext in a created response. The migration adds token_digest with a unique index, rather than a plaintext-token column. A separate ",
-            {"text": "digest implementation", "topic": "digest"},
+            {
+              "text": "digest implementation",
+              "topic": "digest"
+            },
             " supplies the hashing operation, and the logging initializer adds token-related filter names. These pieces express the intended secret lifecycle, but the snippets omit the creation service and do not prove that every write or response follows it."
           ]
         ],
@@ -53,7 +65,9 @@
             "TokenDigest uses HMAC-SHA256 with Rails.application.secret_key_base as the key and the token as the message. The stored value therefore depends on both inputs. If verification recomputes this digest, rotating secret_key_base would change the result for an existing token; that consequence is an inference because the lookup path is absent here. Review that path before deciding how existing keys should behave during secret rotation."
           ]
         ],
-        "files": ["app/services/api_keys/token_digest.rb"]
+        "files": [
+          "app/services/api_keys/token_digest.rb"
+        ]
       },
       {
         "id": "access",
@@ -777,7 +791,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folds": 4
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/en.yml",
@@ -795,7 +809,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folds": 4
     },
     {
       "path": "config/locales/fr.yml",
@@ -813,7 +827,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/it.yml",
@@ -831,7 +845,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "config/locales/nl.yml",
@@ -849,7 +863,7 @@
       "rank": 10,
       "never_demote": false,
       "notes": [],
-      "folded_into": "config/locales/de.yml"
+      "folded_into": "config/locales/en.yml"
     },
     {
       "path": "Gemfile.lock",

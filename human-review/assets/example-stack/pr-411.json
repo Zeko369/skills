@@ -14,8 +14,8 @@
     "draft": false
   },
   "config": {
-    "name": "rails-default",
-    "source": "configs/rails.json (example)"
+    "name": "unidy",
+    "source": "configs/unidy.json (example)"
   },
   "stats": {
     "critical": 2,
