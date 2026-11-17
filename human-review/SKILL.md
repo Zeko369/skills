@@ -119,8 +119,9 @@ file (`#view=focus&pr=pr-413&file=…`), so a link reopens the same spot.
   whole group, and ticking a group folds it away. Clicking a file opens its diff inline, with the
   comment composer beside it, so triage and reading are the same page.
 - **Focus** - one file at a time: full-height editor, keyboard navigation (`j`/`k`, `x`, `c`) and
-  the file list as a flat rail. Reach for it when a file is long enough that the drawer is
-  cramped. **Plan** / **Focus** in the top bar, or `v`, switch views. Focus mode resumes the last
+  a rail with the PR introduction on top and the file list below. The introduction folds away and
+  keeps its expanded topics while you move between files; it marks the file on screen wherever a
+  topic links to it. Reach for focus mode when a file is long enough that the drawer is cramped. **Plan** / **Focus** in the top bar, or `v`, switch views. Focus mode resumes the last
   file.
 - **Stack** - stack renders only, and where they open. Every PR bottom-up, with its branch, its
   parent, its size, the first sentence of its introduction, its own progress, and links into it.

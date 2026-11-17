@@ -230,7 +230,7 @@ class Rendering(unittest.TestCase):
             found = DATA.search(page)
             self.assertIsNotNone(found)
             self.assertEqual(json.loads(found.group(1))["stats"], EXAMPLE["stats"])
-            for view in ("view-plan", "view-focus", "view-stack"):
+            for view in ("view-plan", "view-focus", "view-stack", "rail-summary"):
                 self.assertIn(f'id="{view}"', page)
 
     def test_embedded_json_cannot_close_its_script_tag(self):

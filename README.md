@@ -96,7 +96,8 @@ expandable introduction, the questions you can answer without opening a diff, an
 order as a numbered rail of groups. Each group holds a collapsible directory tree with a checkbox
 at every level - tick a file, a folder, or a whole group, and ticking a group folds it away.
 Clicking a file opens its diff inline with the comment composer beside it. **Focus** shows one
-file at a time, with a full-height editor and keyboard navigation. The URL hash names the view,
+file at a time, with a full-height editor, keyboard navigation, and the PR introduction above the
+file list so the context stays beside the diff. The URL hash names the view,
 PR and file, so links and reloads land in the same place.
 
 The diff is a plain Monaco editor plus custom decorations rather than a diff editor, since the

@@ -13,7 +13,8 @@ Placeholders, each replaced exactly once and never re-scanned:
 
 One file, every view. The URL hash is the route, e.g. #view=focus&pr=pr-413&file=app%2Fx.rb:
   view=plan    the PR introduction, questions and reading order (default for one PR)
-  view=focus   one file at a time in a full-height editor
+  view=focus   one file at a time in a full-height editor, with the PR introduction
+               at the top of the file rail so context is readable beside the diff
   view=stack   the stack overview (stack renders only, and their default)
   pr=<id>      which PR of a stack; omitted for a single render
   file=<path>  the file open in focus mode      at=summary  scroll to the introduction
@@ -162,6 +163,24 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 #view-focus .group-head .label{flex:1;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
 #view-focus .group-head .tally{font:700 10px/1 var(--mono);opacity:.8}
 #view-focus .caret{width:12px;font-size:9px}
+/* The PR introduction, compacted to the rail's width. It sits above the file list and is
+   rendered once per PR, not with the list, so expanded topics survive moving between files.
+   Its own scroll keeps the file list reachable when several topics are open. */
+#view-focus .rail-intro{border-bottom:3px solid var(--rule)}
+#view-focus .rail-intro[hidden]{display:none}
+#view-focus .rail-intro-head{display:flex;align-items:center;gap:8px;width:100%;padding:7px 11px;border:0;background:var(--wash);color:var(--ink);text-align:left;cursor:pointer;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+#view-focus .rail-intro-head:hover{background:var(--wash-2)}
+#view-focus .rail-intro .pr-summary{margin:0;padding:8px 12px 14px;max-width:none;max-height:50vh;overflow:auto}
+#view-focus .rail-intro .pr-summary[hidden]{display:none}
+#view-focus #rail-summary > .summary-head{justify-content:flex-end;margin-bottom:6px}
+#view-focus #rail-summary > .summary-head > .kicker{display:none}
+#view-focus .rail-intro .summary-hint{font-size:11px;margin-bottom:8px}
+#view-focus .rail-intro .summary-prose{font-size:13.5px;line-height:1.6}
+#view-focus .rail-intro .summary-detail{margin:10px 0 12px;padding:10px 11px}
+#view-focus .rail-intro .summary-detail .summary-prose{font-size:13px;line-height:1.6}
+#view-focus .rail-intro .summary-detail h3,#view-focus .rail-intro .summary-detail h4,#view-focus .rail-intro .summary-detail h5,#view-focus .rail-intro .summary-detail h6{font-size:13.5px}
+#view-focus .rail-intro .summary-files{font-size:11px}
+#view-focus .rail-intro .summary-files a[aria-current]{color:var(--ink);font-weight:700;text-decoration:none}
 #view-focus .frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;cursor:pointer}
 #view-focus .frow:hover{background:var(--wash)}
 #view-focus .frow[aria-current="true"]{background:var(--wash-2);box-shadow:inset 4px 0 0 var(--ink)}
@@ -236,7 +255,15 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 </main>
 
 <div id="view-focus">
-  <nav class="rail" id="rail" aria-label="Files in reading order"></nav>
+  <nav class="rail" aria-label="PR introduction and files in reading order">
+    <section class="rail-intro" id="rail-intro" hidden>
+      <button class="rail-intro-head" id="rail-intro-toggle" type="button" aria-controls="rail-summary">
+        <span class="caret">▼</span><span>PR intro</span>
+      </button>
+      <div class="pr-summary" id="rail-summary"></div>
+    </section>
+    <div id="rail"></div>
+  </nav>
   <main class="center">
     <div class="fhead" id="fhead"></div>
     <div id="editor"></div>
@@ -707,7 +734,39 @@ body:not([data-view="plan"]) #t-collapse{display:none}
     function order() {
       return HR.plan.order.length ? HR.plan.order : HR.plan.files.map(function (f) { return f.path; });
     }
+    /* The PR introduction at the top of the rail: rendered when focus mode opens a PR,
+       folded or open as the reader last left it. */
+    function renderIntro() {
+      var section = document.getElementById("rail-intro");
+      section.hidden = !HR.plan.summary;
+      if (!HR.plan.summary) return;
+      HR.mountSummary(document.getElementById("rail-summary"));
+      paintIntro();
+    }
+    function paintIntro() {
+      var shut = HR.collapsed("rail:intro", false);
+      var toggle = document.getElementById("rail-intro-toggle");
+      toggle.setAttribute("aria-expanded", String(!shut));
+      toggle.querySelector(".caret").classList.toggle("shut", shut);
+      document.getElementById("rail-summary").hidden = shut;
+      markCurrent();
+    }
+    /* The file on screen is marked wherever the introduction links to it. */
+    function markCurrent() {
+      document.querySelectorAll("#rail-summary .summary-files a").forEach(function (link) {
+        if (link.textContent === current) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      });
+    }
+    document.getElementById("rail-intro-toggle").addEventListener("click", function () {
+      HR.setCollapsed("rail:intro", !HR.collapsed("rail:intro", false));
+      paintIntro();
+    });
+    // Topic panels are built on first open, so mark their links once they exist.
+    document.getElementById("rail-summary").addEventListener("click", markCurrent);
+
     function renderRail() {
+      if (HR.plan.summary) paintIntro();
       var rail = document.getElementById("rail");
       rail.textContent = "";
       HR.plan.groups.forEach(function (group) {
@@ -797,7 +856,7 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 
     /* Show the route's file; `fresh` when arriving from another view or PR. */
     function enter(file, fresh) {
-      if (fresh) { dispose(); current = null; showFolded = {}; }
+      if (fresh) { dispose(); current = null; showFolded = {}; renderIntro(); }
       var start = HR.byPath[file] ? file : (current || resume() || order()[0] || HR.plan.files[0].path);
       if (start !== route.file) {
         route.file = start;
