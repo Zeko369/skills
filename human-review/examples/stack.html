@@ -1482,15 +1482,19 @@ window.HR = (function () {
 
       var entry = { row: row, drawer: drawer, view: null, kind: "fix", anchor: null };
       open[f.path] = entry;
-      entry.view = HR.mountDiff(diff, f, {
-        autoHeight: true,
-        onAnchor: function (line) {
-          var a = HR.anchorOf(line);
-          entry.anchor = a ? { line: a, text: line.text } : null;
-          drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
-          drawer.querySelector("textarea").focus();
-        }
-      });
+      entry.mount = function () {
+        if (entry.view) entry.view.dispose();
+        entry.view = HR.mountDiff(diff, f, {
+          autoHeight: true,
+          onAnchor: function (line) {
+            var a = HR.anchorOf(line);
+            entry.anchor = a ? { line: a, text: line.text } : null;
+            drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
+            drawer.querySelector("textarea").focus();
+          }
+        });
+      };
+      entry.mount();
       side.appendChild(composer(f, entry, list));
       renderComments(f, entry, list);
     }
@@ -1673,9 +1677,10 @@ window.HR = (function () {
       HR.plan.groups.forEach(function (g) { HR.setCollapsed("group:" + g.key, shut); });
       renderStations();
     }
-    /* Monaco arrives after first paint; a drawer opened before then re-mounts with it. */
+    /* Monaco arrives after first paint. A drawer opened before then swaps its plain diff
+       for the editor in place: the file stays open and a comment being typed survives. */
     function remount() {
-      if (Object.keys(open).length) renderStations();
+      Object.keys(open).forEach(function (path) { open[path].mount(); });
     }
     return { render: render, closeAll: closeAll, toggleAll: toggleAll, remount: remount };
   })();

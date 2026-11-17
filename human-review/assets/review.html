@@ -20,6 +20,11 @@ One file, every view. The URL hash is the route, e.g. #view=focus&pr=pr-413&file
 Switching view or PR pushes a history entry; moving between files replaces it, so Back
 leaves the file list instead of walking every file you glanced at.
 
+An open file stays open while it is being commented on. Adding, deleting or anchoring a
+comment, and Monaco arriving late, repaint the open diff, its comment list and the counts
+in place - never re-render the tree or re-mount the drawer, which would close the file and
+drop a draft. Marking read and collapsing are the only actions that redraw the tree.
+
 Build every in-tool link with HR.link({view, pr, file, at}) and read the selected PR
 from HR.plan / HR.target / HR.state at render time: HR.select() swaps them when the
 route names another PR. Each PR keeps its own localStorage record, keyed as if rendered
@@ -491,15 +496,19 @@ body:not([data-view="plan"]) #t-collapse{display:none}
 
       var entry = { row: row, drawer: drawer, view: null, kind: "fix", anchor: null };
       open[f.path] = entry;
-      entry.view = HR.mountDiff(diff, f, {
-        autoHeight: true,
-        onAnchor: function (line) {
-          var a = HR.anchorOf(line);
-          entry.anchor = a ? { line: a, text: line.text } : null;
-          drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
-          drawer.querySelector("textarea").focus();
-        }
-      });
+      entry.mount = function () {
+        if (entry.view) entry.view.dispose();
+        entry.view = HR.mountDiff(diff, f, {
+          autoHeight: true,
+          onAnchor: function (line) {
+            var a = HR.anchorOf(line);
+            entry.anchor = a ? { line: a, text: line.text } : null;
+            drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
+            drawer.querySelector("textarea").focus();
+          }
+        });
+      };
+      entry.mount();
       side.appendChild(composer(f, entry, list));
       renderComments(f, entry, list);
     }
@@ -682,9 +691,10 @@ body:not([data-view="plan"]) #t-collapse{display:none}
       HR.plan.groups.forEach(function (g) { HR.setCollapsed("group:" + g.key, shut); });
       renderStations();
     }
-    /* Monaco arrives after first paint; a drawer opened before then re-mounts with it. */
+    /* Monaco arrives after first paint. A drawer opened before then swaps its plain diff
+       for the editor in place: the file stays open and a comment being typed survives. */
     function remount() {
-      if (Object.keys(open).length) renderStations();
+      Object.keys(open).forEach(function (path) { open[path].mount(); });
     }
     return { render: render, closeAll: closeAll, toggleAll: toggleAll, remount: remount };
   })();
