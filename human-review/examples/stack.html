@@ -1,0 +1,2040 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src data:; connect-src https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+<meta name="generator" content="human-review">
+<title>Account API keys, as a stack · human review</title>
+<style>
+/* Shared design language for the reading plan and the review tool.
+   Swiss light palette, 2px ink rules, hazard hatching, uppercase micro-labels. */
+:root{
+  --ink:#0a0a0a;--paper:#fff;--wash:#f3f3f0;--wash-2:#e8e8e3;--line:#d6d6cf;--muted:#56564f;--faint:#8b8b84;
+  --p0:#e5202e;--p2:#ffc400;--green:#00b25a;--grey:#b4b4ac;--grey-lt:#e4e4de;--blue:#2f6bff;
+  --sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --hatch-soft:repeating-linear-gradient(-45deg,rgba(10,10,10,.075) 0 2px,transparent 2px 9px);
+  /* Ink has two jobs: it is the text colour, and it is what the 2px rules and solid
+     slabs are painted in. Inverted for dark those two part ways - text wants the full
+     #ecece7, a border or a filled bar at that value lights up the whole screen. Giving
+     the surfaces their own tokens keeps the dark palette to one block. */
+  --rule:var(--ink);--slab:var(--ink);--ctl:var(--ink);
+  /* Amber is the one accent that does not flip for dark, so what sits on it cannot
+     flip either - inherited ink goes near-white and the label disappears into the
+     background. Declared once here and never overridden below. */
+  --on-p2:#0a0a0a;
+  --hazard:repeating-linear-gradient(-45deg,var(--slab) 0 10px,var(--p2) 10px 20px);
+  color-scheme:light;
+}
+/* Dark is applied as a resolved mode: core.js reads the stored choice (light / dark /
+   system) plus prefers-color-scheme and writes data-mode on <html>, so this block is
+   the only place the dark palette lives. */
+:root[data-mode="dark"]{
+  --ink:#ecece7;--paper:#13130f;--wash:#1c1c18;--wash-2:#26261f;--line:#34342c;
+  --muted:#a3a39a;--faint:#6f6f67;
+  --p0:#ff4b55;--p2:#ffc400;--green:#2bbd66;--grey:#55554c;--grey-lt:#2a2a23;--blue:#6f9dff;
+  --hatch-soft:repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 2px,transparent 2px 9px);
+  --rule:#4a4a42;--slab:#c3c3b9;--ctl:var(--muted);
+  color-scheme:dark;
+}
+[data-weight="critical"]{--wc:var(--p0);--wi:#fff;--wbg:var(--p0);--wr:var(--rule)}
+[data-weight="read"]{--wc:var(--ink);--wi:var(--paper);--wbg:var(--slab);--wr:var(--rule)}
+[data-weight="skim"]{--wc:var(--grey);--wi:var(--ink);--wbg:var(--grey-lt);--wr:var(--grey)}
+[data-weight="skip"]{--wc:var(--grey-lt);--wi:var(--muted);--wbg:var(--paper);--wr:var(--grey)}
+/* Dark borders are the weight's own colour taken down, not a neutral: a critical box
+   still reads red at a glance, and the ladder survives at a tenth of the brightness. */
+:root[data-mode="dark"] [data-weight="critical"]{--wr:#8f3238}
+:root[data-mode="dark"] [data-weight="read"]{--wr:#5e5e55}
+:root[data-mode="dark"] [data-weight="skim"]{--wr:#46463e}
+:root[data-mode="dark"] [data-weight="skip"]{--wr:#3a3a32}
+:root[data-mode="dark"] .dec-add{background:rgba(43,189,102,.20)}
+:root[data-mode="dark"] .dec-del{background:rgba(255,75,85,.18)}
+:root[data-mode="dark"] .dec-hunk{background:#26261f}
+:root[data-mode="dark"] .dec-commented{background:rgba(255,196,0,.26)}
+:root[data-mode="dark"] .fallback .add{background:rgba(43,189,102,.18)}
+:root[data-mode="dark"] .fallback .del{background:rgba(255,75,85,.16)}
+:root[data-mode="dark"] .overlay{background:rgba(0,0,0,.72)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+button,input,textarea,select{font:inherit;color:inherit}
+code,pre,kbd{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.kicker{display:block;font:800 10px/1.15 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.muted{color:var(--muted)}
+.spacer{flex:1}
+
+/* Controls */
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:2px solid var(--rule);background:var(--paper);color:var(--ink);font:800 10.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--slab);color:var(--paper)}
+.btn-solid{background:var(--slab);color:var(--paper)}
+.btn-solid:hover{background:var(--paper);color:var(--ink)}
+.btn-sm{height:24px;padding:0 8px;font-size:9.5px}
+.btn:disabled{opacity:.4;cursor:default}
+.count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;background:var(--p2);color:var(--on-p2);font:900 10.5px/1 var(--sans)}
+.bar{width:120px;height:9px;border:2px solid var(--rule);background:var(--paper)}
+.bar i{display:block;height:100%;background:var(--slab)}
+.progress{display:flex;align-items:center;gap:8px;font:800 10.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;height:21px;padding:0 8px;background:var(--wbg);color:var(--wi);border:2px solid var(--wr);font:900 9.5px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase;flex:none}
+.note{display:inline-block;padding:1px 6px;background:var(--p2);color:var(--on-p2);font:700 10px/1.5 var(--sans)}
+
+/* The introduction stays prose; underlined phrases disclose the next level. */
+.pr-summary{margin-top:26px;max-width:88ch;scroll-margin-top:90px}
+.summary-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.summary-head .kicker{flex:1;color:var(--muted)}
+.summary-hint{font-size:12px;color:var(--muted);margin-bottom:12px}
+.summary-prose{font-size:16px;line-height:1.8;overflow-wrap:anywhere}
+.summary-prose p+p{margin-top:12px}
+.summary-prose+.summary-prose,.summary-detail+.summary-prose{margin-top:12px}
+.summary-tag{display:inline;padding:0 2px;border:0;border-bottom:1px dashed var(--blue);background:transparent;color:var(--blue);font:inherit;line-height:inherit;text-align:left;cursor:pointer}
+.summary-tag::after{content:" +";font:700 11px/1 var(--mono)}
+.summary-tag[aria-expanded="true"]{background:var(--wash-2);border-bottom-style:solid}
+.summary-tag[aria-expanded="true"]::after{content:" −"}
+.summary-tag:hover{background:var(--wash)}
+.summary-detail{margin:14px 0 18px;padding:15px 18px;border-left:3px solid var(--blue);background:var(--wash)}
+.summary-detail[hidden]{display:none}
+.summary-detail .summary-head{margin-bottom:8px}
+.summary-detail h3,.summary-detail h4,.summary-detail h5,.summary-detail h6{font:700 16px/1.35 var(--sans);margin:0 0 9px}
+.summary-detail .summary-prose{font-size:14px;line-height:1.75}
+.summary-files{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:14px;font:400 11.5px/1.6 var(--mono)}
+.summary-files a{color:var(--blue);overflow-wrap:anywhere}
+.summary-files .kicker{color:var(--muted);margin-bottom:2px}
+@media(max-width:620px){.pr-summary{scroll-margin-top:150px}.summary-prose{font-size:15px}.summary-detail{padding:12px}.summary-detail .summary-detail{padding-left:10px}}
+
+/* Checkbox: a square that fills in. Used for files, folders and whole groups. */
+.box{flex:none;width:16px;height:16px;padding:0;border:2px solid var(--grey);background:var(--paper);cursor:pointer;position:relative}
+.box:hover{border-color:var(--ctl)}
+.box[aria-checked="true"]{background:var(--green);border-color:var(--ctl)}
+.box[aria-checked="true"]::after{content:"";position:absolute;left:3px;top:0;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.box[aria-checked="mixed"]{border-color:var(--ctl)}
+.box[aria-checked="mixed"]::after{content:"";position:absolute;left:2px;top:5px;width:8px;height:2px;background:var(--slab)}
+/* Inside a weight bar the box borrows the bar's own text colour - the one value that
+   reads on red, on a slab and on paper alike. Same specificity as the rules above, so
+   it wins on order, which only holds because none of them is mode-qualified. */
+.group-head .box{border-color:currentColor}
+
+/* Monaco line decorations + the no-network fallback */
+.dec-add{background:rgba(0,178,90,.13)}
+.dec-del{background:rgba(229,32,46,.11)}
+.dec-hunk{background:var(--wash-2);opacity:.85}
+.dec-commented{background:rgba(255,196,0,.22)}
+.glyph-comment{background:var(--p2);border:2px solid var(--rule);width:11px!important;height:11px!important;margin-left:5px;margin-top:4px;cursor:pointer}
+.fallback{overflow:auto;margin:0;padding:0;font:12px/1.5 var(--mono);background:var(--paper)}
+.fallback .ln{display:flex}
+.fallback .n{flex:none;width:86px;padding:0 10px;text-align:right;color:var(--faint);background:var(--wash);user-select:none;cursor:pointer}
+.fallback .n:hover{background:var(--wash-2);color:var(--ink)}
+.fallback .c{flex:1;padding:0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.fallback .add{background:rgba(0,178,90,.12)}
+.fallback .del{background:rgba(229,32,46,.1)}
+.fallback .hunk{background:var(--wash-2);color:var(--muted)}
+
+/* Comments */
+.cmt{border:2px solid var(--rule);margin:0 0 10px;background:var(--paper)}
+.cmt-head{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:2px solid var(--rule);background:var(--wash)}
+.cmt-kind{font:900 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;background:var(--slab);color:var(--paper)}
+.cmt-kind[data-kind="question"]{background:var(--blue);color:#fff}
+.cmt-kind[data-kind="nit"]{background:var(--grey)}
+.cmt-kind[data-kind="praise"]{background:var(--green);color:#fff}
+.cmt-loc{flex:1;font:500 11px/1 var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.cmt-loc:hover{color:var(--ink);text-decoration:underline}
+.cmt-x{border:0;background:transparent;cursor:pointer;font-size:16px;line-height:1;padding:0 2px;color:var(--muted)}
+.cmt-x:hover{color:var(--p0)}
+.cmt-code{margin:0;padding:6px 9px;border-bottom:1px solid var(--line);background:var(--wash);font:11.5px/1.5 var(--mono);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;max-height:4.6em;overflow:hidden}
+.cmt-body{padding:7px 9px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Composer */
+.composer{border-top:3px solid var(--rule);padding:10px 12px;background:var(--wash)}
+.composer textarea{display:block;width:100%;min-height:62px;resize:vertical;border:2px solid var(--rule);padding:7px 8px;font:13px/1.45 var(--sans);background:var(--paper)}
+.composer-head{display:flex;align-items:center;gap:7px;margin:0 0 7px;flex-wrap:wrap}
+.kinds{display:inline-flex;border:2px solid var(--rule)}
+.kinds button{border:0;border-right:2px solid var(--rule);background:var(--paper);padding:0 8px;height:24px;font:800 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;cursor:pointer}
+.kinds button:last-child{border-right:0}
+.kinds button[aria-pressed="true"]{background:var(--slab);color:var(--paper)}
+.theme button{height:26px;padding:0 9px}
+.composer-foot{display:flex;align-items:center;gap:8px;margin-top:8px}
+.anchor{flex:1;font:500 11px/1.3 var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Export dialog + toast */
+.overlay{position:fixed;inset:0;z-index:50;display:none;place-items:center;padding:20px;background:rgba(0,0,0,.5)}
+.overlay.open{display:grid}
+.sheet{width:min(820px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:var(--paper);border:3px solid var(--rule)}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:3px solid var(--rule)}
+.sheet pre{flex:1;overflow:auto;margin:0;padding:12px 14px;font:11.5px/1.5 var(--mono);background:var(--wash);white-space:pre}
+.sheet-foot{display:flex;gap:8px;padding:11px 14px;border-top:3px solid var(--rule);flex-wrap:wrap;align-items:center}
+.sheet-foot input,.sheet-foot select,.sheet-head select{border:2px solid var(--rule);padding:5px 8px;background:var(--paper)}
+.sheet-foot input{flex:1;min-width:160px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;padding:9px 16px;background:var(--slab);color:var(--paper);font:800 11px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:0;transition:opacity .18s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* Stack bar: one chip per PR, bottom of the stack first. Only stack renders show it. */
+.stackbar{display:flex;align-items:center;gap:10px;padding:6px 16px;border-bottom:2px solid var(--rule);background:var(--wash);min-width:0}
+.stackbar[hidden]{display:none}
+.stack-head a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.stack-head a:hover{color:var(--ink);text-decoration:underline}
+.stack-prs{display:flex;align-items:stretch;gap:0;margin:0;padding:0;list-style:none;overflow-x:auto;flex:1;min-width:0;scrollbar-width:thin}
+.stack-pr{display:flex;align-items:center;flex:none}
+.stack-sep{padding:0 6px;font:700 12px/1 var(--mono);color:var(--faint)}
+.stack-chip{display:grid;grid-template-columns:auto auto auto;grid-template-areas:"num tally count" "title title title" "bar bar bar";column-gap:7px;row-gap:3px;align-items:center;max-width:250px;padding:5px 9px 6px;border:2px solid var(--line);background:var(--paper);color:var(--ink);text-decoration:none}
+.stack-chip:hover{border-color:var(--rule)}
+.stack-chip[aria-current="page"]{border-color:var(--rule);box-shadow:inset 0 -4px 0 var(--slab)}
+.stack-chip b{grid-area:num;font:800 12px/1 var(--sans)}
+.stack-chip .stack-tally{grid-area:tally;justify-self:end;font:600 10px/1 var(--mono);color:var(--muted)}
+.stack-chip .count{grid-area:count;min-width:16px;height:16px;font-size:9.5px}
+.stack-chip .count[hidden]{display:none}
+.stack-chip .stack-title{grid-area:title;font:400 11px/1.3 var(--sans);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stack-chip .stack-rel{grid-area:title;justify-self:end;font:700 9px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);background:var(--paper);padding-left:6px}
+.stack-chip .bar{grid-area:bar;width:100%;height:5px;border-width:1px}
+.stack-chip.done b::after{content:" ✓";color:var(--green)}
+.stack-step{display:flex;gap:4px;flex:none}
+.stack-step [aria-disabled="true"]{opacity:.35;pointer-events:none}
+/* A file the stack touches again elsewhere: a quiet pointer, not a warning. */
+.also{display:inline-flex;gap:4px;align-items:center;font:600 10px/1.4 var(--mono);color:var(--muted)}
+.also a{color:var(--blue)}
+@media (max-width:620px){.stackbar{padding:6px 10px}.stack-head{display:none}.stack-chip{max-width:170px}}
+@media print{.stackbar{display:none}}
+.sheet-head select[hidden]{display:none}
+.progress[hidden]{display:none}
+
+
+/* ── Views ────────────────────────────────────────────────────────────────
+   One is shown at a time. Plan and stack scroll as documents under a sticky header;
+   focus is a fixed full-height app, so the editor owns its own scrolling. */
+#view-plan,#view-focus,#view-stack{display:none}
+body[data-view="plan"] #view-plan,body[data-view="stack"] #view-stack{display:block}
+body[data-view="focus"]{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}
+body[data-view="focus"] #view-focus{display:grid}
+
+/* Sticky command bar, plus the stack bar under it on stack renders */
+.masthead{position:sticky;top:0;z-index:30}
+.top{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:3px solid var(--rule);background:var(--paper);flex-wrap:wrap}
+.top h1{font:800 14px/1.2 var(--sans);letter-spacing:-.01em;max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .meta{font:500 11px/1 var(--mono);color:var(--muted)}
+/* The plan's lede repeats this verbatim a few pixels below; drop it before the bar wraps. */
+@media (max-width:1460px){body[data-view="plan"] .top .meta{display:none}}
+@media (max-width:1120px){.top h1{max-width:20ch}}
+.views{display:inline-flex;border:2px solid var(--rule)}
+.views a{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-right:2px solid var(--rule);background:var(--paper);color:var(--ink);font:800 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;text-decoration:none}
+.views a:last-child{border-right:0}
+.views a:hover{background:var(--wash)}
+.views a[aria-current="page"]{background:var(--slab);color:var(--paper)}
+body:not([data-view="plan"]) #t-collapse{display:none}
+
+/* ── Plan view ────────────────────────────────────────────────────────────
+   Paths are the widest thing here and they are the one thing that must not wrap:
+   a file row reads as one line or it reads as nothing. 1500 fits the longest path
+   in a real diff next to its notes. Prose keeps its own measure below, because a
+   1500px line of 12px text is about 200 characters and unreadable. */
+.wrap{max-width:1500px;margin:0 auto;padding:26px clamp(14px,3vw,30px) 90px}
+.lede h2{margin:9px 0 0;font:800 clamp(21px,3.4vw,32px)/1.08 var(--sans);letter-spacing:-.025em}
+.lede .meta{margin:9px 0 0;font:500 12px/1.5 var(--mono);color:var(--muted)}
+
+.metrics{display:flex;flex-wrap:wrap;margin:22px 0 0;border:2px solid var(--rule)}
+.metric{flex:1 1 120px;padding:9px 13px 11px;border-right:2px solid var(--rule)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font:800 25px/1 var(--sans);letter-spacing:-.02em;margin-top:4px}
+.metric .kicker{color:var(--muted)}
+.metric.hot b{color:var(--p0)}
+
+#view-plan .band{margin:26px 0 0;border:2px solid var(--rule)}
+#view-plan .band-top{height:11px;background:var(--hazard)}
+#view-plan .band-head{padding:8px 13px;background:var(--slab);color:var(--paper)}
+#view-plan .q{display:flex;gap:13px;padding:11px 13px;border-top:2px solid var(--rule)}
+#view-plan .q .kind{flex:none;width:84px;font:800 10px/1.4 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#view-plan .q .body{flex:1;min-width:0}
+#view-plan .q .files{margin:5px 0 0;font:400 11.5px/1.6 var(--mono);color:var(--faint);overflow-wrap:anywhere}
+
+#view-plan .station{margin:22px 0 0;display:grid;grid-template-columns:42px 1fr}
+#view-plan .gutter{position:relative;display:flex;flex-direction:column;align-items:center;padding-top:5px}
+/* The gutter stretches to the station's height, so this reaches across the 22px
+   margin and meets the next node. The last one stops at its own lamp instead. */
+#view-plan .gutter::before{content:"";position:absolute;top:0;bottom:-22px;width:2px;background:var(--line)}
+#view-plan .station:last-of-type .gutter::before{bottom:auto;height:48px}
+#view-plan .node{position:relative;z-index:1;width:26px;height:26px;display:grid;place-items:center;border:2px solid var(--wr);background:var(--paper);font:800 11px/1 var(--sans)}
+#view-plan .station[data-weight="critical"] .node{background:var(--p0);color:#fff}
+#view-plan .station[data-weight="read"] .node{background:var(--wbg);color:var(--wi)}
+#view-plan .lamp{width:10px;height:10px;margin-top:7px;border:2px solid var(--wr);background:var(--wbg)}
+
+#view-plan .group{align-self:start;border:2px solid var(--wr);background:var(--paper)}
+#view-plan .group-head{display:flex;align-items:center;gap:9px;padding:7px 11px;background:var(--wbg);color:var(--wi);cursor:pointer}
+#view-plan .station[data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
+#view-plan .group-head .label{font:800 11px/1.2 var(--sans);letter-spacing:.1em;text-transform:uppercase}
+#view-plan .group-head .tally{font:700 10.5px/1 var(--mono);opacity:.75}
+.caret{flex:none;width:13px;text-align:center;font-size:10px;transition:transform .12s}
+.caret.shut{transform:rotate(-90deg)}
+#view-plan .why{padding:7px 11px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);background:var(--wash)}
+#view-plan .why span{display:block;max-width:92ch}
+#view-plan .station[data-weight="critical"] .why{background:#fff2f3;color:var(--ink)}
+:root[data-mode="dark"] #view-plan .station[data-weight="critical"] .why{background:#2b1416}
+#view-plan .group-body{border-top:2px solid var(--wr)}
+
+#view-plan .dir,#view-plan .file{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;font:inherit;cursor:pointer;padding:5px 11px}
+#view-plan .dir{background:var(--wash);font:700 11.5px/1.4 var(--mono)}
+#view-plan .dir:hover{background:var(--wash-2)}
+#view-plan .dir .n{flex:1;min-width:0;overflow-wrap:anywhere}
+#view-plan .dir .tally{font:600 10px/1 var(--mono);color:var(--muted)}
+#view-plan .file:hover{background:var(--wash)}
+#view-plan .file.open{background:var(--wash-2);box-shadow:inset 3px 0 0 var(--ink)}
+#view-plan .file.done .fname{opacity:.45;text-decoration:line-through}
+#view-plan .file.folded .fname{color:var(--faint)}
+/* A note can be a whole sentence, and the notes are the only thing on the row that
+   cannot shrink. Sized from zero the name was the only give, so three of them wrung
+   it down to nothing and overflow-wrap:anywhere spelled the path out one letter per
+   line. The basis makes the name count towards the line, so a note that does not fit
+   wraps underneath it instead of squeezing it, and the floor is the width the name is
+   never allowed to fall below. */
+.fname{flex:1 1 22ch;min-width:min(100%,22ch);font:400 12px/1.35 var(--mono);overflow-wrap:anywhere;color:var(--muted)}
+.fname b{font-weight:600;color:var(--ink)}
+#view-plan .file.done .fname b{color:inherit}
+.fstat{flex:none;font:500 10.5px/1 var(--mono);color:var(--muted)}
+#view-plan .tag{flex:0 1 auto;min-width:0;overflow-wrap:break-word;padding:1px 5px;background:var(--p2);color:var(--on-p2);font:700 9.5px/1.5 var(--sans);text-transform:uppercase;letter-spacing:.06em}
+#view-plan .tag.cold{background:var(--grey-lt);color:var(--muted)}
+.more{width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--hatch-soft),var(--wash);font:700 10.5px/1.4 var(--sans);letter-spacing:.04em;color:var(--muted);text-align:left;cursor:pointer}
+
+/* Inline drawer */
+#view-plan .drawer{display:grid;grid-template-columns:1fr 310px;border-top:2px solid var(--rule);border-bottom:2px solid var(--rule);background:var(--wash)}
+#view-plan .drawer-main{min-width:0;display:flex;flex-direction:column;background:var(--paper)}
+#view-plan .drawer-head{display:flex;align-items:center;gap:9px;padding:7px 11px;border-bottom:2px solid var(--rule);flex-wrap:wrap}
+#view-plan .drawer-head .path{font:700 12px/1.3 var(--mono);overflow-wrap:anywhere}
+#view-plan .drawer-diff{min-width:0}
+#view-plan .drawer-side{display:flex;flex-direction:column;border-left:2px solid var(--rule);min-width:0;max-height:620px}
+#view-plan .drawer-side .list{flex:1;overflow:auto;padding:10px;min-height:60px}
+@media (max-width:980px){#view-plan .drawer{grid-template-columns:1fr}#view-plan .drawer-side{border-left:0;border-top:2px solid var(--rule)}}
+/* Hiding the gutter takes it out of grid placement, so the group auto-places into
+   what used to be the gutter's column. One column, not two, or the group lands in
+   a 0 width track and every row inside it is a sliver. */
+@media (max-width:620px){#view-plan .station{grid-template-columns:1fr}#view-plan .gutter{display:none}}
+
+/* ── Focus view ─────────────────────────────────────────────────────────── */
+#view-focus{--rail:330px;--panel:350px;grid-template-columns:var(--rail) 1fr var(--panel);min-height:0}
+#view-focus .rail,#view-focus .panel{overflow:auto;min-height:0;background:var(--paper)}
+#view-focus .rail{border-right:2px solid var(--rule)}
+#view-focus .panel{border-left:2px solid var(--rule);display:flex;flex-direction:column}
+#view-focus .center{min-width:0;min-height:0;display:flex;flex-direction:column}
+
+#view-focus .group-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--wbg);color:var(--wi);border-bottom:2px solid var(--wr);cursor:pointer}
+#view-focus [data-weight="skim"] .group-head,#view-focus [data-weight="skip"] .group-head{border-color:var(--grey)}
+#view-focus [data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
+#view-focus .group-head .label{flex:1;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+#view-focus .group-head .tally{font:700 10px/1 var(--mono);opacity:.8}
+#view-focus .caret{width:12px;font-size:9px}
+#view-focus .frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;cursor:pointer}
+#view-focus .frow:hover{background:var(--wash)}
+#view-focus .frow[aria-current="true"]{background:var(--wash-2);box-shadow:inset 4px 0 0 var(--ink)}
+#view-focus .frow.done .fname{opacity:.45;text-decoration:line-through}
+#view-focus .fname b{font-weight:700}
+
+#view-focus .fhead{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:2px solid var(--rule);flex-wrap:wrap;flex:none}
+#view-focus .fhead .path{font:700 13px/1.3 var(--mono);overflow-wrap:anywhere}
+#view-focus .fwhy{width:100%;font-size:12px;color:var(--muted)}
+#editor{flex:1;min-height:0}
+#editor .fallback{height:100%}
+
+#view-focus .panel-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:2px solid var(--rule);background:var(--slab);color:var(--paper);flex:none}
+#view-focus .panel-body{flex:1;overflow:auto;padding:12px}
+#view-focus .composer{flex:none}
+@media (max-width:1100px){#view-focus{--rail:260px;--panel:300px}}
+@media (max-width:820px){#view-focus{grid-template-columns:1fr}#view-focus .rail,#view-focus .panel{display:none}}
+
+/* ── Stack overview ─────────────────────────────────────────────────────── */
+#view-stack.wrap{max-width:1000px}
+#view-stack .prs{list-style:none;margin:30px 0 0;padding:0;border-left:2px solid var(--line)}
+#view-stack .pr{position:relative;margin:0 0 20px;padding:0 0 0 22px}
+#view-stack .pr::before{content:"";position:absolute;left:-8px;top:5px;width:14px;height:14px;background:var(--paper);border:2px solid var(--rule)}
+#view-stack .pr.done::before{background:var(--green)}
+/* A PR forked from something other than the one listed above it sits one step in. */
+#view-stack .pr.fork{margin-left:26px}
+#view-stack .pr-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+#view-stack .pr-head b{font:800 18px/1.2 var(--sans)}
+#view-stack .pr-head a{font:600 16px/1.3 var(--sans);color:inherit}
+#view-stack .pr-head .progress{margin-left:auto}
+#view-stack .pr .meta{margin:5px 0 0;font:500 11.5px/1.5 var(--mono);color:var(--muted)}
+#view-stack .gist{margin:8px 0 0;max-width:78ch;font-size:14px;color:var(--muted)}
+#view-stack .links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+#view-stack .s-foot{margin:30px 0 0;padding:14px 0 0;border-top:2px solid var(--line);color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body data-view="plan">
+<script type="application/json" id="stack">{"format":"human-review/stack@1","title":"Account API keys, as a stack","trunk":"main","prs":[{"id":"pr-411","parent":null,"plan":{"format":"human-review/plan@1","generated_at":"2026-11-17T09:00:00Z","target":{"kind":"pr","repo":"acme/example","number":411,"title":"feat: account audit log","author":"example","base":"main","branch":"feat/audit-log","head_sha":"1111111111111111111111111111111111111111","url":"https://github.com/acme/example/pull/411","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"stats":{"critical":2,"read":6,"skim":1,"skip":1,"files":10,"additions":33,"deletions":0,"folded":0},"questions":[],"groups":[{"key":"critical:migration","rule":"migration","label":"Migrations","weight":"critical","why":"Runs once against production data and is awkward to undo.","files":["db/migrate/20260110120000_create_audit_events.rb"]},{"key":"critical:authz","rule":"authz","label":"Authorization","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","files":["config/permissions.json"]},{"key":"read:models","rule":"models","label":"Models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","files":["app/models/audit_event.rb","app/models/account.rb"]},{"key":"read:controllers","rule":"controllers","label":"Controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","files":["app/controllers/audit_events_controller.rb"]},{"key":"read:services","rule":"services","label":"Services, organizers and interactors","weight":"read","why":"The business logic. An organizer is the sequence; an interactor is one step and its rollback.","files":["app/services/audit/recorder.rb"]},{"key":"read:routes","rule":"routes","label":"Routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","files":["config/routes.rb"]},{"key":"read:request-spec","rule":"request-spec","label":"Request specs","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","files":["spec/requests/audit_events_spec.rb"]},{"key":"skim:unit-spec","rule":"unit-spec","label":"Unit specs","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","files":["spec/models/audit_event_spec.rb"]},{"key":"skip:schema","rule":"schema","label":"Schema dump","weight":"skip","why":"Generated by the migrations. Read those instead.","files":["db/schema.rb"]}],"order":["db/migrate/20260110120000_create_audit_events.rb","config/permissions.json","app/models/audit_event.rb","app/models/account.rb","app/controllers/audit_events_controller.rb","app/services/audit/recorder.rb","config/routes.rb","spec/requests/audit_events_spec.rb"],"files":[{"path":"db/migrate/20260110120000_create_audit_events.rb","add":7,"del":0,"status":"added","patch":"@@ -1,1 +1,8 @@\n def change\n+create_table :audit_events do |t|\n+  t.references :account, null: false, foreign_key: true\n+  t.string :action, null: false\n+  t.jsonb :metadata, null: false, default: {}\n+  t.timestamps\n+end\n+add_index :audit_events, [:account_id, :created_at]\n end","previous":null,"rule_id":"migration","weight":"critical","why":"Runs once against production data and is awkward to undo.","label":"Migrations","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/permissions.json","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+    \"audit_log.read\": [\"owner\", \"admin\"],\n end","previous":null,"rule_id":"authz","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","label":"Authorization","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"app/models/audit_event.rb","add":5,"del":0,"status":"added","patch":"@@ -1,1 +1,6 @@\n def change\n+class AuditEvent \u003c ApplicationRecord\n+  belongs_to :account\n+  validates :action, presence: true\n+  scope :recent, -\u003e { order(created_at: :desc) }\n+end\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/account.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+  has_many :audit_events, dependent: :delete_all\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/controllers/audit_events_controller.rb","add":4,"del":0,"status":"added","patch":"@@ -1,1 +1,5 @@\n def change\n+def index\n+  authorize! :audit_log_read\n+  @events = current_account.audit_events.recent.limit(100)\n+end\n end","previous":null,"rule_id":"controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","label":"Controllers","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"app/services/audit/recorder.rb","add":7,"del":0,"status":"added","patch":"@@ -1,1 +1,8 @@\n def change\n+module Audit\n+  class Recorder\n+    def self.call(account:, action:, **metadata)\n+      account.audit_events.create!(action: action, metadata: metadata)\n+    end\n+  end\n+end\n end","previous":null,"rule_id":"services","weight":"read","why":"The business logic. An organizer is the sequence; an interactor is one step and its rollback.","label":"Services, organizers and interactors","collapse":null,"report":null,"rank":40,"never_demote":false,"notes":[]},{"path":"config/routes.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+  resources :audit_events, only: :index\n end","previous":null,"rule_id":"routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","label":"Routes","collapse":null,"report":null,"rank":55,"never_demote":false,"notes":[]},{"path":"spec/requests/audit_events_spec.rb","add":5,"del":0,"status":"added","patch":"@@ -1,1 +1,6 @@\n def change\n+it \"lists recent events for admins\" do\n+  sign_in admin\n+  get audit_events_path\n+  expect(response).to have_http_status(:ok)\n+end\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":[]},{"path":"spec/models/audit_event_spec.rb","add":1,"del":0,"status":"added","patch":"@@ -1,1 +1,2 @@\n def change\n+it { is_expected.to validate_presence_of(:action) }\n end","previous":null,"rule_id":"unit-spec","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","label":"Unit specs","collapse":null,"report":null,"rank":99,"never_demote":false,"notes":[]},{"path":"db/schema.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+  create_table \"audit_events\" do |t|\n end","previous":null,"rule_id":"schema","weight":"skip","why":"Generated by the migrations. Read those instead.","label":"Schema dump","collapse":null,"report":{"unless_paired_with":"db/migrate/**","deletions_over":8},"rank":30,"never_demote":false,"notes":[]}],"summary":{"overview":["This illustrative PR is the base of the stack: it adds an append-only ",{"text":"audit event table","topic":"table"}," per account and a recorder service that later PRs call. Admins and owners get a read-only list through a new ",{"text":"permission and route","topic":"access"},". Nothing writes events yet, so the recorder is unused until the API-key PR above it. The snippets are synthetic and no tests were run."],"topics":[{"id":"table","title":"The audit event table","paragraphs":[["Events belong to an account with a non-null foreign key and carry an action name plus a JSON metadata column. The composite index on account and creation time matches the only query in this PR, the recent list. Account deletes its events with delete_all, which skips callbacks; that is fine for an append-only log but worth confirming against retention requirements."]],"files":["db/migrate/20260110120000_create_audit_events.rb","app/models/audit_event.rb","app/models/account.rb"]},{"id":"access","title":"Who can read the log","paragraphs":[["The permission map grants audit_log.read to owners and admins, and the controller authorizes it before loading at most 100 recent events. The request spec covers the admin path only; a member being refused is not shown."]],"files":["config/permissions.json","app/controllers/audit_events_controller.rb","spec/requests/audit_events_spec.rb"]}],"head_sha":"1111111111111111111111111111111111111111"}}},{"id":"pr-412","parent":"pr-411","plan":{"format":"human-review/plan@1","generated_at":"2026-01-14T10:00:00Z","target":{"kind":"pr","repo":"acme/example","number":412,"title":"feat: account API keys with hashed tokens","author":"example","base":"feat/audit-log","branch":"feat/api-keys","head_sha":"0000000000000000000000000000000000000000","url":"https://github.com/acme/example/pull/412","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"summary":{"head_sha":"0000000000000000000000000000000000000000","overview":["This illustrative PR, second in the stack on the audit log, adds account API keys, connecting stored records to management routes and a settings entry point. Its ",{"text":"token handling","topic":"tokens"}," returns a token on creation and introduces digest storage plus log filtering. The ",{"text":"account and permission changes","topic":"access"}," connect keys to accounts and declare who can manage them, making the data contract and access checks central to review. The change also adds request coverage and removes legacy coverage, so ",{"text":"what the tests establish","topic":"coverage"}," needs attention. These snippets are synthetic and no tests were run; use the introduction to orient yourself, then follow the reading order to inspect the code."],"topics":[{"id":"tokens","title":"Token handling","paragraphs":[["The create action delegates to a service and returns key.plaintext in a created response. The migration adds token_digest with a unique index, rather than a plaintext-token column. A separate ",{"text":"digest implementation","topic":"digest"}," supplies the hashing operation, and the logging initializer adds token-related filter names. These pieces express the intended secret lifecycle, but the snippets omit the creation service and do not prove that every write or response follows it."]],"files":["app/controllers/api_keys_controller.rb","db/migrate/20260114093000_create_api_keys.rb","config/initializers/filter_parameter_logging.rb"]},{"id":"digest","title":"How the digest is derived","paragraphs":[["TokenDigest uses HMAC-SHA256 with Rails.application.secret_key_base as the key and the token as the message. The stored value therefore depends on both inputs. If verification recomputes this digest, rotating secret_key_base would change the result for an existing token; that consequence is an inference because the lookup path is absent here. Review that path before deciding how existing keys should behave during secret rotation."]],"files":["app/services/api_keys/token_digest.rb"]},{"id":"access","title":"Account ownership and management permissions","paragraphs":[["The migration requires an account reference, and ApiKey belongs to an account. Account receives a dependent-destroy association, while the active scope selects records whose revoked_at is empty. The permission map lists owners and admins for api_keys.manage, and the routes expose index, create and destroy. The snippets show the declaration but omit authorization enforcement and revocation actions, so those behaviors remain unverified."]],"files":["app/models/api_key.rb","app/models/account.rb","config/permissions.json","config/routes.rb"]},{"id":"coverage","title":"What the tests establish","paragraphs":[["The new request example posts a name and checks that a token is present in the response. Its description says the token is returned exactly once, but the shown assertion does not exercise a later read. The plan also flags substantial removal in the legacy request spec, so compare the old cases with their replacements. No test execution is recorded in this illustrative review."]],"files":["spec/requests/api_keys_spec.rb","spec/requests/legacy_tokens_spec.rb"]}]},"stats":{"critical":5,"read":11,"skim":8,"skip":8,"files":32,"additions":486,"deletions":186,"folded":8},"questions":[{"id":"q-wiring","kind":"wiring","text":"5 files changed by one or two lines each - registration or include wiring. Do not read the diffs; check the list is complete.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"id":"q-gen-config/brakeman.ignore","kind":"generated","text":"config/brakeman.ignore gains 5 lines. Confirm every new entry is wanted.","files":["config/brakeman.ignore"]},{"id":"q-coverage","kind":"coverage","text":"1 test file loses far more than it gains. Confirm the behaviour went away, not just its test.","files":["spec/requests/legacy_tokens_spec.rb"]}],"groups":[{"key":"critical:migration","rule":"migration","label":"Migrations","weight":"critical","why":"Runs once against production data and is awkward to undo.","files":["db/migrate/20260114093000_create_api_keys.rb"]},{"key":"critical:authz","rule":"authz","label":"Authorization","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","files":["config/permissions.json"]},{"key":"critical:secrets","rule":"secrets","label":"Secret handling","weight":"critical","why":"Controls what leaks into logs and error reports.","files":["app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb"]},{"key":"critical:dep-manifest","rule":"dep-manifest","label":"Dependencies","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","files":["Gemfile"]},{"key":"read:models","rule":"models","label":"Models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","files":["app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb"]},{"key":"read:controllers","rule":"controllers","label":"Controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","files":["app/controllers/api_keys_controller.rb"]},{"key":"read:api-contract","rule":"api-contract","label":"API contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["docs/API_CHANGELOG.md"]},{"key":"read:routes","rule":"routes","label":"Routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","files":["config/routes.rb"]},{"key":"read:request-spec","rule":"request-spec","label":"Request specs","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","files":["spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"]},{"key":"skim:view","rule":"view","label":"Views and components","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","files":["app/components/settings/api_keys/component.html.erb"]},{"key":"skim:api-contract","rule":"api-contract","label":"API contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"key":"skim:e2e","rule":"e2e","label":"End-to-end tests","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","files":["e2e/spec/settings/api-keys.spec.ts"]},{"key":"skim:unit-spec","rule":"unit-spec","label":"Unit specs","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","files":["spec/models/api_key_spec.rb"]},{"key":"skip:locale","rule":"locale","label":"Translations","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","files":["config/locales/de.yml","config/locales/en.yml","config/locales/fr.yml","config/locales/it.yml","config/locales/nl.yml"]},{"key":"skip:lockfile","rule":"lockfile","label":"Lockfiles","weight":"skip","why":"Resolver output. The manifest above is the decision.","files":["Gemfile.lock"]},{"key":"skip:schema","rule":"schema","label":"Schema dump","weight":"skip","why":"Generated by the migrations. Read those instead.","files":["db/schema.rb"]},{"key":"skip:brakeman","rule":"brakeman","label":"Brakeman ignores","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","files":["config/brakeman.ignore"]}],"order":["db/migrate/20260114093000_create_api_keys.rb","config/permissions.json","app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb","Gemfile","app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb","app/controllers/api_keys_controller.rb","docs/API_CHANGELOG.md","config/routes.rb","spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"],"files":[{"path":"db/migrate/20260114093000_create_api_keys.rb","add":9,"del":0,"status":"added","patch":"@@ -1,2 +1,11 @@\n def change\n+    create_table :api_keys do |t|\n+      t.references :account, null: false, foreign_key: true\n+      t.string :token_digest, null: false\n+      t.string :name, null: false\n+      t.datetime :last_used_at\n+      t.datetime :revoked_at\n+      t.timestamps\n+    end\n+    add_index :api_keys, :token_digest, unique: true\n end","previous":null,"rule_id":"migration","weight":"critical","why":"Runs once against production data and is awkward to undo.","label":"Migrations","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/permissions.json","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    \"api_keys.manage\": [\"owner\", \"admin\"],\n end","previous":null,"rule_id":"authz","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","label":"Authorization","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"app/services/api_keys/token_digest.rb","add":6,"del":0,"status":"added","patch":"@@ -1,2 +1,5 @@\n def change\n+  def self.call(token)\n+    OpenSSL::HMAC.hexdigest('SHA256', Rails.application.secret_key_base, token)\n+  end\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"config/initializers/filter_parameter_logging.rb","add":1,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+Rails.application.config.filter_parameters += %i[passw secret token _key api_token]\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"Gemfile","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+gem \"rack-attack\", \"~\u003e 6.7\"\n end","previous":null,"rule_id":"dep-manifest","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","label":"Dependencies","collapse":null,"report":null,"rank":60,"never_demote":false,"notes":[]},{"path":"app/models/api_key.rb","add":54,"del":0,"status":"added","patch":"@@ -1,2 +1,4 @@\n def change\n+  belongs_to :account\n+  scope :active, -\u003e { where(revoked_at: nil) }\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/account.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/audit_event.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/membership.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/session.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/webhook.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/controllers/api_keys_controller.rb","add":88,"del":0,"status":"added","patch":"@@ -1,2 +1,6 @@\n def change\n+  def create\n+    key = ApiKeys::CreateService.call(account: current_account, name: params[:name])\n+    render json: { token: key.plaintext }, status: :created\n+  end\n end","previous":null,"rule_id":"controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","label":"Controllers","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"docs/API_CHANGELOG.md","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,5 @@\n def change\n+## 2026-01-14\n+\n+Added `/api_keys`.\n end","previous":null,"rule_id":"api-contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":[]},{"path":"config/routes.rb","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  resources :api_keys, only: %i[index create destroy]\n end","previous":null,"rule_id":"routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","label":"Routes","collapse":null,"report":null,"rank":55,"never_demote":false,"notes":[]},{"path":"spec/requests/legacy_tokens_spec.rb","add":2,"del":184,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  # replaced by spec/requests/api_keys_spec.rb\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":["coverage removed - intentional?"]},{"path":"spec/requests/api_keys_spec.rb","add":96,"del":0,"status":"added","patch":"@@ -1,2 +1,8 @@\n def change\n+  describe \"POST /api_keys\" do\n+    it \"returns the token exactly once\" do\n+      post api_keys_path, params: { name: \"deploy\" }\n+      expect(response.parsed_body[\"token\"]).to be_present\n+    end\n+  end\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":[]},{"path":"app/components/settings/api_keys/component.html.erb","add":31,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+\u003c%= render Settings::Card::Component.new(title: t(\".title\")) do %\u003e\n end","previous":null,"rule_id":"view","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","label":"Views and components","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"app/serializers/account_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folds":4},{"path":"app/serializers/audit_event_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/membership_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/session_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/webhook_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"e2e/spec/settings/api-keys.spec.ts","add":74,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+test(\"creates and revokes a key\", async ({ page }) =\u003e {\n end","previous":null,"rule_id":"e2e","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","label":"End-to-end tests","collapse":null,"report":null,"rank":97,"never_demote":false,"notes":[]},{"path":"spec/models/api_key_spec.rb","add":61,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+  it { is_expected.to belong_to(:account) }\n end","previous":null,"rule_id":"unit-spec","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","label":"Unit specs","collapse":null,"report":null,"rank":99,"never_demote":false,"notes":[]},{"path":"config/locales/de.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folds":4},{"path":"config/locales/en.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/fr.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/it.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/nl.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"Gemfile.lock","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    rack-attack (6.7.0)\n end","previous":null,"rule_id":"lockfile","weight":"skip","why":"Resolver output. The manifest above is the decision.","label":"Lockfiles","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"db/schema.rb","add":12,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  create_table \"api_keys\", force: :cascade do |t|\n end","previous":null,"rule_id":"schema","weight":"skip","why":"Generated by the migrations. Read those instead.","label":"Schema dump","collapse":null,"report":{"unless_paired_with":"db/migrate/**","deletions_over":8},"rank":30,"never_demote":false,"notes":[]},{"path":"config/brakeman.ignore","add":5,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+      \"fingerprint\": \"a1b2c3\",\n+      \"note\": \"token is hashed\"\n end","previous":null,"rule_id":"brakeman","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","label":"Brakeman ignores","collapse":null,"report":{"additions_over":0},"rank":40,"never_demote":false,"notes":[]}]}},{"id":"pr-413","parent":"pr-412","plan":{"format":"human-review/plan@1","generated_at":"2026-11-17T09:00:00Z","target":{"kind":"pr","repo":"acme/example","number":413,"title":"feat: revoke API keys from settings","author":"example","base":"feat/api-keys","branch":"feat/api-key-revoke","head_sha":"3333333333333333333333333333333333333333","url":"https://github.com/acme/example/pull/413","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"stats":{"critical":1,"read":2,"skim":1,"skip":2,"files":6,"additions":17,"deletions":0,"folded":0},"questions":[],"groups":[{"key":"critical:models","rule":"models","label":"Models","weight":"critical","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","files":["app/models/api_key.rb"]},{"key":"read:controllers","rule":"controllers","label":"Controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","files":["app/controllers/api_keys_controller.rb"]},{"key":"read:request-spec","rule":"request-spec","label":"Request specs","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","files":["spec/requests/api_keys_spec.rb"]},{"key":"skim:view","rule":"view","label":"Views and components","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","files":["app/components/settings/api_keys/component.html.erb"]},{"key":"skip:locale","rule":"locale","label":"Translations","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","files":["config/locales/de.yml","config/locales/en.yml"]}],"order":["app/models/api_key.rb","app/controllers/api_keys_controller.rb","spec/requests/api_keys_spec.rb"],"files":[{"path":"app/models/api_key.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+  def revoked? = revoked_at.present?\n end","previous":null,"rule_id":"models","weight":"critical","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":["tiny change - this is the whole fix"]},{"path":"app/controllers/api_keys_controller.rb","add":6,"del":0,"status":"modified","patch":"@@ -1,1 +1,7 @@\n def change\n+def destroy\n+  key = current_account.api_keys.active.find(params[:id])\n+  key.update!(revoked_at: Time.current)\n+  Audit::Recorder.call(account: current_account, action: \"api_key.revoked\", key_id: key.id)\n+  head :no_content\n+end\n end","previous":null,"rule_id":"controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","label":"Controllers","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"spec/requests/api_keys_spec.rb","add":5,"del":0,"status":"modified","patch":"@@ -1,1 +1,6 @@\n def change\n+it \"revokes a key and records it\" do\n+  delete api_key_path(key)\n+  expect(key.reload).to be_revoked\n+  expect(AuditEvent.last.action).to eq(\"api_key.revoked\")\n+end\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":[]},{"path":"app/components/settings/api_keys/component.html.erb","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+\u003c%= button_to t(\".revoke\"), api_key_path(key), method: :delete, data: { turbo_confirm: t(\".confirm\") } %\u003e\n end","previous":null,"rule_id":"view","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","label":"Views and components","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/locales/de.yml","add":2,"del":0,"status":"modified","patch":"@@ -1,1 +1,3 @@\n def change\n+      revoke: Widerrufen\n+      confirm: Diesen Schlüssel widerrufen?\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/locales/en.yml","add":2,"del":0,"status":"modified","patch":"@@ -1,1 +1,3 @@\n def change\n+      revoke: Revoke\n+      confirm: Revoke this key?\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[]}],"summary":{"overview":["This illustrative PR sits on the API-key PR and lets an account ",{"text":"revoke a key","topic":"revoke"}," from settings. Revocation stamps revoked_at instead of deleting the row and records an event through the audit recorder from the base PR, so it is the first PR where the ",{"text":"lower PRs meet","topic":"joins"},". The settings component gains a confirm button with two locale strings. The snippets are synthetic and no tests were run."],"topics":[{"id":"revoke","title":"Revoking a key","paragraphs":[["destroy looks the key up through current_account.api_keys.active, so another account's key or an already revoked one is a 404 rather than a silent success. It sets revoked_at and returns 204. No authorization call is shown here; whether api_keys.manage is enforced depends on a before_action in the PR below."]],"files":["app/controllers/api_keys_controller.rb","app/models/api_key.rb"]},{"id":"joins","title":"Where the stack comes together","paragraphs":[["Audit::Recorder comes from #411 and ApiKey with its active scope from #412. The request spec asserts both the revoked state and the recorded action, which is the first test that exercises the two lower PRs together."]],"files":["spec/requests/api_keys_spec.rb"]}],"head_sha":"3333333333333333333333333333333333333333"}}},{"id":"pr-414","parent":"pr-412","plan":{"format":"human-review/plan@1","generated_at":"2026-11-17T09:00:00Z","target":{"kind":"pr","repo":"acme/example","number":414,"title":"docs: API key runbook","author":"example","base":"feat/api-keys","branch":"docs/api-key-runbook","head_sha":"4444444444444444444444444444444444444444","url":"https://github.com/acme/example/pull/414","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"stats":{"critical":0,"read":2,"skim":0,"skip":0,"files":2,"additions":8,"deletions":0,"folded":0},"questions":[],"groups":[{"key":"read:api-contract","rule":"api-contract","label":"API contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["docs/API_CHANGELOG.md"]},{"key":"read:docs","rule":"docs","label":"Docs","weight":"read","why":"Useful orientation, but the code is the source of truth.","files":["docs/runbooks/api-keys.md"]}],"order":["docs/API_CHANGELOG.md","docs/runbooks/api-keys.md"],"files":[{"path":"docs/API_CHANGELOG.md","add":1,"del":0,"status":"modified","patch":"@@ -1,1 +1,2 @@\n def change\n+See the runbook for rotation.\n end","previous":null,"rule_id":"api-contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":[]},{"path":"docs/runbooks/api-keys.md","add":7,"del":0,"status":"added","patch":"@@ -1,1 +1,8 @@\n def change\n+# API keys\n+\n+Keys are stored as HMAC digests; a leaked database dump does not leak usable keys.\n+\n+## Rotating secret_key_base\n+\n+Rotation invalidates every key. Announce it first.\n end","previous":null,"rule_id":"docs","weight":"read","why":"Useful orientation, but the code is the source of truth.","label":"Docs","collapse":null,"report":null,"rank":80,"never_demote":false,"notes":[]}],"summary":{"overview":["This illustrative docs PR forks from the API-key PR, beside the revoke PR rather than above it. It adds a runbook whose ",{"text":"rotation warning","topic":"rotation"}," states as fact what the API-key PR's introduction could only infer. Nothing here changes code."],"topics":[{"id":"rotation","title":"The rotation warning","paragraphs":[["The runbook says rotating secret_key_base invalidates every key. That follows from TokenDigest keying HMAC with the secret, but only if lookup recomputes the digest, and the lookup path is not in any PR of this stack. Confirm it before the runbook ships."]],"files":["docs/runbooks/api-keys.md"]}],"head_sha":"4444444444444444444444444444444444444444"}}}]}</script>
+
+<header class="masthead">
+<div class="top">
+  <h1 id="t-title"></h1>
+  <span class="meta" id="t-meta"></span>
+  <span class="spacer"></span>
+  <span class="progress" id="t-prog"><span id="t-progress"></span><span class="bar"><i id="t-bar"></i></span></span>
+  <span id="t-theme"></span>
+  <nav class="views" aria-label="View">
+    <a id="t-plan" title="Reading plan (v)">Plan</a>
+    <a id="t-focus" title="Focus mode (v)">Focus</a>
+  </nav>
+  <button class="btn" id="t-collapse">Collapse</button>
+  <button class="btn" id="t-shortcuts" title="Keyboard shortcuts">?</button>
+  <button class="btn btn-solid" id="t-export">Export <span class="count" id="t-count">0</span></button>
+</div>
+<nav class="stackbar" id="stack-bar" hidden></nav>
+</header>
+
+<main class="wrap" id="view-plan">
+  <div class="lede">
+    <span class="kicker muted">Reading plan</span>
+    <h2 id="l-title"></h2>
+    <p class="meta" id="l-meta"></p>
+  </div>
+  <section class="pr-summary" id="summary" aria-label="PR introduction" hidden></section>
+  <div class="metrics" id="metrics"></div>
+  <div class="band" id="band" hidden>
+    <div class="band-top"></div>
+    <div class="band-head"><span class="kicker">Answer these without opening a diff</span></div>
+    <div id="questions"></div>
+  </div>
+  <div id="stations"></div>
+</main>
+
+<div id="view-focus">
+  <nav class="rail" id="rail" aria-label="Files in reading order"></nav>
+  <main class="center">
+    <div class="fhead" id="fhead"></div>
+    <div id="editor"></div>
+  </main>
+  <aside class="panel">
+    <div class="panel-head"><span class="kicker spacer">Comments</span><span class="count" id="p-count">0</span></div>
+    <div class="panel-body" id="comments"></div>
+    <div class="composer">
+      <div class="composer-head">
+        <span class="kinds" id="kinds">
+          <button data-kind="fix" aria-pressed="true">Fix</button>
+          <button data-kind="question" aria-pressed="false">Question</button>
+          <button data-kind="nit" aria-pressed="false">Nit</button>
+          <button data-kind="praise" aria-pressed="false">Praise</button>
+        </span>
+      </div>
+      <textarea id="composer" placeholder="Click a line number to anchor a comment, or write a file-level note here."></textarea>
+      <div class="composer-foot">
+        <span class="anchor" id="anchor">file-level</span>
+        <button class="btn btn-sm" id="clear-anchor">Clear</button>
+        <button class="btn btn-sm btn-solid" id="add">Add</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<main class="wrap" id="view-stack">
+  <div class="lede">
+    <span class="kicker muted">Stack overview</span>
+    <h2 id="s-title"></h2>
+    <p class="meta" id="s-meta"></p>
+  </div>
+  <div class="metrics" id="s-metrics"></div>
+  <ol class="prs" id="s-prs"></ol>
+  <p class="s-foot">Each PR is reviewed against its parent branch and keeps its own progress and
+  comments. The stack bar switches PRs and keeps the view you are in; <b>[</b> and <b>]</b> step
+  down and up. Export offers this PR or the whole stack.</p>
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-head"><span class="kicker spacer" id="x-format">human-review/comments@1</span>
+      <select id="x-scope" hidden aria-label="What to export">
+        <option value="pr">This PR</option>
+        <option value="stack">Whole stack</option>
+      </select>
+      <button class="btn" id="x-close">Close</button></div>
+    <pre id="x-json"></pre>
+    <div class="sheet-foot">
+      <select id="x-verdict">
+        <option value="comment">Verdict: comment</option>
+        <option value="request_changes">Verdict: request changes</option>
+        <option value="approve">Verdict: approve</option>
+      </select>
+      <input id="x-summary" placeholder="One-line summary for the agent (optional)">
+      <button class="btn" id="x-download">Download</button>
+      <button class="btn btn-solid" id="x-copy">Copy JSON</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* Shared engine for the review page.
+   One page holds every view - the reading plan, focus mode and, for a stack, the stack
+   overview - and the URL hash says which: #view=focus&pr=pr-413&file=app%2Fx.rb.
+   A single render embeds one plan in the `plan` script; a stack render embeds every
+   PR's plan in the `stack` script. Each PR keeps its own localStorage record, keyed
+   exactly as it would be on its own, so switching PRs never mixes their progress. */
+window.HR = (function () {
+  "use strict";
+  var MONACO = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
+
+  function embedded(id) {
+    var node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent || "null") : null;
+  }
+  var stack = embedded("stack");
+  // A single plan is a stack of one without the stack chrome, so there is one code path.
+  var prs = stack ? stack.prs : [{ id: "pr", parent: null, plan: embedded("plan") }];
+  var api = {};
+
+  function keyOf(t) {
+    return "human-review:" + (t.repo || "") + ":" +
+           (t.number || t.range || "") + ":" + (t.head_sha || "").slice(0, 12);
+  }
+  var LABEL = { critical: "Stop and read", read: "Read", skim: "Skim", skip: "Skipped" };
+  var LANG = { rb: "ruby", ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
+    json: "json", yml: "yaml", yaml: "yaml", md: "markdown", html: "html", erb: "html", css: "css",
+    scss: "scss", sql: "sql", sh: "shell", rake: "ruby", py: "python", toml: "ini", lock: "ini",
+    gemspec: "ruby", ru: "ruby", jbuilder: "ruby", vue: "html", graphql: "graphql" };
+
+  function loadState(key) {
+    try {
+      var raw = JSON.parse(localStorage.getItem(key) || "{}");
+      return { read: raw.read || {}, comments: raw.comments || [], seq: raw.seq || 0,
+               collapsed: raw.collapsed || {}, verdict: raw.verdict || "comment",
+               summary: raw.summary || "" };
+    } catch (e) {
+      return { read: {}, comments: [], seq: 0, collapsed: {}, verdict: "comment", summary: "" };
+    }
+  }
+
+  /* ── The selected PR ────────────────────────────────────────────────────
+     Everything below reads these, and select() swaps them. Views must read HR.plan and
+     friends at render time rather than caching them. */
+  var entry, plan, target, byPath, KEY, state;
+  function select(id) {
+    var next = prs[0];
+    prs.forEach(function (pr) { if (pr.id === id) next = pr; });
+    if (next === entry) return false;
+    entry = next;
+    plan = entry.plan;
+    target = plan.target;
+    byPath = {};
+    plan.files.forEach(function (f) { byPath[f.path] = f; });
+    KEY = keyOf(target);
+    state = loadState(KEY);
+    api.entry = entry; api.plan = plan; api.target = target;
+    api.byPath = byPath; api.state = state;
+    return true;
+  }
+  select(prs[0].id);
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    paintStack();
+  }
+
+  /* ── Routes ─────────────────────────────────────────────────────────────
+     The hash is the whole route, so a link to a file survives a reload and the page
+     works from file:// and from hosts that drop query strings. */
+  var VIEWS = stack ? ["stack", "plan", "focus"] : ["plan", "focus"];
+  function parseRoute() {
+    var params = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    var view = params.get("view");
+    return { view: VIEWS.indexOf(view) >= 0 ? view : VIEWS[0],
+             pr: params.get("pr") || prs[0].id,
+             file: params.get("file") || "", at: params.get("at") || "" };
+  }
+  /* A hash for `route`, filled in from the current PR. The PR is left out of single
+     renders, where there is only one. */
+  function link(route) {
+    var params = new URLSearchParams();
+    params.set("view", route.view || "plan");
+    if (stack) params.set("pr", route.pr || entry.id);
+    if (route.file) params.set("file", route.file);
+    if (route.at) params.set("at", route.at);
+    return "#" + params.toString();
+  }
+  function prLabel(pr) {
+    var t = pr.plan.target;
+    return t.number ? "#" + t.number : pr.id;
+  }
+  function byId(id) {
+    for (var i = 0; i < prs.length; i++) if (prs[i].id === id) return prs[i];
+    return null;
+  }
+  /* Other PRs in the stack that change the same path - the reader of a lower PR should
+     know the file moves again above it, and the reader of an upper one where it began. */
+  function elsewhere(path) {
+    if (!stack) return [];
+    return prs.filter(function (pr) {
+      return pr !== entry && pr.plan.files.some(function (f) { return f.path === path; });
+    });
+  }
+  function progressOf(pr) {
+    var s = pr === entry ? state : loadState(keyOf(pr.plan.target));
+    var order = pr.plan.order;
+    return { done: order.filter(function (p) { return s.read[p]; }).length,
+             total: order.length, comments: s.comments.length };
+  }
+  /* How a PR sits on the one below it: null when it simply continues the chip before. */
+  function relationOf(pr) {
+    var index = prs.indexOf(pr);
+    if (index === 0) return null;
+    if (pr.parent == null) return "on " + (stack.trunk || "trunk");
+    return pr.parent !== prs[index - 1].id ? "on " + prLabel(byId(pr.parent)) : null;
+  }
+
+  /* ── Stack bar ──────────────────────────────────────────────────────────
+     One chip per PR, bottom of the stack first, each with that PR's own progress.
+     Redrawn on every route change so the chips keep the view you are in. */
+  var stackHost = null;
+  function renderStack(host, route) {
+    if (!stack || !host) return;
+    stackHost = host;
+    host.hidden = false;
+    host.setAttribute("aria-label", "Pull requests in this stack");
+    host.textContent = "";
+    var view = route.view === "stack" ? "plan" : route.view;
+    var head = el("span", "stack-head");
+    var overview = el("a", "kicker", "Stack · " + prs.length + " PRs");
+    overview.href = link({ view: "stack" });
+    overview.title = "Stack overview";
+    if (route.view === "stack") overview.setAttribute("aria-current", "page");
+    head.appendChild(overview);
+    host.appendChild(head);
+    var list = el("ol", "stack-prs");
+    prs.forEach(function (pr, index) {
+      var item = el("li", "stack-pr");
+      var chip = el("a", "stack-chip");
+      chip.href = link({ view: view, pr: pr.id });
+      chip.setAttribute("data-pr", pr.id);
+      if (pr === entry && route.view !== "stack") chip.setAttribute("aria-current", "page");
+      var relation = relationOf(pr);
+      chip.title = (pr.plan.target.title || pr.id) +
+                   (pr.plan.target.branch ? " · " + pr.plan.target.branch : "") +
+                   (relation ? " · " + relation : "");
+      if (index) item.appendChild(el("span", "stack-sep", relation ? "↳" : "→"));
+      chip.appendChild(el("b", "", prLabel(pr)));
+      chip.appendChild(el("span", "stack-title", pr.plan.target.title || ""));
+      if (relation) chip.appendChild(el("span", "stack-rel", relation));
+      chip.appendChild(el("span", "stack-tally"));
+      chip.appendChild(el("span", "count"));
+      chip.appendChild(el("span", "bar")).appendChild(el("i"));
+      item.appendChild(chip);
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    var nav = el("span", "stack-step");
+    [["Lower PR", -1, "["], ["Upper PR", 1, "]"]].forEach(function (step) {
+      var next = stepTarget(step[1], route);
+      var button = el(next ? "a" : "span", "btn btn-sm", step[1] < 0 ? "‹" : "›");
+      button.title = step[0] + " (" + step[2] + ")";
+      button.setAttribute("aria-label", step[0]);
+      if (next) button.href = link(next);
+      else button.setAttribute("aria-disabled", "true");
+      nav.appendChild(button);
+    });
+    host.appendChild(nav);
+    paintStack();
+    var current = host.querySelector('[aria-current="page"]');
+    if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function paintStack() {
+    if (!stackHost) return;
+    prs.forEach(function (pr) {
+      var chip = stackHost.querySelector('[data-pr="' + pr.id.replace(/"/g, "") + '"]');
+      if (!chip) return;
+      var p = progressOf(pr);
+      chip.classList.toggle("done", p.total > 0 && p.done === p.total);
+      chip.querySelector(".stack-tally").textContent = p.done + "/" + p.total;
+      chip.querySelector(".bar i").style.width = p.total ? (100 * p.done / p.total) + "%" : "0";
+      var count = chip.querySelector(".count");
+      count.textContent = String(p.comments);
+      count.hidden = !p.comments;
+      count.title = p.comments + " comment" + (p.comments === 1 ? "" : "s");
+    });
+  }
+  /* `[` and `]` step down and up the stack, keeping the view - and in focus mode the
+     open file, when the next PR changes it too. From the overview they enter the plan. */
+  function stepTarget(delta, route) {
+    if (!stack) return null;
+    var next = prs[prs.indexOf(entry) + delta];
+    if (!next) return null;
+    var keep = route.view === "focus" && route.file &&
+               next.plan.files.some(function (f) { return f.path === route.file; });
+    return { view: route.view === "stack" ? "plan" : route.view, pr: next.id,
+             file: keep ? route.file : "" };
+  }
+
+  /* ── Theme ────────────────────────────────────────────────────────────
+     The choice is light / dark / system; what the CSS sees is the resolved mode. */
+  var THEME_KEY = "human-review:theme";
+  var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function themeChoice() {
+    try { return localStorage.getItem(THEME_KEY) || "system"; } catch (e) { return "system"; }
+  }
+  function themeMode() {
+    var choice = themeChoice();
+    if (choice === "light" || choice === "dark") return choice;
+    return darkQuery && darkQuery.matches ? "dark" : "light";
+  }
+  function applyTheme() {
+    var mode = themeMode();
+    document.documentElement.setAttribute("data-mode", mode);
+    if (monacoState.ok && window.monaco) {
+      monaco.editor.setTheme(mode === "dark" ? "hr-dark" : "hr-light");
+    }
+    return mode;
+  }
+  function setTheme(choice) {
+    try { localStorage.setItem(THEME_KEY, choice); } catch (e) {}
+    applyTheme();
+  }
+  if (darkQuery && darkQuery.addEventListener) {
+    darkQuery.addEventListener("change", function () {
+      if (themeChoice() === "system") applyTheme();
+    });
+  }
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function toast(message) {
+    var node = document.getElementById("toast");
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add("on");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { node.classList.remove("on"); }, 1600);
+  }
+
+  /* ── Layered PR introduction ───────────────────────────────────────────
+     Expanding context never changes the file reading state. All authored text goes
+     through textContent; topic links are data, not HTML or Markdown. */
+  function mountSummary(host) {
+    host.textContent = "";
+    host.hidden = !plan.summary;
+    if (!plan.summary) return;
+    var summary = plan.summary, topics = Object.create(null), seq = 0;
+    summary.topics.forEach(function (topic) { topics[topic.id] = topic; });
+    var head = el("div", "summary-head");
+    head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
+    var reset = el("button", "btn btn-sm", "Overview only");
+    reset.type = "button";
+    reset.addEventListener("click", function () {
+      host.querySelectorAll(".summary-detail").forEach(function (panel) { panel.hidden = true; });
+      host.querySelectorAll(".summary-tag").forEach(function (button) {
+        button.setAttribute("aria-expanded", "false");
+      });
+    });
+    if (summary.topics.length) head.appendChild(reset);
+    host.appendChild(head);
+    if (summary.topics.length) {
+      host.appendChild(el("p", "summary-hint", "Click an underlined phrase to go deeper."));
+    }
+
+    function paragraphs(parent, blocks, level) {
+      blocks.forEach(function (parts) {
+        var prose = el("div", "summary-prose");
+        var p = el("p");
+        prose.appendChild(p);
+        parent.appendChild(prose);
+        parts.forEach(function (part) {
+          if (typeof part === "string") {
+            p.appendChild(document.createTextNode(part));
+            return;
+          }
+          var topic = topics[part.topic];
+          var button = el("button", "summary-tag", part.text);
+          button.type = "button";
+          var panel = el("section", "summary-detail");
+          panel.id = host.id + "-topic-" + (++seq);
+          panel.hidden = true;
+          button.setAttribute("aria-controls", panel.id);
+          button.setAttribute("aria-expanded", "false");
+          panel.setAttribute("aria-label", topic.title);
+          var mounted = false;
+          button.addEventListener("click", function () {
+            if (!mounted) {
+              mounted = true;
+              var heading = el("div", "summary-head");
+              heading.appendChild(el("span", "kicker", "Level " + (level + 1) + " · More context"));
+              var close = el("button", "btn btn-sm", "Collapse");
+              close.type = "button";
+              close.setAttribute("aria-label", "Collapse " + topic.title);
+              close.addEventListener("click", function () {
+                panel.hidden = true;
+                button.setAttribute("aria-expanded", "false");
+                button.focus();
+              });
+              heading.appendChild(close);
+              panel.appendChild(heading);
+              panel.appendChild(el("h" + Math.min(level + 2, 6), "", topic.title));
+              paragraphs(panel, topic.paragraphs, level + 1);
+              if (topic.files && topic.files.length) {
+                var files = el("div", "summary-files");
+                files.appendChild(el("span", "kicker", "Read the change"));
+                topic.files.forEach(function (path) {
+                  var fileLink = el("a", "", path);
+                  fileLink.href = link({ view: "focus", file: path });
+                  files.appendChild(fileLink);
+                });
+                panel.appendChild(files);
+              }
+            }
+            panel.hidden = !panel.hidden;
+            button.setAttribute("aria-expanded", String(!panel.hidden));
+          });
+          p.appendChild(button);
+          // Panels follow their paragraph, so opening one keeps the sentence intact.
+          parent.appendChild(panel);
+        });
+      });
+    }
+    paragraphs(host, [summary.overview], 1);
+  }
+
+  /* ── Patch → display lines ──────────────────────────────────────────────
+     One array of {text, kind, oldNo, newNo}. The patch already encodes the diff, so
+     Monaco only has to colour it - no diff worker, which is what keeps this offline-safe. */
+  function parsePatch(patch) {
+    var lines = [], oldNo = 0, newNo = 0;
+    (patch || "").split("\n").forEach(function (raw) {
+      var header = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/.exec(raw);
+      if (header) {
+        oldNo = +header[1]; newNo = +header[2];
+        lines.push({ text: header[3].trim() || "⋯", kind: "hunk", oldNo: null, newNo: null });
+        return;
+      }
+      if (raw === "" || raw[0] === "\\") return;
+      var marker = raw[0], text = raw.slice(1);
+      if (marker === "+") lines.push({ text: text, kind: "add", oldNo: null, newNo: newNo++ });
+      else if (marker === "-") lines.push({ text: text, kind: "del", oldNo: oldNo++, newNo: null });
+      else lines.push({ text: text, kind: "ctx", oldNo: oldNo++, newNo: newNo++ });
+    });
+    return lines;
+  }
+  function anchorOf(line) {
+    return line.kind === "del" ? { side: "left", line: line.oldNo }
+      : (line.newNo != null ? { side: "right", line: line.newNo } : null);
+  }
+  function languageOf(path) {
+    var parts = path.split("/").pop().split(".");
+    for (var i = parts.length - 1; i > 0; i--) if (LANG[parts[i]]) return LANG[parts[i]];
+    if (/Gemfile|Rakefile|Guardfile/.test(path)) return "ruby";
+    return "plaintext";
+  }
+
+  /* ── Read state ─────────────────────────────────────────────────────── */
+  function isRead(path) { return !!state.read[path]; }
+  function setRead(paths, value) {
+    paths.forEach(function (p) { if (value) state.read[p] = true; else delete state.read[p]; });
+    save();
+  }
+  function tallyRead(paths) {
+    var done = paths.filter(isRead).length;
+    return { done: done, total: paths.length,
+             tri: done === 0 ? "false" : (done === paths.length ? "true" : "mixed") };
+  }
+
+  /* ── Comments ───────────────────────────────────────────────────────── */
+  function commentsFor(path) {
+    return state.comments.filter(function (c) { return c.path === path; });
+  }
+  function addComment(path, body, kind, anchor) {
+    var entry = { id: "c" + (++state.seq), path: path,
+                  line: anchor ? anchor.line.line : null, side: anchor ? anchor.line.side : null,
+                  kind: kind, body: body, code: anchor ? anchor.text : null };
+    state.comments.push(entry);
+    save();
+    return entry;
+  }
+  function removeComment(id) {
+    state.comments = state.comments.filter(function (c) { return c.id !== id; });
+    save();
+  }
+
+  /* ── Path tree ──────────────────────────────────────────────────────────
+     Rails paths are deep and mostly uninteresting in the middle, so a directory with a
+     single child is merged into its parent: app/controllers/concerns/matching reads as
+     one row, not four. */
+  function buildTree(paths) {
+    var root = { name: "", path: "", dirs: {}, files: [] };
+    paths.forEach(function (p) {
+      var parts = p.split("/");
+      var leaf = parts.pop();
+      var node = root;
+      parts.forEach(function (segment) {
+        if (!node.dirs[segment]) {
+          node.dirs[segment] = { name: segment, path: (node.path ? node.path + "/" : "") + segment,
+                                 dirs: {}, files: [] };
+        }
+        node = node.dirs[segment];
+      });
+      node.files.push(p);
+    });
+    (function collapse(node) {
+      Object.keys(node.dirs).forEach(function (key) { collapse(node.dirs[key]); });
+      var keys = Object.keys(node.dirs);
+      if (node !== root && keys.length === 1 && !node.files.length) {
+        var only = node.dirs[keys[0]];
+        node.name += "/" + only.name;
+        node.path = only.path;
+        node.dirs = only.dirs;
+        node.files = only.files;
+      }
+    })(root);
+    return root;
+  }
+  function filesUnder(node) {
+    var out = node.files.slice();
+    Object.keys(node.dirs).forEach(function (key) {
+      out = out.concat(filesUnder(node.dirs[key]));
+    });
+    return out;
+  }
+  function sortedDirs(node) {
+    return Object.keys(node.dirs).sort().map(function (key) { return node.dirs[key]; });
+  }
+
+  /* ── Collapse state ─────────────────────────────────────────────────── */
+  function collapsed(key, fallback) {
+    return key in state.collapsed ? state.collapsed[key] : !!fallback;
+  }
+  function setCollapsed(key, value) { state.collapsed[key] = !!value; save(); }
+
+  /* ── Monaco ─────────────────────────────────────────────────────────────
+     Loaded once and shared. `ready` resolves either way; callers check `ok` and fall
+     back to a plain renderer when it is false. */
+  var monacoState = { ok: false, waiting: [], done: false };
+  function onMonaco(callback) {
+    if (monacoState.done) callback(monacoState.ok);
+    else monacoState.waiting.push(callback);
+  }
+  function finish(ok) {
+    monacoState.ok = ok;
+    monacoState.done = true;
+    monacoState.waiting.splice(0).forEach(function (cb) { cb(ok); });
+  }
+  function loadMonaco() {
+    var loader = document.createElement("script");
+    loader.src = MONACO + "/loader.js";
+    loader.onerror = function () { finish(false); };
+    loader.onload = function () {
+      window.require.config({ paths: { vs: MONACO } });
+      // The editor never needs a worker: no diffing, no language services.
+      self.MonacoEnvironment = { getWorker: function () {
+        return { postMessage: function () {}, addEventListener: function () {},
+                 removeEventListener: function () {}, terminate: function () {} };
+      } };
+      window.require(["vs/editor/editor.main"], function () {
+        monaco.editor.defineTheme("hr-light", {
+          base: "vs", inherit: true,
+          rules: [
+            { token: "", foreground: "1c1c1a" },
+            { token: "comment", foreground: "7d7d75", fontStyle: "italic" },
+            { token: "keyword", foreground: "c01c28" },
+            { token: "keyword.control", foreground: "c01c28" },
+            { token: "operator", foreground: "8a5000" },
+            { token: "string", foreground: "0a4d6e" },
+            { token: "string.escape", foreground: "8a5000" },
+            { token: "regexp", foreground: "0a4d6e" },
+            { token: "number", foreground: "1c4fb5" },
+            { token: "constant", foreground: "1c4fb5" },
+            { token: "type", foreground: "7a3ba8" },
+            { token: "type.identifier", foreground: "7a3ba8" },
+            { token: "identifier", foreground: "1c1c1a" },
+            { token: "variable", foreground: "8a5000" },
+            { token: "variable.predefined", foreground: "c01c28" },
+            { token: "attribute.name", foreground: "7a3ba8" },
+            { token: "attribute.value", foreground: "0a4d6e" },
+            { token: "tag", foreground: "0f6b3a" },
+            { token: "delimiter", foreground: "56564f" },
+            { token: "metatag", foreground: "7d7d75" }
+          ],
+          colors: {
+            "editor.background": "#ffffff",
+            "editor.foreground": "#1c1c1a",
+            "editorLineNumber.foreground": "#b4b4ac",
+            "editorLineNumber.activeForeground": "#0a0a0a",
+            "editorGutter.background": "#f8f8f6",
+            "editorIndentGuide.background1": "#ecece7",
+            "editor.selectionBackground": "#ffe8a3",
+            "editor.inactiveSelectionBackground": "#f1f1ec",
+            "editorCursor.foreground": "#0a0a0a",
+            "editorWidget.background": "#ffffff",
+            "editorWidget.border": "#0a0a0a",
+            "scrollbarSlider.background": "#d6d6cf88",
+            "scrollbarSlider.hoverBackground": "#b4b4acaa"
+          }
+        });
+        monaco.editor.defineTheme("hr-dark", {
+          base: "vs-dark", inherit: true,
+          rules: [
+            { token: "", foreground: "e6e6e0" },
+            { token: "comment", foreground: "7c7c73", fontStyle: "italic" },
+            { token: "keyword", foreground: "ff7b82" },
+            { token: "keyword.control", foreground: "ff7b82" },
+            { token: "operator", foreground: "e3a857" },
+            { token: "string", foreground: "8fd3ff" },
+            { token: "string.escape", foreground: "e3a857" },
+            { token: "regexp", foreground: "8fd3ff" },
+            { token: "number", foreground: "9db8ff" },
+            { token: "constant", foreground: "9db8ff" },
+            { token: "type", foreground: "d2a8ff" },
+            { token: "type.identifier", foreground: "d2a8ff" },
+            { token: "identifier", foreground: "e6e6e0" },
+            { token: "variable", foreground: "e3a857" },
+            { token: "variable.predefined", foreground: "ff7b82" },
+            { token: "attribute.name", foreground: "d2a8ff" },
+            { token: "attribute.value", foreground: "8fd3ff" },
+            { token: "tag", foreground: "7ee787" },
+            { token: "delimiter", foreground: "a3a39a" },
+            { token: "metatag", foreground: "7c7c73" }
+          ],
+          colors: {
+            "editor.background": "#13130f",
+            "editor.foreground": "#e6e6e0",
+            "editorLineNumber.foreground": "#55554c",
+            "editorLineNumber.activeForeground": "#ecece7",
+            "editorGutter.background": "#1a1a15",
+            "editorIndentGuide.background1": "#2a2a23",
+            "editor.selectionBackground": "#4a431f",
+            "editor.inactiveSelectionBackground": "#26261f",
+            "editorCursor.foreground": "#ecece7",
+            "editorWidget.background": "#1c1c18",
+            "editorWidget.border": "#ecece7",
+            "scrollbarSlider.background": "#34342c99",
+            "scrollbarSlider.hoverBackground": "#55554cbb"
+          }
+        });
+        finish(true);
+      }, function () { finish(false); });
+    };
+    document.head.appendChild(loader);
+  }
+
+  /* ── A diff view for one file ───────────────────────────────────────────
+     Monaco when it loaded, a plain <pre> otherwise. Both report gutter clicks through
+     `onAnchor`, so the commenting flow is identical either way. */
+  function mountDiff(host, file, options) {
+    options = options || {};
+    var lines = parsePatch(file.patch);
+    if (!lines.length) {
+      lines = [{ text: "No textual diff (binary, rename, or too large to include).",
+                 kind: "hunk", oldNo: null, newNo: null }];
+    }
+    var view = { lines: lines, editor: null, dispose: function () {}, paint: function () {},
+                 reveal: function () {} };
+
+    function marked() {
+      var set = {};
+      commentsFor(file.path).forEach(function (c) {
+        if (c.line != null) set[c.side + ":" + c.line] = true;
+      });
+      return set;
+    }
+
+    if (!monacoState.ok) {
+      var pre = el("pre", "fallback");
+      if (options.autoHeight) pre.style.maxHeight = "520px";
+      lines.forEach(function (line) {
+        var row = el("div", "ln " + line.kind);
+        var num = el("span", "n", line.kind === "hunk" ? "⋯"
+          : (line.newNo != null ? String(line.newNo) : line.oldNo + " −"));
+        num.addEventListener("click", function () {
+          if (options.onAnchor) options.onAnchor(line);
+        });
+        row.appendChild(num);
+        row.appendChild(el("span", "c",
+          (line.kind === "add" ? "+" : line.kind === "del" ? "−" : " ") + line.text));
+        pre.appendChild(row);
+      });
+      host.appendChild(pre);
+      view.dispose = function () { pre.remove(); };
+      return view;
+    }
+
+    var box = el("div");
+    box.style.height = options.autoHeight
+      ? Math.min(Math.max(lines.length * 19 + 14, 90), 560) + "px"
+      : "100%";
+    host.appendChild(box);
+    var editor = monaco.editor.create(box, {
+      value: lines.map(function (l) { return l.text; }).join("\n"),
+      language: languageOf(file.path),
+      readOnly: true, automaticLayout: true, glyphMargin: true, minimap: { enabled: false },
+      scrollBeyondLastLine: false, renderLineHighlight: "none", fontSize: 12.5,
+      lineNumbersMinChars: 6, folding: false, wordWrap: "on", contextmenu: false,
+      scrollbar: { alwaysConsumeMouseWheel: !options.autoHeight },
+      fontFamily: "ui-monospace, SF Mono, Menlo, Consolas, monospace",
+      theme: themeMode() === "dark" ? "hr-dark" : "hr-light",
+      lineNumbers: function (n) {
+        var line = lines[n - 1];
+        if (!line) return "";
+        if (line.kind === "hunk") return "⋯";
+        return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
+      }
+    });
+    var decorations = [];
+    view.editor = editor;
+    view.paint = function () {
+      var set = marked();
+      decorations = editor.deltaDecorations(decorations, lines.map(function (line, i) {
+        var base = { add: "dec-add", del: "dec-del", hunk: "dec-hunk", ctx: "" }[line.kind];
+        var a = anchorOf(line);
+        var hit = a && set[a.side + ":" + a.line];
+        return { range: new monaco.Range(i + 1, 1, i + 1, 1),
+                 options: { isWholeLine: true, className: hit ? "dec-commented" : base,
+                            glyphMarginClassName: hit ? "glyph-comment" : null } };
+      }));
+    };
+    view.reveal = function (side, line) {
+      for (var i = 0; i < lines.length; i++) {
+        var a = anchorOf(lines[i]);
+        if (a && a.side === side && a.line === line) {
+          editor.revealLineInCenter(i + 1);
+          editor.setPosition({ lineNumber: i + 1, column: 1 });
+          return;
+        }
+      }
+    };
+    view.dispose = function () {
+      var model = editor.getModel();
+      editor.dispose();
+      if (model) model.dispose();
+      box.remove();
+    };
+    editor.onMouseDown(function (event) {
+      var kinds = monaco.editor.MouseTargetType;
+      if (event.target.type !== kinds.GUTTER_LINE_NUMBERS &&
+          event.target.type !== kinds.GUTTER_GLYPH_MARGIN) return;
+      var line = lines[event.target.position.lineNumber - 1];
+      if (line && options.onAnchor) options.onAnchor(line);
+    });
+    view.paint();
+    return view;
+  }
+
+  /* ── Export ─────────────────────────────────────────────────────────── */
+  var INSTRUCTIONS =
+    "A human read this change and left the comments below. Treat each one as a request " +
+    "from the reviewer. kind=fix means change the code; kind=question means answer it in " +
+    "your reply and only change code if the answer implies it; kind=nit is optional and " +
+    "should be applied only if it is genuinely trivial; kind=praise needs no action. " +
+    "`line` and `side` refer to the diff at target.head_sha: side=right is the new file, " +
+    "side=left is the old one. Re-locate a comment if the branch has moved since. Do not " +
+    "post anything to GitHub unless you are asked separately. Report per comment id what " +
+    "you changed, what you verified, and anything you deliberately skipped.";
+
+  var STACK_INSTRUCTIONS =
+    "A human read a stack of pull requests and left the comments below, one entry in " +
+    "`reviews` per PR, bottom of the stack first. Apply each entry exactly as a " +
+    "human-review/comments@1 payload against its own target.branch and target.head_sha, " +
+    "starting with the lowest PR, then restack the PRs above it. Ask before force-pushing " +
+    "or rewriting a shared branch. Do not post anything to GitHub unless you are asked " +
+    "separately. Report per PR and per comment id what you changed, what you verified, " +
+    "and anything you deliberately skipped.";
+
+  function payloadFor(p, s) {
+    var files = {};
+    p.files.forEach(function (f) { files[f.path] = f; });
+    var read = function (path) { return !!s.read[path]; };
+    return {
+      format: "human-review/comments@1",
+      generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      target: p.target,
+      instructions: INSTRUCTIONS,
+      review: { verdict: s.verdict, summary: (s.summary || "").trim() },
+      comments: s.comments.map(function (c) {
+        var f = files[c.path] || {};
+        return { id: c.id, path: c.path, line: c.line, side: c.side, kind: c.kind,
+                 body: c.body, code: c.code, weight: f.weight, rule: f.rule_id };
+      }),
+      progress: {
+        read: p.order.filter(read),
+        unread: p.order.filter(function (path) { return !read(path); }),
+        skipped_by_rules: p.files.filter(function (f) { return f.weight === "skip"; })
+                                 .map(function (f) { return f.path; })
+      },
+      stats: p.stats
+    };
+  }
+  function exportPayload() {
+    var payload = payloadFor(plan, state);
+    if (stack) {
+      payload.stack = { id: entry.id, parent: entry.parent,
+                        position: prs.indexOf(entry) + 1, of: prs.length };
+    }
+    return payload;
+  }
+  /* The whole stack in one paste: every PR's payload, each read from its own record. */
+  function exportStackPayload() {
+    var total = 0;
+    var reviews = prs.map(function (pr) {
+      var payload = payloadFor(pr.plan, pr === entry ? state : loadState(keyOf(pr.plan.target)));
+      total += payload.comments.length;
+      // The envelope carries format, time and instructions once for every PR.
+      delete payload.format; delete payload.generated_at; delete payload.instructions;
+      return Object.assign({ id: pr.id, parent: pr.parent }, payload);
+    });
+    return {
+      format: "human-review/stack-comments@1",
+      generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      title: stack.title,
+      trunk: stack.trunk,
+      instructions: STACK_INSTRUCTIONS,
+      comment_instructions: INSTRUCTIONS,
+      counts: { prs: reviews.length, comments: total },
+      reviews: reviews
+    };
+  }
+
+  /* Wires the export dialog that both pages include verbatim. */
+  function mountExport() {
+    var overlay = document.getElementById("overlay");
+    var verdict = document.getElementById("x-verdict");
+    var summary = document.getElementById("x-summary");
+    var scope = document.getElementById("x-scope");
+    var whole = false;
+    if (scope && stack) {
+      scope.hidden = false;
+      scope.addEventListener("change", function () { whole = scope.value === "stack"; refresh(); });
+    }
+    function current() { return whole ? exportStackPayload() : exportPayload(); }
+    function refresh() {
+      document.getElementById("x-format").textContent =
+        whole ? "human-review/stack-comments@1" : "human-review/comments@1";
+      document.getElementById("x-json").textContent = JSON.stringify(current(), null, 2);
+    }
+    [verdict, summary].forEach(function (node) {
+      node.addEventListener("input", function () {
+        state.verdict = verdict.value;
+        state.summary = summary.value;
+        save(); refresh();
+      });
+    });
+    document.getElementById("x-close").addEventListener("click", function () {
+      overlay.classList.remove("open");
+    });
+    overlay.addEventListener("click", function (event) {
+      if (event.target === overlay) overlay.classList.remove("open");
+    });
+    document.getElementById("x-copy").addEventListener("click", function () {
+      var payload = current();
+      var count = whole ? payload.counts.comments : payload.comments.length;
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(function () {
+        toast("Copied " + count + " comments" + (whole ? " across the stack" : ""));
+      }, function () { toast("Copy blocked - use Download"); });
+    });
+    document.getElementById("x-download").addEventListener("click", function () {
+      var blob = new Blob([JSON.stringify(current(), null, 2)], { type: "application/json" });
+      var anchor = el("a");
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = whole ? "review-comments-stack.json"
+        : "review-comments" + (target.number ? "-" + target.number : "") + ".json";
+      anchor.click();
+      setTimeout(function () { URL.revokeObjectURL(anchor.href); }, 2000);
+    });
+    // The record behind the dialog changes with the selected PR, so read it on open.
+    return { open: function () {
+               verdict.value = state.verdict;
+               summary.value = state.summary;
+               refresh();
+               overlay.classList.add("open");
+             },
+             close: function () { overlay.classList.remove("open"); },
+             refresh: refresh };
+  }
+
+  function mountTheme(host) {
+    var wrap = el("span", "kinds theme");
+    [["light", "Light"], ["dark", "Dark"], ["system", "Auto"]].forEach(function (option) {
+      var button = el("button", "", option[1]);
+      button.title = option[0] === "system" ? "Follow the system setting" : option[1] + " theme";
+      button.setAttribute("aria-pressed", String(themeChoice() === option[0]));
+      button.addEventListener("click", function () {
+        setTheme(option[0]);
+        wrap.querySelectorAll("button").forEach(function (other) {
+          other.setAttribute("aria-pressed", String(other === button));
+        });
+      });
+      wrap.appendChild(button);
+    });
+    host.appendChild(wrap);
+  }
+
+  function titleOf() {
+    return target.title || target.range || "Change";
+  }
+  function metaOf() {
+    return (target.repo || "") + (target.number ? " #" + target.number : "") +
+           (stack ? " · PR " + (prs.indexOf(entry) + 1) + " of " + prs.length +
+                    " · " + (target.branch || "") + " → " + (target.base || "") : "") +
+           (target.head_sha ? " @" + String(target.head_sha).slice(0, 7) : "") +
+           (plan.config && plan.config.name ? " · rules: " + plan.config.name : "");
+  }
+
+  applyTheme();
+  loadMonaco();
+
+  return Object.assign(api, {
+    LABEL: LABEL, stack: stack, prs: prs, VIEWS: VIEWS,
+    select: select, save: save, el: el, toast: toast,
+    parseRoute: parseRoute, link: link, prLabel: prLabel, byId: byId, elsewhere: elsewhere,
+    progressOf: progressOf, relationOf: relationOf, renderStack: renderStack, stepTarget: stepTarget,
+    parsePatch: parsePatch, anchorOf: anchorOf, languageOf: languageOf,
+    isRead: isRead, setRead: setRead, tallyRead: tallyRead,
+    commentsFor: commentsFor, addComment: addComment, removeComment: removeComment,
+    buildTree: buildTree, filesUnder: filesUnder, sortedDirs: sortedDirs,
+    collapsed: collapsed, setCollapsed: setCollapsed,
+    onMonaco: onMonaco, mountDiff: mountDiff,
+    themeChoice: themeChoice, themeMode: themeMode, mountTheme: mountTheme,
+    exportPayload: exportPayload, exportStackPayload: exportStackPayload, mountExport: mountExport,
+    titleOf: titleOf, metaOf: metaOf, mountSummary: mountSummary
+  });
+})();
+
+</script>
+<script>
+(function () {
+  "use strict";
+  var el = HR.el, LABEL = HR.LABEL;
+  var exporter = HR.mountExport();
+  var route = null;               // the route on screen
+  var monacoSettled = false;      // Monaco loaded or failed; focus mounts its editor after this
+
+  /* ── Shared pieces ──────────────────────────────────────────────────── */
+  function checkbox(paths, afterChange, title) {
+    var box = el("button", "box");
+    box.type = "button";
+    box.setAttribute("role", "checkbox");
+    box.title = title || "Mark read";
+    box.setAttribute("aria-checked", HR.tallyRead(paths).tri);
+    box.addEventListener("click", function (event) {
+      event.stopPropagation();
+      HR.setRead(paths, box.getAttribute("aria-checked") !== "true");
+      afterChange();
+    });
+    return box;
+  }
+  function renderProgress() {
+    var tally = HR.tallyRead(HR.plan.order);
+    document.getElementById("t-progress").textContent = tally.done + " / " + tally.total;
+    document.getElementById("t-bar").style.width =
+      tally.total ? (100 * tally.done / tally.total) + "%" : "0";
+    document.getElementById("t-count").textContent = String(HR.state.comments.length);
+  }
+  function githubLink(path) {
+    var t = HR.target;
+    if (!t.head_sha || !/^[\w.-]+\/[\w.-]+$/.test(t.repo || "")) return null;
+    var link = el("a", "btn btn-sm", "GitHub");
+    link.href = "https://github.com/" + t.repo + "/blob/" + t.head_sha + "/" + path;
+    link.target = "_blank"; link.rel = "noreferrer";
+    link.addEventListener("click", function (e) { e.stopPropagation(); });
+    return link;
+  }
+  /* On a stack render, where else this path changes - each link opens it there. */
+  function alsoIn(path) {
+    var prs = HR.elsewhere(path);
+    if (!prs.length) return null;
+    var wrap = el("span", "also", "also in");
+    prs.forEach(function (pr) {
+      var link = el("a", "", HR.prLabel(pr));
+      link.href = HR.link({ view: "focus", pr: pr.id, file: path });
+      link.title = "Open " + path + " in " + (pr.plan.target.title || pr.id);
+      link.addEventListener("click", function (event) { event.stopPropagation(); });
+      wrap.appendChild(link);
+    });
+    return wrap;
+  }
+  /* The comments on one file. `view` returns the diff to reveal lines in; `after` runs
+     once a comment is deleted. Returns how many were listed. */
+  function commentList(host, path, view, after) {
+    host.textContent = "";
+    var items = HR.commentsFor(path);
+    items.forEach(function (c) {
+      var box = el("div", "cmt");
+      var head = el("div", "cmt-head");
+      var kind = el("span", "cmt-kind", c.kind);
+      kind.setAttribute("data-kind", c.kind);
+      head.appendChild(kind);
+      var loc = el("span", "cmt-loc", c.line == null ? "file-level"
+        : (c.side === "left" ? "−" : "") + "line " + c.line);
+      if (c.line != null) loc.addEventListener("click", function () {
+        var v = view();
+        if (v) v.reveal(c.side, c.line);
+      });
+      head.appendChild(loc);
+      var remove = el("button", "cmt-x", "×");
+      remove.title = "Delete comment";
+      remove.addEventListener("click", function () {
+        HR.removeComment(c.id);
+        after();
+      });
+      head.appendChild(remove);
+      box.appendChild(head);
+      if (c.code) box.appendChild(el("pre", "cmt-code", c.code));
+      box.appendChild(el("div", "cmt-body", c.body));
+      host.appendChild(box);
+    });
+    return items.length;
+  }
+  function anchorLabel(line, width) {
+    var a = HR.anchorOf(line);
+    return a ? (a.side === "left" ? "removed line " : "line ") + a.line + " · " +
+               line.text.trim().slice(0, width) : "file-level";
+  }
+  function metricTiles(host, tiles) {
+    host.textContent = "";
+    tiles.forEach(function (tile) {
+      var box = el("div", "metric" + (tile[2] ? " hot" : ""));
+      box.appendChild(el("span", "kicker", tile[0]));
+      box.appendChild(el("b", "", String(tile[1])));
+      host.appendChild(box);
+    });
+  }
+
+  /* ── Plan view ──────────────────────────────────────────────────────── */
+  var Plan = (function () {
+    var open = {};        // path -> {row, drawer, view, kind, anchor}
+    var showFolded = {};  // group key -> bool
+
+    function render() {
+      closeAll();
+      showFolded = {};
+      document.getElementById("l-title").textContent = HR.titleOf();
+      document.getElementById("l-meta").textContent = HR.metaOf();
+      HR.mountSummary(document.getElementById("summary"));
+
+      var stats = HR.plan.stats;
+      metricTiles(document.getElementById("metrics"), [
+        ["Changed files", stats.files, false], ["Need your eyes", stats.critical + stats.read, true],
+        ["Stop and read", stats.critical, false], ["Folded away", stats.skip + stats.folded, false],
+        ["Lines", "+" + stats.additions + " −" + stats.deletions, false]]);
+
+      var host = document.getElementById("questions");
+      host.textContent = "";
+      document.getElementById("band").hidden = !HR.plan.questions.length;
+      HR.plan.questions.forEach(function (q) {
+        var row = el("div", "q");
+        row.appendChild(el("span", "kind", q.kind));
+        var body = el("div", "body");
+        body.appendChild(el("div", "", q.text));
+        if (q.files.length) body.appendChild(el("div", "files", q.files.join("  ")));
+        row.appendChild(body);
+        host.appendChild(row);
+      });
+      renderStations();
+    }
+
+    function fileRow(f, depth, redraw, prefix) {
+      var row = el("div", "file" + (HR.isRead(f.path) ? " done" : "") +
+                           (f.folded_into ? " folded" : "") + (open[f.path] ? " open" : ""));
+      row.style.paddingLeft = (depth * 14 + 11) + "px";
+      // Folder rows spend this column on their caret. Files reserve it too, otherwise a
+      // child's checkbox sits to the left of its own parent's and the nesting reads wrong.
+      row.appendChild(el("span", "caret"));
+      row.appendChild(checkbox([f.path], redraw));
+      var name = el("span", "fname");
+      if (prefix) name.appendChild(document.createTextNode(prefix));
+      name.appendChild(el("b", "", f.path.split("/").pop()));
+      row.appendChild(name);
+      (f.notes || []).forEach(function (note) {
+        row.appendChild(el("span", "tag" + (/removal|deletion/.test(note) ? " cold" : ""), note));
+      });
+      var count = HR.commentsFor(f.path).length;
+      if (count) row.appendChild(el("span", "count", String(count)));
+      row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
+      row.addEventListener("click", function () { toggleDrawer(f, row); });
+      return row;
+    }
+
+    function toggleDrawer(f, row) {
+      if (open[f.path]) { closeDrawer(f.path); return; }
+      var drawer = el("div", "drawer");
+      var main = el("div", "drawer-main");
+      var head = el("div", "drawer-head");
+      head.setAttribute("data-weight", f.weight);
+      head.appendChild(el("span", "chip", LABEL[f.weight]));
+      head.appendChild(el("span", "path", f.path));
+      head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
+      var also = alsoIn(f.path);
+      if (also) head.appendChild(also);
+      head.appendChild(el("span", "spacer"));
+      var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
+      mark.addEventListener("click", function (event) {
+        event.stopPropagation();
+        HR.setRead([f.path], !HR.isRead(f.path));
+        renderStations();
+      });
+      head.appendChild(mark);
+      var focus = el("a", "btn btn-sm", "Focus");
+      focus.href = HR.link({ view: "focus", file: f.path });
+      focus.title = "Open in focus mode";
+      head.appendChild(focus);
+      var gh = githubLink(f.path);
+      if (gh) head.appendChild(gh);
+      main.appendChild(head);
+      var diff = el("div", "drawer-diff");
+      main.appendChild(diff);
+      drawer.appendChild(main);
+
+      var side = el("div", "drawer-side");
+      var list = el("div", "list");
+      side.appendChild(list);
+      drawer.appendChild(side);
+      drawer.addEventListener("click", function (event) { event.stopPropagation(); });
+      row.after(drawer);
+      row.classList.add("open");
+
+      var entry = { row: row, drawer: drawer, view: null, kind: "fix", anchor: null };
+      open[f.path] = entry;
+      entry.view = HR.mountDiff(diff, f, {
+        autoHeight: true,
+        onAnchor: function (line) {
+          var a = HR.anchorOf(line);
+          entry.anchor = a ? { line: a, text: line.text } : null;
+          drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
+          drawer.querySelector("textarea").focus();
+        }
+      });
+      side.appendChild(composer(f, entry, list));
+      renderComments(f, entry, list);
+    }
+
+    function closeDrawer(path) {
+      var entry = open[path];
+      if (!entry) return;
+      if (entry.view) entry.view.dispose();
+      entry.drawer.remove();
+      entry.row.classList.remove("open");
+      delete open[path];
+    }
+    function closeAll() { Object.keys(open).forEach(closeDrawer); }
+
+    function composer(f, entry, list) {
+      var box = el("div", "composer");
+      var head = el("div", "composer-head");
+      var kinds = el("span", "kinds");
+      ["fix", "question", "nit", "praise"].forEach(function (kind) {
+        var button = el("button", "", kind);
+        button.setAttribute("aria-pressed", String(kind === "fix"));
+        button.addEventListener("click", function () {
+          entry.kind = kind;
+          kinds.querySelectorAll("button").forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b === button));
+          });
+        });
+        kinds.appendChild(button);
+      });
+      head.appendChild(kinds);
+      box.appendChild(head);
+      var text = el("textarea");
+      text.placeholder = "Click a line number in the gutter to anchor a comment, or write a file-level note.";
+      box.appendChild(text);
+      var foot = el("div", "composer-foot");
+      foot.appendChild(el("span", "anchor", "file-level"));
+      var add = el("button", "btn btn-sm btn-solid", "Add");
+      function submit() {
+        var body = text.value.trim();
+        if (!body) { text.focus(); return; }
+        HR.addComment(f.path, body, entry.kind, entry.anchor);
+        entry.anchor = null;
+        text.value = "";
+        box.querySelector(".anchor").textContent = "file-level";
+        changed(f, entry, list);
+      }
+      add.addEventListener("click", submit);
+      text.addEventListener("keydown", function (event) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault(); submit();
+        }
+      });
+      foot.appendChild(add);
+      box.appendChild(foot);
+      return box;
+    }
+    /* A comment was added or removed: repaint this drawer in place, keep it open. */
+    function changed(f, entry, list) {
+      if (entry.view) entry.view.paint();
+      renderComments(f, entry, list);
+      var n = HR.commentsFor(f.path).length;
+      var count = entry.row.querySelector(".count");
+      if (n && !count) {
+        count = el("span", "count");
+        entry.row.insertBefore(count, entry.row.querySelector(".fstat"));
+      }
+      if (count) { if (n) count.textContent = String(n); else count.remove(); }
+      renderProgress();
+      exporter.refresh();
+    }
+    function renderComments(f, entry, list) {
+      if (!commentList(list, f.path, function () { return entry.view; },
+                       function () { changed(f, entry, list); })) {
+        list.appendChild(el("p", "muted", "No comments on this file."));
+      }
+    }
+
+    function renderTree(host, node, depth, redraw) {
+      HR.sortedDirs(node).forEach(function (dir) {
+        var paths = HR.filesUnder(dir);
+        if (paths.length === 1) {
+          // Its own row, a caret and a 0/1 tally, all to introduce one file. Put the
+          // directory on the file row instead and save three lines of chrome.
+          host.appendChild(fileRow(HR.byPath[paths[0]], depth, redraw, dir.name + "/"));
+          return;
+        }
+        var key = "dir:" + dir.path;
+        var shut = HR.collapsed(key, false);
+        var row = el("div", "dir");
+        row.style.paddingLeft = (depth * 14 + 11) + "px";
+        row.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        row.appendChild(checkbox(paths, redraw, "Mark this folder read"));
+        row.appendChild(el("span", "n", dir.name + "/"));
+        row.appendChild(el("span", "tally", HR.tallyRead(paths).done + "/" + paths.length));
+        row.addEventListener("click", function () {
+          HR.setCollapsed(key, !shut);
+          redraw();
+        });
+        host.appendChild(row);
+        if (!shut) renderTree(host, dir, depth + 1, redraw);
+      });
+      node.files.slice().sort().forEach(function (path) {
+        host.appendChild(fileRow(HR.byPath[path], depth, redraw));
+      });
+    }
+
+    function anyGroupOpen() {
+      return HR.plan.groups.some(function (g) { return !HR.collapsed("group:" + g.key, false); });
+    }
+    function renderStations() {
+      var host = document.getElementById("stations");
+      closeAll();
+      host.textContent = "";
+      HR.plan.groups.forEach(function (group, index) {
+        var station = el("div", "station");
+        station.setAttribute("data-weight", group.weight);
+        var gutter = el("div", "gutter");
+        gutter.appendChild(el("div", "node", String(index + 1)));
+        gutter.appendChild(el("div", "lamp"));
+        station.appendChild(gutter);
+
+        var box = el("div", "group");
+        var key = "group:" + group.key;
+        var folded = group.files.filter(function (p) { return HR.byPath[p].folded_into; });
+        var visible = showFolded[group.key] ? group.files
+          : group.files.filter(function (p) { return !HR.byPath[p].folded_into; });
+
+        var shut = HR.collapsed(key, false);
+        var head = el("div", "group-head");
+        head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        head.appendChild(checkbox(group.files, function () {
+          // Checking a whole group is a statement that it needs no more attention,
+          // so it folds away once every file in it is ticked.
+          HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
+          renderStations();
+        }, "Mark the whole group read"));
+        head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
+        var tally = HR.tallyRead(group.files);
+        head.appendChild(el("span", "spacer"));
+        head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
+        head.addEventListener("click", function () {
+          HR.setCollapsed(key, !shut);
+          renderStations();
+        });
+        box.appendChild(head);
+
+        if (!shut) {
+          if (group.why) {
+            var why = el("div", "why");
+            // The box spans the row, the sentence inside it does not - see .why span.
+            why.appendChild(el("span", null, group.why));
+            box.appendChild(why);
+          }
+          var body = el("div", "group-body");
+          renderTree(body, HR.buildTree(visible), 0, renderStations);
+          if (folded.length) {
+            var more = el("button", "more", (showFolded[group.key] ? "− hide " : "+ ") +
+              folded.length + " with an identical shape" + (showFolded[group.key] ? "" : " — show"));
+            more.addEventListener("click", function (event) {
+              event.stopPropagation();
+              showFolded[group.key] = !showFolded[group.key];
+              // Revealing the fan-out turns a one-row group into a real one, and `skip`
+              // groups start collapsed - so without this the toggle appears to do nothing.
+              if (showFolded[group.key]) HR.setCollapsed(key, false);
+              renderStations();
+            });
+            body.appendChild(more);
+          }
+          box.appendChild(body);
+        }
+        station.appendChild(box);
+        host.appendChild(station);
+      });
+      document.getElementById("t-collapse").textContent = anyGroupOpen() ? "Collapse" : "Expand";
+      renderProgress();
+    }
+
+    function toggleAll() {
+      var shut = anyGroupOpen();
+      HR.plan.groups.forEach(function (g) { HR.setCollapsed("group:" + g.key, shut); });
+      renderStations();
+    }
+    /* Monaco arrives after first paint; a drawer opened before then re-mounts with it. */
+    function remount() {
+      if (Object.keys(open).length) renderStations();
+    }
+    return { render: render, closeAll: closeAll, toggleAll: toggleAll, remount: remount };
+  })();
+
+  /* ── Focus view ─────────────────────────────────────────────────────── */
+  var Focus = (function () {
+    var current = null, view = null, anchor = null, kind = "fix", showFolded = {};
+    var last = null;      // {pr, path}: where focus mode was, so coming back resumes it
+
+    function order() {
+      return HR.plan.order.length ? HR.plan.order : HR.plan.files.map(function (f) { return f.path; });
+    }
+    function renderRail() {
+      var rail = document.getElementById("rail");
+      rail.textContent = "";
+      HR.plan.groups.forEach(function (group) {
+        var box = el("div");
+        box.setAttribute("data-weight", group.weight);
+        var key = "group:" + group.key;
+        var shut = HR.collapsed(key, false);
+        var head = el("div", "group-head");
+        head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        head.appendChild(checkbox(group.files, function () {
+          HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
+          renderRail(); renderProgress();
+        }, "Mark the whole group read"));
+        head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
+        var tally = HR.tallyRead(group.files);
+        head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
+        head.addEventListener("click", function () { HR.setCollapsed(key, !shut); renderRail(); });
+        box.appendChild(head);
+
+        if (!shut) {
+          var folded = [];
+          group.files.forEach(function (path) {
+            var f = HR.byPath[path];
+            if (f.folded_into && !showFolded[group.key] && path !== current) { folded.push(f); return; }
+            box.appendChild(fileRow(f));
+          });
+          if (folded.length) {
+            var more = el("button", "more", "+ " + folded.length + " with an identical shape — show");
+            more.addEventListener("click", function (event) {
+              event.stopPropagation();
+              showFolded[group.key] = true;
+              renderRail();
+            });
+            box.appendChild(more);
+          }
+        }
+        rail.appendChild(box);
+      });
+      var here = rail.querySelector('[aria-current="true"]');
+      if (here && here.scrollIntoView) here.scrollIntoView({ block: "nearest" });
+    }
+
+    function fileRow(f) {
+      var row = el("div", "frow" + (HR.isRead(f.path) ? " done" : ""));
+      if (f.path === current) row.setAttribute("aria-current", "true");
+      row.appendChild(checkbox([f.path], function () {
+        renderRail(); renderProgress();
+        if (f.path === current) renderHead(f);
+      }));
+      var cut = f.path.lastIndexOf("/");
+      var name = el("span", "fname");
+      name.appendChild(document.createTextNode(cut < 0 ? "" : f.path.slice(0, cut + 1)));
+      name.appendChild(el("b", "", cut < 0 ? f.path : f.path.slice(cut + 1)));
+      row.appendChild(name);
+      var count = HR.commentsFor(f.path).length;
+      if (count) row.appendChild(el("span", "count", String(count)));
+      row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
+      row.addEventListener("click", function () { open(f.path); });
+      return row;
+    }
+
+    function renderHead(f) {
+      var head = document.getElementById("fhead");
+      head.textContent = "";
+      head.setAttribute("data-weight", f.weight);
+      head.appendChild(el("span", "chip", LABEL[f.weight]));
+      head.appendChild(el("span", "path", f.path));
+      head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
+      var also = alsoIn(f.path);
+      if (also) head.appendChild(also);
+      head.appendChild(el("span", "spacer"));
+      var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
+      mark.addEventListener("click", toggleRead);
+      head.appendChild(mark);
+      var gh = githubLink(f.path);
+      if (gh) head.appendChild(gh);
+      var why = el("span", "fwhy");
+      why.appendChild(document.createTextNode(f.why || ""));
+      (f.notes || []).forEach(function (note) { why.appendChild(el("span", "note", note)); });
+      head.appendChild(why);
+    }
+
+    /* Browsing files is not navigation: the route is replaced, not pushed. */
+    function open(path) {
+      if (path && path !== current) go({ view: "focus", file: path }, true);
+    }
+
+    /* Show the route's file; `fresh` when arriving from another view or PR. */
+    function enter(file, fresh) {
+      if (fresh) { dispose(); current = null; showFolded = {}; }
+      var start = HR.byPath[file] ? file : (current || resume() || order()[0] || HR.plan.files[0].path);
+      if (start !== route.file) {
+        route.file = start;
+        replaceHash(HR.link(route));
+      }
+      if (start === current && (view || !monacoSettled)) { renderRail(); return; }
+      current = start;
+      last = { pr: HR.entry.id, path: current };
+      renderHead(HR.byPath[current]);
+      renderRail();
+      setAnchor(null);
+      renderComments();
+      mountEditor();
+    }
+    function resume() {
+      return last && last.pr === HR.entry.id && HR.byPath[last.path] ? last.path : "";
+    }
+    function mountEditor() {
+      dispose();
+      if (!monacoSettled) return;   // Monaco's arrival calls remount()
+      view = HR.mountDiff(document.getElementById("editor"), HR.byPath[current], { onAnchor: setAnchor });
+    }
+    function dispose() {
+      if (view) { view.dispose(); view = null; }
+    }
+
+    function toggleRead() {
+      if (!current) return;
+      HR.setRead([current], !HR.isRead(current));
+      renderRail(); renderProgress();
+      renderHead(HR.byPath[current]);
+    }
+    function setAnchor(line) {
+      var a = line ? HR.anchorOf(line) : null;
+      anchor = a ? { line: a, text: line.text } : null;
+      document.getElementById("anchor").textContent = line ? anchorLabel(line, 40) : "file-level";
+      if (line) document.getElementById("composer").focus();
+    }
+    function renderComments() {
+      var host = document.getElementById("comments");
+      var n = current ? commentList(host, current, function () { return view; }, function () {
+        if (view) view.paint();
+        renderComments(); renderRail(); renderProgress(); exporter.refresh();
+      }) : 0;
+      document.getElementById("p-count").textContent = String(n);
+      if (!n) {
+        host.textContent = "";
+        host.appendChild(el("p", "muted", current
+          ? "No comments on this file yet. Click a line number to anchor one."
+          : "Pick a file from the list."));
+      }
+    }
+    function submit() {
+      var box = document.getElementById("composer");
+      var body = box.value.trim();
+      if (!body) { box.focus(); return; }
+      if (!current) { HR.toast("Pick a file first"); return; }
+      HR.addComment(current, body, kind, anchor);
+      box.value = "";
+      setAnchor(null);
+      if (view) view.paint();
+      renderComments(); renderRail(); renderProgress(); exporter.refresh();
+    }
+    function step(delta) {
+      var list = order(), index = list.indexOf(current);
+      open(list[Math.min(Math.max(index + delta, 0), list.length - 1)]);
+    }
+
+    document.getElementById("kinds").addEventListener("click", function (event) {
+      var button = event.target.closest("button[data-kind]");
+      if (!button) return;
+      kind = button.dataset.kind;
+      this.querySelectorAll("button").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === button));
+      });
+    });
+    document.getElementById("add").addEventListener("click", submit);
+    document.getElementById("composer").addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault(); submit();
+      }
+    });
+    document.getElementById("clear-anchor").addEventListener("click", function () { setAnchor(null); });
+
+    return { enter: enter, step: step, toggleRead: toggleRead, resume: resume,
+             leave: function () { dispose(); current = null; },
+             remount: function () { if (current) mountEditor(); } };
+  })();
+
+  /* ── Stack overview ─────────────────────────────────────────────────── */
+  function renderOverview() {
+    var stack = HR.stack, prs = HR.prs;
+    document.getElementById("s-title").textContent = stack.title;
+    var repos = [];
+    prs.forEach(function (pr) {
+      var repo = pr.plan.target.repo;
+      if (repo && repos.indexOf(repo) < 0) repos.push(repo);
+    });
+    document.getElementById("s-meta").textContent =
+      repos.concat([prs.length + " PRs on " + stack.trunk + ", bottom of the stack first"]).join(" · ");
+    var total = { files: 0, critical: 0, read: 0, additions: 0, deletions: 0 };
+    prs.forEach(function (pr) {
+      Object.keys(total).forEach(function (k) { total[k] += pr.plan.stats[k]; });
+    });
+    metricTiles(document.getElementById("s-metrics"), [
+      ["PRs", prs.length, false], ["Changed files", total.files, false],
+      ["Need your eyes", total.critical + total.read, true], ["Stop and read", total.critical, false],
+      ["Lines", "+" + total.additions + " −" + total.deletions, false]]);
+
+    var list = document.getElementById("s-prs");
+    list.textContent = "";
+    prs.forEach(function (pr) {
+      var t = pr.plan.target, s = pr.plan.stats, p = HR.progressOf(pr);
+      var forked = HR.relationOf(pr) && pr.parent;
+      var item = el("li", "pr" + (p.total && p.done === p.total ? " done" : "") + (forked ? " fork" : ""));
+      var head = el("div", "pr-head");
+      head.appendChild(el("b", "", HR.prLabel(pr)));
+      var title = el("a", "", t.title || pr.id);
+      title.href = HR.link({ view: "plan", pr: pr.id });
+      head.appendChild(title);
+      head.appendChild(el("span", "progress", p.done + "/" + p.total + " read" +
+        (p.comments ? " · " + p.comments + " comment" + (p.comments === 1 ? "" : "s") : "")));
+      item.appendChild(head);
+      var parent = pr.parent ? HR.byId(pr.parent) : null;
+      item.appendChild(el("p", "meta", [t.branch, "on " + (parent ? HR.prLabel(parent) : stack.trunk),
+        s.files + " files", "+" + s.additions + " −" + s.deletions, s.critical + " stop-and-read",
+        String(t.head_sha || "").slice(0, 7)].filter(Boolean).join(" · ")));
+      if (pr.plan.summary) {
+        // The first sentence of the PR's own introduction is its gist.
+        var prose = pr.plan.summary.overview.map(function (part) {
+          return typeof part === "string" ? part : part.text;
+        }).join("").trim();
+        var first = /^[\s\S]*?[.!?](?=\s|$)/.exec(prose);
+        item.appendChild(el("p", "gist", first ? first[0] : prose));
+      }
+      var links = el("div", "links");
+      [["Plan", "plan"], ["Focus", "focus"]].forEach(function (pair) {
+        var a = el("a", "btn btn-sm", pair[0]);
+        a.href = HR.link({ view: pair[1], pr: pr.id });
+        links.appendChild(a);
+      });
+      if (/^https?:\/\//.test(t.url || "")) {
+        var gh = el("a", "btn btn-sm", "GitHub");
+        gh.href = t.url; gh.target = "_blank"; gh.rel = "noreferrer";
+        links.appendChild(gh);
+      }
+      item.appendChild(links);
+      list.appendChild(item);
+    });
+  }
+
+  /* ── Router ─────────────────────────────────────────────────────────── */
+  function replaceHash(hash) {
+    try { history.replaceState(null, "", hash); } catch (e) { /* file:// in some browsers */ }
+  }
+  /* Go to a route. View and PR changes push a history entry; `replace` does not. */
+  function go(next, replace) {
+    var hash = HR.link(next);
+    if (hash !== location.hash) {
+      try { history[replace ? "replaceState" : "pushState"](null, "", hash); }
+      catch (e) { location.hash = hash; return; }   // hashchange then calls apply()
+    }
+    apply();
+  }
+
+  /* Render whatever the hash names. Idempotent: hashchange and popstate can both fire. */
+  function apply() {
+    var next = HR.parseRoute();
+    var prChanged = HR.select(next.pr);
+    next.pr = HR.entry.id;
+    var prev = route;
+    var viewChanged = !prev || prev.view !== next.view;
+    if (prev && (viewChanged || prChanged)) {
+      if (prev.view === "plan") Plan.closeAll();
+      if (prev.view === "focus") Focus.leave();
+    }
+    route = next;
+    document.body.setAttribute("data-view", next.view);
+    renderHeader();
+    HR.renderStack(document.getElementById("stack-bar"), route);
+
+    if (next.view === "plan") {
+      if (viewChanged || prChanged) Plan.render();
+      var summary = document.getElementById("summary");
+      if (next.at === "summary" && !summary.hidden) summary.scrollIntoView();
+      else if (viewChanged || prChanged) window.scrollTo(0, 0);
+    } else if (next.view === "focus") {
+      Focus.enter(next.file, viewChanged || prChanged);
+    } else {
+      renderOverview();
+      if (viewChanged) window.scrollTo(0, 0);
+    }
+    renderProgress();
+  }
+
+  function renderHeader() {
+    var overview = route.view === "stack";
+    var title = overview ? HR.stack.title : HR.titleOf();
+    document.getElementById("t-title").textContent = title;
+    document.getElementById("t-meta").textContent = overview
+      ? HR.prs.length + " PRs on " + HR.stack.trunk : HR.metaOf();
+    document.title = (HR.stack && !overview ? title + " · " + HR.stack.title : title) + " · human review";
+    document.getElementById("t-prog").hidden = overview;
+    var plan = document.getElementById("t-plan"), focus = document.getElementById("t-focus");
+    plan.href = HR.link({ view: "plan" });
+    focus.href = HR.link({ view: "focus", file: Focus.resume() });
+    plan.removeAttribute("aria-current");
+    focus.removeAttribute("aria-current");
+    if (route.view === "plan") plan.setAttribute("aria-current", "page");
+    if (route.view === "focus") focus.setAttribute("aria-current", "page");
+  }
+
+  /* ── Wiring ─────────────────────────────────────────────────────────── */
+  HR.mountTheme(document.getElementById("t-theme"));
+  document.getElementById("t-export").addEventListener("click", exporter.open);
+  document.getElementById("t-collapse").addEventListener("click", Plan.toggleAll);
+  document.getElementById("t-shortcuts").addEventListener("click", function () {
+    HR.toast((route.view === "focus" ? "j/k file · x mark read · c comment · " : "") +
+             "v plan/focus · e export" + (HR.stack ? " · [ ] lower/upper PR" : ""));
+  });
+  document.addEventListener("keydown", function (event) {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.metaKey ||
+        event.ctrlKey || event.altKey) return;
+    var key = event.key;
+    if (key === "Escape") {
+      if (document.getElementById("overlay").classList.contains("open")) exporter.close();
+      else if (route.view === "plan") Plan.closeAll();
+      return;
+    }
+    var focus = route.view === "focus";
+    if (key === "e") exporter.open();
+    else if (key === "v") go({ view: focus ? "plan" : "focus", file: focus ? "" : Focus.resume() });
+    else if (key === "[" || key === "]") {
+      var next = HR.stepTarget(key === "]" ? 1 : -1, route);
+      if (!next) return;
+      go(next);
+    }
+    else if (focus && key === "j") Focus.step(1);
+    else if (focus && key === "k") Focus.step(-1);
+    else if (focus && key === "x") Focus.toggleRead();
+    else if (focus && key === "c") document.getElementById("composer").focus();
+    else return;
+    event.preventDefault();
+  });
+  // In-page links change only the hash; Back and Forward do the same.
+  window.addEventListener("hashchange", apply);
+  window.addEventListener("popstate", apply);
+
+  apply();
+  HR.onMonaco(function (ok) {
+    monacoSettled = true;
+    if (!ok) HR.toast("Monaco unavailable — plain diff view");
+    if (route.view === "focus") Focus.remount();
+    if (route.view === "plan") Plan.remount();
+  });
+})();
+</script>
+</body>
+</html>

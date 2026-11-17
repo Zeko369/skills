@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src data:; connect-src https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
-<meta name="generator" content="human-review · review">
-<title>#412 feat: account API keys with hashed tokens · Review tool</title>
+<meta name="generator" content="human-review">
+<title>#412 feat: account API keys with hashed tokens · human review</title>
 <style>
 /* Shared design language for the reading plan and the review tool.
    Swiss light palette, 2px ink rules, hazard hatching, uppercase micro-labels. */
@@ -162,71 +162,236 @@ code,pre,kbd{font-family:var(--mono)}
 .sheet-head{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:3px solid var(--rule)}
 .sheet pre{flex:1;overflow:auto;margin:0;padding:12px 14px;font:11.5px/1.5 var(--mono);background:var(--wash);white-space:pre}
 .sheet-foot{display:flex;gap:8px;padding:11px 14px;border-top:3px solid var(--rule);flex-wrap:wrap;align-items:center}
-.sheet-foot input,.sheet-foot select{border:2px solid var(--rule);padding:5px 8px;background:var(--paper)}
+.sheet-foot input,.sheet-foot select,.sheet-head select{border:2px solid var(--rule);padding:5px 8px;background:var(--paper)}
 .sheet-foot input{flex:1;min-width:160px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;padding:9px 16px;background:var(--slab);color:var(--paper);font:800 11px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:0;transition:opacity .18s;pointer-events:none}
 .toast.on{opacity:1}
 
+/* Stack bar: one chip per PR, bottom of the stack first. Only stack renders show it. */
+.stackbar{display:flex;align-items:center;gap:10px;padding:6px 16px;border-bottom:2px solid var(--rule);background:var(--wash);min-width:0}
+.stackbar[hidden]{display:none}
+.stack-head a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.stack-head a:hover{color:var(--ink);text-decoration:underline}
+.stack-prs{display:flex;align-items:stretch;gap:0;margin:0;padding:0;list-style:none;overflow-x:auto;flex:1;min-width:0;scrollbar-width:thin}
+.stack-pr{display:flex;align-items:center;flex:none}
+.stack-sep{padding:0 6px;font:700 12px/1 var(--mono);color:var(--faint)}
+.stack-chip{display:grid;grid-template-columns:auto auto auto;grid-template-areas:"num tally count" "title title title" "bar bar bar";column-gap:7px;row-gap:3px;align-items:center;max-width:250px;padding:5px 9px 6px;border:2px solid var(--line);background:var(--paper);color:var(--ink);text-decoration:none}
+.stack-chip:hover{border-color:var(--rule)}
+.stack-chip[aria-current="page"]{border-color:var(--rule);box-shadow:inset 0 -4px 0 var(--slab)}
+.stack-chip b{grid-area:num;font:800 12px/1 var(--sans)}
+.stack-chip .stack-tally{grid-area:tally;justify-self:end;font:600 10px/1 var(--mono);color:var(--muted)}
+.stack-chip .count{grid-area:count;min-width:16px;height:16px;font-size:9.5px}
+.stack-chip .count[hidden]{display:none}
+.stack-chip .stack-title{grid-area:title;font:400 11px/1.3 var(--sans);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stack-chip .stack-rel{grid-area:title;justify-self:end;font:700 9px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);background:var(--paper);padding-left:6px}
+.stack-chip .bar{grid-area:bar;width:100%;height:5px;border-width:1px}
+.stack-chip.done b::after{content:" ✓";color:var(--green)}
+.stack-step{display:flex;gap:4px;flex:none}
+.stack-step [aria-disabled="true"]{opacity:.35;pointer-events:none}
+/* A file the stack touches again elsewhere: a quiet pointer, not a warning. */
+.also{display:inline-flex;gap:4px;align-items:center;font:600 10px/1.4 var(--mono);color:var(--muted)}
+.also a{color:var(--blue)}
+@media (max-width:620px){.stackbar{padding:6px 10px}.stack-head{display:none}.stack-chip{max-width:170px}}
+@media print{.stackbar{display:none}}
+.sheet-head select[hidden]{display:none}
+.progress[hidden]{display:none}
 
-html,body{height:100%}
-body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
-:root{--rail:330px;--panel:350px}
 
-.top{display:flex;align-items:center;gap:13px;padding:9px 16px;border-bottom:3px solid var(--rule);background:var(--paper);flex-wrap:wrap}
-.top h1{font:800 14px/1.2 var(--sans);letter-spacing:-.01em;max-width:42ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ── Views ────────────────────────────────────────────────────────────────
+   One is shown at a time. Plan and stack scroll as documents under a sticky header;
+   focus is a fixed full-height app, so the editor owns its own scrolling. */
+#view-plan,#view-focus,#view-stack{display:none}
+body[data-view="plan"] #view-plan,body[data-view="stack"] #view-stack{display:block}
+body[data-view="focus"]{height:100vh;height:100dvh;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}
+body[data-view="focus"] #view-focus{display:grid}
+
+/* Sticky command bar, plus the stack bar under it on stack renders */
+.masthead{position:sticky;top:0;z-index:30}
+.top{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:3px solid var(--rule);background:var(--paper);flex-wrap:wrap}
+.top h1{font:800 14px/1.2 var(--sans);letter-spacing:-.01em;max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .meta{font:500 11px/1 var(--mono);color:var(--muted)}
+/* The plan's lede repeats this verbatim a few pixels below; drop it before the bar wraps. */
+@media (max-width:1460px){body[data-view="plan"] .top .meta{display:none}}
+@media (max-width:1120px){.top h1{max-width:20ch}}
+.views{display:inline-flex;border:2px solid var(--rule)}
+.views a{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-right:2px solid var(--rule);background:var(--paper);color:var(--ink);font:800 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;text-decoration:none}
+.views a:last-child{border-right:0}
+.views a:hover{background:var(--wash)}
+.views a[aria-current="page"]{background:var(--slab);color:var(--paper)}
+body:not([data-view="plan"]) #t-collapse{display:none}
 
-.shell{display:grid;grid-template-columns:var(--rail) 1fr var(--panel);min-height:0}
-.rail,.panel{overflow:auto;min-height:0;background:var(--paper)}
-.rail{border-right:2px solid var(--rule)}
-.panel{border-left:2px solid var(--rule);display:flex;flex-direction:column}
-.center{min-width:0;min-height:0;display:flex;flex-direction:column}
+/* ── Plan view ────────────────────────────────────────────────────────────
+   Paths are the widest thing here and they are the one thing that must not wrap:
+   a file row reads as one line or it reads as nothing. 1500 fits the longest path
+   in a real diff next to its notes. Prose keeps its own measure below, because a
+   1500px line of 12px text is about 200 characters and unreadable. */
+.wrap{max-width:1500px;margin:0 auto;padding:26px clamp(14px,3vw,30px) 90px}
+.lede h2{margin:9px 0 0;font:800 clamp(21px,3.4vw,32px)/1.08 var(--sans);letter-spacing:-.025em}
+.lede .meta{margin:9px 0 0;font:500 12px/1.5 var(--mono);color:var(--muted)}
 
-.group-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--wbg);color:var(--wi);border-bottom:2px solid var(--wr);cursor:pointer}
-[data-weight="skim"] .group-head,[data-weight="skip"] .group-head{border-color:var(--grey)}
-[data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
-.group-head .label{flex:1;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
-.group-head .tally{font:700 10px/1 var(--mono);opacity:.8}
-.caret{flex:none;width:12px;text-align:center;font-size:9px;transition:transform .12s}
+.metrics{display:flex;flex-wrap:wrap;margin:22px 0 0;border:2px solid var(--rule)}
+.metric{flex:1 1 120px;padding:9px 13px 11px;border-right:2px solid var(--rule)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font:800 25px/1 var(--sans);letter-spacing:-.02em;margin-top:4px}
+.metric .kicker{color:var(--muted)}
+.metric.hot b{color:var(--p0)}
+
+#view-plan .band{margin:26px 0 0;border:2px solid var(--rule)}
+#view-plan .band-top{height:11px;background:var(--hazard)}
+#view-plan .band-head{padding:8px 13px;background:var(--slab);color:var(--paper)}
+#view-plan .q{display:flex;gap:13px;padding:11px 13px;border-top:2px solid var(--rule)}
+#view-plan .q .kind{flex:none;width:84px;font:800 10px/1.4 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#view-plan .q .body{flex:1;min-width:0}
+#view-plan .q .files{margin:5px 0 0;font:400 11.5px/1.6 var(--mono);color:var(--faint);overflow-wrap:anywhere}
+
+#view-plan .station{margin:22px 0 0;display:grid;grid-template-columns:42px 1fr}
+#view-plan .gutter{position:relative;display:flex;flex-direction:column;align-items:center;padding-top:5px}
+/* The gutter stretches to the station's height, so this reaches across the 22px
+   margin and meets the next node. The last one stops at its own lamp instead. */
+#view-plan .gutter::before{content:"";position:absolute;top:0;bottom:-22px;width:2px;background:var(--line)}
+#view-plan .station:last-of-type .gutter::before{bottom:auto;height:48px}
+#view-plan .node{position:relative;z-index:1;width:26px;height:26px;display:grid;place-items:center;border:2px solid var(--wr);background:var(--paper);font:800 11px/1 var(--sans)}
+#view-plan .station[data-weight="critical"] .node{background:var(--p0);color:#fff}
+#view-plan .station[data-weight="read"] .node{background:var(--wbg);color:var(--wi)}
+#view-plan .lamp{width:10px;height:10px;margin-top:7px;border:2px solid var(--wr);background:var(--wbg)}
+
+#view-plan .group{align-self:start;border:2px solid var(--wr);background:var(--paper)}
+#view-plan .group-head{display:flex;align-items:center;gap:9px;padding:7px 11px;background:var(--wbg);color:var(--wi);cursor:pointer}
+#view-plan .station[data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
+#view-plan .group-head .label{font:800 11px/1.2 var(--sans);letter-spacing:.1em;text-transform:uppercase}
+#view-plan .group-head .tally{font:700 10.5px/1 var(--mono);opacity:.75}
+.caret{flex:none;width:13px;text-align:center;font-size:10px;transition:transform .12s}
 .caret.shut{transform:rotate(-90deg)}
-.frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;cursor:pointer}
-.frow:hover{background:var(--wash)}
-.frow[aria-current="true"]{background:var(--wash-2);box-shadow:inset 4px 0 0 var(--ink)}
-.frow.done .fname{opacity:.45;text-decoration:line-through}
+#view-plan .why{padding:7px 11px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);background:var(--wash)}
+#view-plan .why span{display:block;max-width:92ch}
+#view-plan .station[data-weight="critical"] .why{background:#fff2f3;color:var(--ink)}
+:root[data-mode="dark"] #view-plan .station[data-weight="critical"] .why{background:#2b1416}
+#view-plan .group-body{border-top:2px solid var(--wr)}
+
+#view-plan .dir,#view-plan .file{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;font:inherit;cursor:pointer;padding:5px 11px}
+#view-plan .dir{background:var(--wash);font:700 11.5px/1.4 var(--mono)}
+#view-plan .dir:hover{background:var(--wash-2)}
+#view-plan .dir .n{flex:1;min-width:0;overflow-wrap:anywhere}
+#view-plan .dir .tally{font:600 10px/1 var(--mono);color:var(--muted)}
+#view-plan .file:hover{background:var(--wash)}
+#view-plan .file.open{background:var(--wash-2);box-shadow:inset 3px 0 0 var(--ink)}
+#view-plan .file.done .fname{opacity:.45;text-decoration:line-through}
+#view-plan .file.folded .fname{color:var(--faint)}
+/* A note can be a whole sentence, and the notes are the only thing on the row that
+   cannot shrink. Sized from zero the name was the only give, so three of them wrung
+   it down to nothing and overflow-wrap:anywhere spelled the path out one letter per
+   line. The basis makes the name count towards the line, so a note that does not fit
+   wraps underneath it instead of squeezing it, and the floor is the width the name is
+   never allowed to fall below. */
 .fname{flex:1 1 22ch;min-width:min(100%,22ch);font:400 12px/1.35 var(--mono);overflow-wrap:anywhere;color:var(--muted)}
-.fname b{font-weight:700;color:var(--ink)}
+.fname b{font-weight:600;color:var(--ink)}
+#view-plan .file.done .fname b{color:inherit}
 .fstat{flex:none;font:500 10.5px/1 var(--mono);color:var(--muted)}
+#view-plan .tag{flex:0 1 auto;min-width:0;overflow-wrap:break-word;padding:1px 5px;background:var(--p2);color:var(--on-p2);font:700 9.5px/1.5 var(--sans);text-transform:uppercase;letter-spacing:.06em}
+#view-plan .tag.cold{background:var(--grey-lt);color:var(--muted)}
 .more{width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--hatch-soft),var(--wash);font:700 10.5px/1.4 var(--sans);letter-spacing:.04em;color:var(--muted);text-align:left;cursor:pointer}
 
-.fhead{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:2px solid var(--rule);flex-wrap:wrap;flex:none}
-.fhead .path{font:700 13px/1.3 var(--mono);overflow-wrap:anywhere}
-.fwhy{width:100%;font-size:12px;color:var(--muted)}
+/* Inline drawer */
+#view-plan .drawer{display:grid;grid-template-columns:1fr 310px;border-top:2px solid var(--rule);border-bottom:2px solid var(--rule);background:var(--wash)}
+#view-plan .drawer-main{min-width:0;display:flex;flex-direction:column;background:var(--paper)}
+#view-plan .drawer-head{display:flex;align-items:center;gap:9px;padding:7px 11px;border-bottom:2px solid var(--rule);flex-wrap:wrap}
+#view-plan .drawer-head .path{font:700 12px/1.3 var(--mono);overflow-wrap:anywhere}
+#view-plan .drawer-diff{min-width:0}
+#view-plan .drawer-side{display:flex;flex-direction:column;border-left:2px solid var(--rule);min-width:0;max-height:620px}
+#view-plan .drawer-side .list{flex:1;overflow:auto;padding:10px;min-height:60px}
+@media (max-width:980px){#view-plan .drawer{grid-template-columns:1fr}#view-plan .drawer-side{border-left:0;border-top:2px solid var(--rule)}}
+/* Hiding the gutter takes it out of grid placement, so the group auto-places into
+   what used to be the gutter's column. One column, not two, or the group lands in
+   a 0 width track and every row inside it is a sliver. */
+@media (max-width:620px){#view-plan .station{grid-template-columns:1fr}#view-plan .gutter{display:none}}
+
+/* ── Focus view ─────────────────────────────────────────────────────────── */
+#view-focus{--rail:330px;--panel:350px;grid-template-columns:var(--rail) 1fr var(--panel);min-height:0}
+#view-focus .rail,#view-focus .panel{overflow:auto;min-height:0;background:var(--paper)}
+#view-focus .rail{border-right:2px solid var(--rule)}
+#view-focus .panel{border-left:2px solid var(--rule);display:flex;flex-direction:column}
+#view-focus .center{min-width:0;min-height:0;display:flex;flex-direction:column}
+
+#view-focus .group-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--wbg);color:var(--wi);border-bottom:2px solid var(--wr);cursor:pointer}
+#view-focus [data-weight="skim"] .group-head,#view-focus [data-weight="skip"] .group-head{border-color:var(--grey)}
+#view-focus [data-weight="skip"] .group-head{background:var(--wash);color:var(--muted)}
+#view-focus .group-head .label{flex:1;font:800 10px/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase}
+#view-focus .group-head .tally{font:700 10px/1 var(--mono);opacity:.8}
+#view-focus .caret{width:12px;font-size:9px}
+#view-focus .frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding:6px 11px;border:0;border-bottom:1px solid var(--line);background:var(--paper);text-align:left;cursor:pointer}
+#view-focus .frow:hover{background:var(--wash)}
+#view-focus .frow[aria-current="true"]{background:var(--wash-2);box-shadow:inset 4px 0 0 var(--ink)}
+#view-focus .frow.done .fname{opacity:.45;text-decoration:line-through}
+#view-focus .fname b{font-weight:700}
+
+#view-focus .fhead{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:2px solid var(--rule);flex-wrap:wrap;flex:none}
+#view-focus .fhead .path{font:700 13px/1.3 var(--mono);overflow-wrap:anywhere}
+#view-focus .fwhy{width:100%;font-size:12px;color:var(--muted)}
 #editor{flex:1;min-height:0}
 #editor .fallback{height:100%}
-.empty{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:var(--muted)}
 
-.panel-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:2px solid var(--rule);background:var(--slab);color:var(--paper);flex:none}
-.panel-body{flex:1;overflow:auto;padding:12px}
-.composer{flex:none}
-@media (max-width:1100px){:root{--rail:260px;--panel:300px}}
-@media (max-width:820px){.shell{grid-template-columns:1fr}.rail,.panel{display:none}}
+#view-focus .panel-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:2px solid var(--rule);background:var(--slab);color:var(--paper);flex:none}
+#view-focus .panel-body{flex:1;overflow:auto;padding:12px}
+#view-focus .composer{flex:none}
+@media (max-width:1100px){#view-focus{--rail:260px;--panel:300px}}
+@media (max-width:820px){#view-focus{grid-template-columns:1fr}#view-focus .rail,#view-focus .panel{display:none}}
+
+/* ── Stack overview ─────────────────────────────────────────────────────── */
+#view-stack.wrap{max-width:1000px}
+#view-stack .prs{list-style:none;margin:30px 0 0;padding:0;border-left:2px solid var(--line)}
+#view-stack .pr{position:relative;margin:0 0 20px;padding:0 0 0 22px}
+#view-stack .pr::before{content:"";position:absolute;left:-8px;top:5px;width:14px;height:14px;background:var(--paper);border:2px solid var(--rule)}
+#view-stack .pr.done::before{background:var(--green)}
+/* A PR forked from something other than the one listed above it sits one step in. */
+#view-stack .pr.fork{margin-left:26px}
+#view-stack .pr-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+#view-stack .pr-head b{font:800 18px/1.2 var(--sans)}
+#view-stack .pr-head a{font:600 16px/1.3 var(--sans);color:inherit}
+#view-stack .pr-head .progress{margin-left:auto}
+#view-stack .pr .meta{margin:5px 0 0;font:500 11.5px/1.5 var(--mono);color:var(--muted)}
+#view-stack .gist{margin:8px 0 0;max-width:78ch;font-size:14px;color:var(--muted)}
+#view-stack .links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+#view-stack .s-foot{margin:30px 0 0;padding:14px 0 0;border-top:2px solid var(--line);color:var(--muted);font-size:12.5px}
 </style>
 </head>
-<body>
+<body data-view="plan">
 <script type="application/json" id="plan">{"format":"human-review/plan@1","generated_at":"2026-01-14T10:00:00Z","target":{"kind":"pr","repo":"acme/example","number":412,"title":"feat: account API keys with hashed tokens","author":"example","base":"main","branch":"feat/api-keys","head_sha":"0000000000000000000000000000000000000000","url":"https://github.com/acme/example/pull/412","draft":false},"config":{"name":"rails-default","source":"configs/rails.json (example)"},"summary":{"head_sha":"0000000000000000000000000000000000000000","overview":["This illustrative PR adds account API keys, connecting stored records to management routes and a settings entry point. Its ",{"text":"token handling","topic":"tokens"}," returns a token on creation and introduces digest storage plus log filtering. The ",{"text":"account and permission changes","topic":"access"}," connect keys to accounts and declare who can manage them, making the data contract and access checks central to review. The change also adds request coverage and removes legacy coverage, so ",{"text":"what the tests establish","topic":"coverage"}," needs attention. These snippets are synthetic and no tests were run; use the introduction to orient yourself, then follow the reading order to inspect the code."],"topics":[{"id":"tokens","title":"Token handling","paragraphs":[["The create action delegates to a service and returns key.plaintext in a created response. The migration adds token_digest with a unique index, rather than a plaintext-token column. A separate ",{"text":"digest implementation","topic":"digest"}," supplies the hashing operation, and the logging initializer adds token-related filter names. These pieces express the intended secret lifecycle, but the snippets omit the creation service and do not prove that every write or response follows it."]],"files":["app/controllers/api_keys_controller.rb","db/migrate/20260114093000_create_api_keys.rb","config/initializers/filter_parameter_logging.rb"]},{"id":"digest","title":"How the digest is derived","paragraphs":[["TokenDigest uses HMAC-SHA256 with Rails.application.secret_key_base as the key and the token as the message. The stored value therefore depends on both inputs. If verification recomputes this digest, rotating secret_key_base would change the result for an existing token; that consequence is an inference because the lookup path is absent here. Review that path before deciding how existing keys should behave during secret rotation."]],"files":["app/services/api_keys/token_digest.rb"]},{"id":"access","title":"Account ownership and management permissions","paragraphs":[["The migration requires an account reference, and ApiKey belongs to an account. Account receives a dependent-destroy association, while the active scope selects records whose revoked_at is empty. The permission map lists owners and admins for api_keys.manage, and the routes expose index, create and destroy. The snippets show the declaration but omit authorization enforcement and revocation actions, so those behaviors remain unverified."]],"files":["app/models/api_key.rb","app/models/account.rb","config/permissions.json","config/routes.rb"]},{"id":"coverage","title":"What the tests establish","paragraphs":[["The new request example posts a name and checks that a token is present in the response. Its description says the token is returned exactly once, but the shown assertion does not exercise a later read. The plan also flags substantial removal in the legacy request spec, so compare the old cases with their replacements. No test execution is recorded in this illustrative review."]],"files":["spec/requests/api_keys_spec.rb","spec/requests/legacy_tokens_spec.rb"]}]},"stats":{"critical":5,"read":11,"skim":8,"skip":8,"files":32,"additions":486,"deletions":186,"folded":8},"questions":[{"id":"q-wiring","kind":"wiring","text":"5 files changed by one or two lines each - registration or include wiring. Do not read the diffs; check the list is complete.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"id":"q-gen-config/brakeman.ignore","kind":"generated","text":"config/brakeman.ignore gains 5 lines. Confirm every new entry is wanted.","files":["config/brakeman.ignore"]},{"id":"q-coverage","kind":"coverage","text":"1 test file loses far more than it gains. Confirm the behaviour went away, not just its test.","files":["spec/requests/legacy_tokens_spec.rb"]}],"groups":[{"key":"critical:migration","rule":"migration","label":"Migrations","weight":"critical","why":"Runs once against production data and is awkward to undo.","files":["db/migrate/20260114093000_create_api_keys.rb"]},{"key":"critical:authz","rule":"authz","label":"Authorization","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","files":["config/permissions.json"]},{"key":"critical:secrets","rule":"secrets","label":"Secret handling","weight":"critical","why":"Controls what leaks into logs and error reports.","files":["app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb"]},{"key":"critical:dep-manifest","rule":"dep-manifest","label":"Dependencies","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","files":["Gemfile"]},{"key":"read:models","rule":"models","label":"Models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","files":["app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb"]},{"key":"read:controllers","rule":"controllers","label":"Controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","files":["app/controllers/api_keys_controller.rb"]},{"key":"read:api-contract","rule":"api-contract","label":"API contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["docs/API_CHANGELOG.md"]},{"key":"read:routes","rule":"routes","label":"Routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","files":["config/routes.rb"]},{"key":"read:request-spec","rule":"request-spec","label":"Request specs","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","files":["spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"]},{"key":"skim:view","rule":"view","label":"Views and components","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","files":["app/components/settings/api_keys/component.html.erb"]},{"key":"skim:api-contract","rule":"api-contract","label":"API contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","files":["app/serializers/account_serializer.rb","app/serializers/audit_event_serializer.rb","app/serializers/membership_serializer.rb","app/serializers/session_serializer.rb","app/serializers/webhook_serializer.rb"]},{"key":"skim:e2e","rule":"e2e","label":"End-to-end tests","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","files":["e2e/spec/settings/api-keys.spec.ts"]},{"key":"skim:unit-spec","rule":"unit-spec","label":"Unit specs","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","files":["spec/models/api_key_spec.rb"]},{"key":"skip:locale","rule":"locale","label":"Translations","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","files":["config/locales/de.yml","config/locales/en.yml","config/locales/fr.yml","config/locales/it.yml","config/locales/nl.yml"]},{"key":"skip:lockfile","rule":"lockfile","label":"Lockfiles","weight":"skip","why":"Resolver output. The manifest above is the decision.","files":["Gemfile.lock"]},{"key":"skip:schema","rule":"schema","label":"Schema dump","weight":"skip","why":"Generated by the migrations. Read those instead.","files":["db/schema.rb"]},{"key":"skip:brakeman","rule":"brakeman","label":"Brakeman ignores","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","files":["config/brakeman.ignore"]}],"order":["db/migrate/20260114093000_create_api_keys.rb","config/permissions.json","app/services/api_keys/token_digest.rb","config/initializers/filter_parameter_logging.rb","Gemfile","app/models/api_key.rb","app/models/account.rb","app/models/audit_event.rb","app/models/membership.rb","app/models/session.rb","app/models/webhook.rb","app/controllers/api_keys_controller.rb","docs/API_CHANGELOG.md","config/routes.rb","spec/requests/legacy_tokens_spec.rb","spec/requests/api_keys_spec.rb"],"files":[{"path":"db/migrate/20260114093000_create_api_keys.rb","add":9,"del":0,"status":"added","patch":"@@ -1,2 +1,11 @@\n def change\n+    create_table :api_keys do |t|\n+      t.references :account, null: false, foreign_key: true\n+      t.string :token_digest, null: false\n+      t.string :name, null: false\n+      t.datetime :last_used_at\n+      t.datetime :revoked_at\n+      t.timestamps\n+    end\n+    add_index :api_keys, :token_digest, unique: true\n end","previous":null,"rule_id":"migration","weight":"critical","why":"Runs once against production data and is awkward to undo.","label":"Migrations","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"config/permissions.json","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    \"api_keys.manage\": [\"owner\", \"admin\"],\n end","previous":null,"rule_id":"authz","weight":"critical","why":"Decides who can do what. A mistake here is a security bug, not a bug report.","label":"Authorization","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"app/services/api_keys/token_digest.rb","add":6,"del":0,"status":"added","patch":"@@ -1,2 +1,5 @@\n def change\n+  def self.call(token)\n+    OpenSSL::HMAC.hexdigest('SHA256', Rails.application.secret_key_base, token)\n+  end\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"config/initializers/filter_parameter_logging.rb","add":1,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+Rails.application.config.filter_parameters += %i[passw secret token _key api_token]\n end","previous":null,"rule_id":"secrets","weight":"critical","why":"Controls what leaks into logs and error reports.","label":"Secret handling","collapse":null,"report":null,"rank":30,"never_demote":false,"notes":[]},{"path":"Gemfile","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+gem \"rack-attack\", \"~\u003e 6.7\"\n end","previous":null,"rule_id":"dep-manifest","weight":"critical","why":"New code from someone else. One line is still a supply-chain change.","label":"Dependencies","collapse":null,"report":null,"rank":60,"never_demote":false,"notes":[]},{"path":"app/models/api_key.rb","add":54,"del":0,"status":"added","patch":"@@ -1,2 +1,4 @@\n def change\n+  belongs_to :account\n+  scope :active, -\u003e { where(revoked_at: nil) }\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/account.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/audit_event.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/membership.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/session.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/models/webhook.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  has_many :api_keys, dependent: :destroy\n end","previous":null,"rule_id":"models","weight":"read","why":"The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.","label":"Models","collapse":null,"report":null,"rank":10,"never_demote":true,"notes":[]},{"path":"app/controllers/api_keys_controller.rb","add":88,"del":0,"status":"added","patch":"@@ -1,2 +1,6 @@\n def change\n+  def create\n+    key = ApiKeys::CreateService.call(account: current_account, name: params[:name])\n+    render json: { token: key.plaintext }, status: :created\n+  end\n end","previous":null,"rule_id":"controllers","weight":"read","why":"Where a request becomes an action: params, authorization calls, what gets rendered.","label":"Controllers","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"docs/API_CHANGELOG.md","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,5 @@\n def change\n+## 2026-01-14\n+\n+Added `/api_keys`.\n end","previous":null,"rule_id":"api-contract","weight":"read","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":[]},{"path":"config/routes.rb","add":2,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  resources :api_keys, only: %i[index create destroy]\n end","previous":null,"rule_id":"routes","weight":"read","why":"New surface area, and the fastest place to spot something exposed by accident.","label":"Routes","collapse":null,"report":null,"rank":55,"never_demote":false,"notes":[]},{"path":"spec/requests/legacy_tokens_spec.rb","add":2,"del":184,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  # replaced by spec/requests/api_keys_spec.rb\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":["coverage removed - intentional?"]},{"path":"spec/requests/api_keys_spec.rb","add":96,"del":0,"status":"added","patch":"@@ -1,2 +1,8 @@\n def change\n+  describe \"POST /api_keys\" do\n+    it \"returns the token exactly once\" do\n+      post api_keys_path, params: { name: \"deploy\" }\n+      expect(response.parsed_body[\"token\"]).to be_present\n+    end\n+  end\n end","previous":null,"rule_id":"request-spec","weight":"read","why":"The contract as exercised. Read after the code they cover, as confirmation.","label":"Request specs","collapse":null,"report":null,"rank":90,"never_demote":false,"notes":[]},{"path":"app/components/settings/api_keys/component.html.erb","add":31,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+\u003c%= render Settings::Card::Component.new(title: t(\".title\")) do %\u003e\n end","previous":null,"rule_id":"view","weight":"skim","why":"Markup. Look at the shape; the browser is a better reviewer than you are.","label":"Views and components","collapse":null,"report":null,"rank":10,"never_demote":false,"notes":[]},{"path":"app/serializers/account_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folds":4},{"path":"app/serializers/audit_event_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/membership_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/session_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"app/serializers/webhook_serializer.rb","add":1,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  attribute :api_key_count\n end","previous":null,"rule_id":"api-contract","weight":"skim","why":"What clients already depend on. Breaking it is not a deploy you can take back.","label":"API contract","collapse":null,"report":null,"rank":50,"never_demote":false,"notes":["mechanical wiring"],"wiring":true,"folded_into":"app/serializers/account_serializer.rb"},{"path":"e2e/spec/settings/api-keys.spec.ts","add":74,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+test(\"creates and revokes a key\", async ({ page }) =\u003e {\n end","previous":null,"rule_id":"e2e","weight":"skim","why":"Verbose by nature. Check what they assert, not how.","label":"End-to-end tests","collapse":null,"report":null,"rank":97,"never_demote":false,"notes":[]},{"path":"spec/models/api_key_spec.rb","add":61,"del":0,"status":"added","patch":"@@ -1,2 +1,3 @@\n def change\n+  it { is_expected.to belong_to(:account) }\n end","previous":null,"rule_id":"unit-spec","weight":"skim","why":"Mostly restate the code above. Check the cases chosen, not the assertions.","label":"Unit specs","collapse":null,"report":null,"rank":99,"never_demote":false,"notes":[]},{"path":"config/locales/de.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folds":4},{"path":"config/locales/en.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/fr.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/it.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"config/locales/nl.yml","add":4,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+    api_keys:\n+      title: API keys\n end","previous":null,"rule_id":"locale","weight":"skip","why":"Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.","label":"Translations","collapse":"shape","report":null,"rank":10,"never_demote":false,"notes":[],"folded_into":"config/locales/de.yml"},{"path":"Gemfile.lock","add":6,"del":0,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+    rack-attack (6.7.0)\n end","previous":null,"rule_id":"lockfile","weight":"skip","why":"Resolver output. The manifest above is the decision.","label":"Lockfiles","collapse":null,"report":null,"rank":20,"never_demote":false,"notes":[]},{"path":"db/schema.rb","add":12,"del":1,"status":"modified","patch":"@@ -1,2 +1,3 @@\n def change\n+  create_table \"api_keys\", force: :cascade do |t|\n end","previous":null,"rule_id":"schema","weight":"skip","why":"Generated by the migrations. Read those instead.","label":"Schema dump","collapse":null,"report":{"unless_paired_with":"db/migrate/**","deletions_over":8},"rank":30,"never_demote":false,"notes":[]},{"path":"config/brakeman.ignore","add":5,"del":0,"status":"modified","patch":"@@ -1,2 +1,4 @@\n def change\n+      \"fingerprint\": \"a1b2c3\",\n+      \"note\": \"token is hashed\"\n end","previous":null,"rule_id":"brakeman","weight":"skip","why":"Removing an entry means a warning was fixed; only additions need an argument.","label":"Brakeman ignores","collapse":null,"report":{"additions_over":0},"rank":40,"never_demote":false,"notes":[]}]}</script>
 
+<header class="masthead">
 <div class="top">
   <h1 id="t-title"></h1>
   <span class="meta" id="t-meta"></span>
   <span class="spacer"></span>
-  <span class="progress"><span id="t-progress"></span><span class="bar"><i id="t-bar"></i></span></span>
+  <span class="progress" id="t-prog"><span id="t-progress"></span><span class="bar"><i id="t-bar"></i></span></span>
   <span id="t-theme"></span>
-  <a class="btn" id="t-plan" href="plan.html">Plan</a>
+  <nav class="views" aria-label="View">
+    <a id="t-plan" title="Reading plan (v)">Plan</a>
+    <a id="t-focus" title="Focus mode (v)">Focus</a>
+  </nav>
+  <button class="btn" id="t-collapse">Collapse</button>
   <button class="btn" id="t-shortcuts" title="Keyboard shortcuts">?</button>
   <button class="btn btn-solid" id="t-export">Export <span class="count" id="t-count">0</span></button>
 </div>
+<nav class="stackbar" id="stack-bar" hidden></nav>
+</header>
 
-<div class="shell">
+<main class="wrap" id="view-plan">
+  <div class="lede">
+    <span class="kicker muted">Reading plan</span>
+    <h2 id="l-title"></h2>
+    <p class="meta" id="l-meta"></p>
+  </div>
+  <section class="pr-summary" id="summary" aria-label="PR introduction" hidden></section>
+  <div class="metrics" id="metrics"></div>
+  <div class="band" id="band" hidden>
+    <div class="band-top"></div>
+    <div class="band-head"><span class="kicker">Answer these without opening a diff</span></div>
+    <div id="questions"></div>
+  </div>
+  <div id="stations"></div>
+</main>
+
+<div id="view-focus">
   <nav class="rail" id="rail" aria-label="Files in reading order"></nav>
   <main class="center">
     <div class="fhead" id="fhead"></div>
@@ -254,9 +419,26 @@ body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
   </aside>
 </div>
 
+<main class="wrap" id="view-stack">
+  <div class="lede">
+    <span class="kicker muted">Stack overview</span>
+    <h2 id="s-title"></h2>
+    <p class="meta" id="s-meta"></p>
+  </div>
+  <div class="metrics" id="s-metrics"></div>
+  <ol class="prs" id="s-prs"></ol>
+  <p class="s-foot">Each PR is reviewed against its parent branch and keeps its own progress and
+  comments. The stack bar switches PRs and keeps the view you are in; <b>[</b> and <b>]</b> step
+  down and up. Export offers this PR or the whole stack.</p>
+</main>
+
 <div class="overlay" id="overlay">
   <div class="sheet">
-    <div class="sheet-head"><span class="kicker spacer">human-review/comments@1</span>
+    <div class="sheet-head"><span class="kicker spacer" id="x-format">human-review/comments@1</span>
+      <select id="x-scope" hidden aria-label="What to export">
+        <option value="pr">This PR</option>
+        <option value="stack">Whole stack</option>
+      </select>
       <button class="btn" id="x-close">Close</button></div>
     <pre id="x-json"></pre>
     <div class="sheet-foot">
@@ -274,36 +456,203 @@ body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
 <div class="toast" id="toast"></div>
 
 <script>
-/* Shared engine for the reading plan and the review tool.
-   Both pages read the same embedded plan and the same localStorage record, so a file
-   marked read in one is read in the other. */
+/* Shared engine for the review page.
+   One page holds every view - the reading plan, focus mode and, for a stack, the stack
+   overview - and the URL hash says which: #view=focus&pr=pr-413&file=app%2Fx.rb.
+   A single render embeds one plan in the `plan` script; a stack render embeds every
+   PR's plan in the `stack` script. Each PR keeps its own localStorage record, keyed
+   exactly as it would be on its own, so switching PRs never mixes their progress. */
 window.HR = (function () {
   "use strict";
   var MONACO = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
-  var plan = JSON.parse(document.getElementById("plan").textContent);
-  var target = plan.target;
-  var byPath = {};
-  plan.files.forEach(function (f) { byPath[f.path] = f; });
 
-  var KEY = "human-review:" + (target.repo || "") + ":" +
-            (target.number || target.range || "") + ":" + (target.head_sha || "").slice(0, 12);
+  function embedded(id) {
+    var node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent || "null") : null;
+  }
+  var stack = embedded("stack");
+  // A single plan is a stack of one without the stack chrome, so there is one code path.
+  var prs = stack ? stack.prs : [{ id: "pr", parent: null, plan: embedded("plan") }];
+  var api = {};
+
+  function keyOf(t) {
+    return "human-review:" + (t.repo || "") + ":" +
+           (t.number || t.range || "") + ":" + (t.head_sha || "").slice(0, 12);
+  }
   var LABEL = { critical: "Stop and read", read: "Read", skim: "Skim", skip: "Skipped" };
   var LANG = { rb: "ruby", ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
     json: "json", yml: "yaml", yaml: "yaml", md: "markdown", html: "html", erb: "html", css: "css",
     scss: "scss", sql: "sql", sh: "shell", rake: "ruby", py: "python", toml: "ini", lock: "ini",
     gemspec: "ruby", ru: "ruby", jbuilder: "ruby", vue: "html", graphql: "graphql" };
 
-  var state = (function () {
+  function loadState(key) {
     try {
-      var raw = JSON.parse(localStorage.getItem(KEY) || "{}");
+      var raw = JSON.parse(localStorage.getItem(key) || "{}");
       return { read: raw.read || {}, comments: raw.comments || [], seq: raw.seq || 0,
                collapsed: raw.collapsed || {}, verdict: raw.verdict || "comment",
                summary: raw.summary || "" };
     } catch (e) {
       return { read: {}, comments: [], seq: 0, collapsed: {}, verdict: "comment", summary: "" };
     }
-  })();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  }
+
+  /* ── The selected PR ────────────────────────────────────────────────────
+     Everything below reads these, and select() swaps them. Views must read HR.plan and
+     friends at render time rather than caching them. */
+  var entry, plan, target, byPath, KEY, state;
+  function select(id) {
+    var next = prs[0];
+    prs.forEach(function (pr) { if (pr.id === id) next = pr; });
+    if (next === entry) return false;
+    entry = next;
+    plan = entry.plan;
+    target = plan.target;
+    byPath = {};
+    plan.files.forEach(function (f) { byPath[f.path] = f; });
+    KEY = keyOf(target);
+    state = loadState(KEY);
+    api.entry = entry; api.plan = plan; api.target = target;
+    api.byPath = byPath; api.state = state;
+    return true;
+  }
+  select(prs[0].id);
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    paintStack();
+  }
+
+  /* ── Routes ─────────────────────────────────────────────────────────────
+     The hash is the whole route, so a link to a file survives a reload and the page
+     works from file:// and from hosts that drop query strings. */
+  var VIEWS = stack ? ["stack", "plan", "focus"] : ["plan", "focus"];
+  function parseRoute() {
+    var params = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    var view = params.get("view");
+    return { view: VIEWS.indexOf(view) >= 0 ? view : VIEWS[0],
+             pr: params.get("pr") || prs[0].id,
+             file: params.get("file") || "", at: params.get("at") || "" };
+  }
+  /* A hash for `route`, filled in from the current PR. The PR is left out of single
+     renders, where there is only one. */
+  function link(route) {
+    var params = new URLSearchParams();
+    params.set("view", route.view || "plan");
+    if (stack) params.set("pr", route.pr || entry.id);
+    if (route.file) params.set("file", route.file);
+    if (route.at) params.set("at", route.at);
+    return "#" + params.toString();
+  }
+  function prLabel(pr) {
+    var t = pr.plan.target;
+    return t.number ? "#" + t.number : pr.id;
+  }
+  function byId(id) {
+    for (var i = 0; i < prs.length; i++) if (prs[i].id === id) return prs[i];
+    return null;
+  }
+  /* Other PRs in the stack that change the same path - the reader of a lower PR should
+     know the file moves again above it, and the reader of an upper one where it began. */
+  function elsewhere(path) {
+    if (!stack) return [];
+    return prs.filter(function (pr) {
+      return pr !== entry && pr.plan.files.some(function (f) { return f.path === path; });
+    });
+  }
+  function progressOf(pr) {
+    var s = pr === entry ? state : loadState(keyOf(pr.plan.target));
+    var order = pr.plan.order;
+    return { done: order.filter(function (p) { return s.read[p]; }).length,
+             total: order.length, comments: s.comments.length };
+  }
+  /* How a PR sits on the one below it: null when it simply continues the chip before. */
+  function relationOf(pr) {
+    var index = prs.indexOf(pr);
+    if (index === 0) return null;
+    if (pr.parent == null) return "on " + (stack.trunk || "trunk");
+    return pr.parent !== prs[index - 1].id ? "on " + prLabel(byId(pr.parent)) : null;
+  }
+
+  /* ── Stack bar ──────────────────────────────────────────────────────────
+     One chip per PR, bottom of the stack first, each with that PR's own progress.
+     Redrawn on every route change so the chips keep the view you are in. */
+  var stackHost = null;
+  function renderStack(host, route) {
+    if (!stack || !host) return;
+    stackHost = host;
+    host.hidden = false;
+    host.setAttribute("aria-label", "Pull requests in this stack");
+    host.textContent = "";
+    var view = route.view === "stack" ? "plan" : route.view;
+    var head = el("span", "stack-head");
+    var overview = el("a", "kicker", "Stack · " + prs.length + " PRs");
+    overview.href = link({ view: "stack" });
+    overview.title = "Stack overview";
+    if (route.view === "stack") overview.setAttribute("aria-current", "page");
+    head.appendChild(overview);
+    host.appendChild(head);
+    var list = el("ol", "stack-prs");
+    prs.forEach(function (pr, index) {
+      var item = el("li", "stack-pr");
+      var chip = el("a", "stack-chip");
+      chip.href = link({ view: view, pr: pr.id });
+      chip.setAttribute("data-pr", pr.id);
+      if (pr === entry && route.view !== "stack") chip.setAttribute("aria-current", "page");
+      var relation = relationOf(pr);
+      chip.title = (pr.plan.target.title || pr.id) +
+                   (pr.plan.target.branch ? " · " + pr.plan.target.branch : "") +
+                   (relation ? " · " + relation : "");
+      if (index) item.appendChild(el("span", "stack-sep", relation ? "↳" : "→"));
+      chip.appendChild(el("b", "", prLabel(pr)));
+      chip.appendChild(el("span", "stack-title", pr.plan.target.title || ""));
+      if (relation) chip.appendChild(el("span", "stack-rel", relation));
+      chip.appendChild(el("span", "stack-tally"));
+      chip.appendChild(el("span", "count"));
+      chip.appendChild(el("span", "bar")).appendChild(el("i"));
+      item.appendChild(chip);
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    var nav = el("span", "stack-step");
+    [["Lower PR", -1, "["], ["Upper PR", 1, "]"]].forEach(function (step) {
+      var next = stepTarget(step[1], route);
+      var button = el(next ? "a" : "span", "btn btn-sm", step[1] < 0 ? "‹" : "›");
+      button.title = step[0] + " (" + step[2] + ")";
+      button.setAttribute("aria-label", step[0]);
+      if (next) button.href = link(next);
+      else button.setAttribute("aria-disabled", "true");
+      nav.appendChild(button);
+    });
+    host.appendChild(nav);
+    paintStack();
+    var current = host.querySelector('[aria-current="page"]');
+    if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function paintStack() {
+    if (!stackHost) return;
+    prs.forEach(function (pr) {
+      var chip = stackHost.querySelector('[data-pr="' + pr.id.replace(/"/g, "") + '"]');
+      if (!chip) return;
+      var p = progressOf(pr);
+      chip.classList.toggle("done", p.total > 0 && p.done === p.total);
+      chip.querySelector(".stack-tally").textContent = p.done + "/" + p.total;
+      chip.querySelector(".bar i").style.width = p.total ? (100 * p.done / p.total) + "%" : "0";
+      var count = chip.querySelector(".count");
+      count.textContent = String(p.comments);
+      count.hidden = !p.comments;
+      count.title = p.comments + " comment" + (p.comments === 1 ? "" : "s");
+    });
+  }
+  /* `[` and `]` step down and up the stack, keeping the view - and in focus mode the
+     open file, when the next PR changes it too. From the overview they enter the plan. */
+  function stepTarget(delta, route) {
+    if (!stack) return null;
+    var next = prs[prs.indexOf(entry) + delta];
+    if (!next) return null;
+    var keep = route.view === "focus" && route.file &&
+               next.plan.files.some(function (f) { return f.path === route.file; });
+    return { view: route.view === "stack" ? "plan" : route.view, pr: next.id,
+             file: keep ? route.file : "" };
+  }
 
   /* ── Theme ────────────────────────────────────────────────────────────
      The choice is light / dark / system; what the CSS sees is the resolved mode. */
@@ -355,10 +704,11 @@ window.HR = (function () {
      Expanding context never changes the file reading state. All authored text goes
      through textContent; topic links are data, not HTML or Markdown. */
   function mountSummary(host) {
+    host.textContent = "";
+    host.hidden = !plan.summary;
     if (!plan.summary) return;
     var summary = plan.summary, topics = Object.create(null), seq = 0;
     summary.topics.forEach(function (topic) { topics[topic.id] = topic; });
-    host.hidden = false;
     var head = el("div", "summary-head");
     head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
     var reset = el("button", "btn btn-sm", "Overview only");
@@ -417,9 +767,9 @@ window.HR = (function () {
                 var files = el("div", "summary-files");
                 files.appendChild(el("span", "kicker", "Read the change"));
                 topic.files.forEach(function (path) {
-                  var link = el("a", "", path);
-                  link.href = "review.html#" + encodeURIComponent(path);
-                  files.appendChild(link);
+                  var fileLink = el("a", "", path);
+                  fileLink.href = link({ view: "focus", file: path });
+                  files.appendChild(fileLink);
                 });
                 panel.appendChild(files);
               }
@@ -769,25 +1119,66 @@ window.HR = (function () {
     "post anything to GitHub unless you are asked separately. Report per comment id what " +
     "you changed, what you verified, and anything you deliberately skipped.";
 
-  function exportPayload() {
+  var STACK_INSTRUCTIONS =
+    "A human read a stack of pull requests and left the comments below, one entry in " +
+    "`reviews` per PR, bottom of the stack first. Apply each entry exactly as a " +
+    "human-review/comments@1 payload against its own target.branch and target.head_sha, " +
+    "starting with the lowest PR, then restack the PRs above it. Ask before force-pushing " +
+    "or rewriting a shared branch. Do not post anything to GitHub unless you are asked " +
+    "separately. Report per PR and per comment id what you changed, what you verified, " +
+    "and anything you deliberately skipped.";
+
+  function payloadFor(p, s) {
+    var files = {};
+    p.files.forEach(function (f) { files[f.path] = f; });
+    var read = function (path) { return !!s.read[path]; };
     return {
       format: "human-review/comments@1",
       generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
-      target: target,
+      target: p.target,
       instructions: INSTRUCTIONS,
-      review: { verdict: state.verdict, summary: (state.summary || "").trim() },
-      comments: state.comments.map(function (c) {
-        var f = byPath[c.path] || {};
+      review: { verdict: s.verdict, summary: (s.summary || "").trim() },
+      comments: s.comments.map(function (c) {
+        var f = files[c.path] || {};
         return { id: c.id, path: c.path, line: c.line, side: c.side, kind: c.kind,
                  body: c.body, code: c.code, weight: f.weight, rule: f.rule_id };
       }),
       progress: {
-        read: plan.order.filter(isRead),
-        unread: plan.order.filter(function (p) { return !isRead(p); }),
-        skipped_by_rules: plan.files.filter(function (f) { return f.weight === "skip"; })
-                                    .map(function (f) { return f.path; })
+        read: p.order.filter(read),
+        unread: p.order.filter(function (path) { return !read(path); }),
+        skipped_by_rules: p.files.filter(function (f) { return f.weight === "skip"; })
+                                 .map(function (f) { return f.path; })
       },
-      stats: plan.stats
+      stats: p.stats
+    };
+  }
+  function exportPayload() {
+    var payload = payloadFor(plan, state);
+    if (stack) {
+      payload.stack = { id: entry.id, parent: entry.parent,
+                        position: prs.indexOf(entry) + 1, of: prs.length };
+    }
+    return payload;
+  }
+  /* The whole stack in one paste: every PR's payload, each read from its own record. */
+  function exportStackPayload() {
+    var total = 0;
+    var reviews = prs.map(function (pr) {
+      var payload = payloadFor(pr.plan, pr === entry ? state : loadState(keyOf(pr.plan.target)));
+      total += payload.comments.length;
+      // The envelope carries format, time and instructions once for every PR.
+      delete payload.format; delete payload.generated_at; delete payload.instructions;
+      return Object.assign({ id: pr.id, parent: pr.parent }, payload);
+    });
+    return {
+      format: "human-review/stack-comments@1",
+      generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      title: stack.title,
+      trunk: stack.trunk,
+      instructions: STACK_INSTRUCTIONS,
+      comment_instructions: INSTRUCTIONS,
+      counts: { prs: reviews.length, comments: total },
+      reviews: reviews
     };
   }
 
@@ -796,11 +1187,17 @@ window.HR = (function () {
     var overlay = document.getElementById("overlay");
     var verdict = document.getElementById("x-verdict");
     var summary = document.getElementById("x-summary");
-    verdict.value = state.verdict;
-    summary.value = state.summary;
+    var scope = document.getElementById("x-scope");
+    var whole = false;
+    if (scope && stack) {
+      scope.hidden = false;
+      scope.addEventListener("change", function () { whole = scope.value === "stack"; refresh(); });
+    }
+    function current() { return whole ? exportStackPayload() : exportPayload(); }
     function refresh() {
-      document.getElementById("x-json").textContent =
-        JSON.stringify(exportPayload(), null, 2);
+      document.getElementById("x-format").textContent =
+        whole ? "human-review/stack-comments@1" : "human-review/comments@1";
+      document.getElementById("x-json").textContent = JSON.stringify(current(), null, 2);
     }
     [verdict, summary].forEach(function (node) {
       node.addEventListener("input", function () {
@@ -816,19 +1213,28 @@ window.HR = (function () {
       if (event.target === overlay) overlay.classList.remove("open");
     });
     document.getElementById("x-copy").addEventListener("click", function () {
-      navigator.clipboard.writeText(JSON.stringify(exportPayload(), null, 2)).then(function () {
-        toast("Copied " + state.comments.length + " comments");
+      var payload = current();
+      var count = whole ? payload.counts.comments : payload.comments.length;
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(function () {
+        toast("Copied " + count + " comments" + (whole ? " across the stack" : ""));
       }, function () { toast("Copy blocked - use Download"); });
     });
     document.getElementById("x-download").addEventListener("click", function () {
-      var blob = new Blob([JSON.stringify(exportPayload(), null, 2)], { type: "application/json" });
-      var link = el("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "review-comments" + (target.number ? "-" + target.number : "") + ".json";
-      link.click();
-      setTimeout(function () { URL.revokeObjectURL(link.href); }, 2000);
+      var blob = new Blob([JSON.stringify(current(), null, 2)], { type: "application/json" });
+      var anchor = el("a");
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = whole ? "review-comments-stack.json"
+        : "review-comments" + (target.number ? "-" + target.number : "") + ".json";
+      anchor.click();
+      setTimeout(function () { URL.revokeObjectURL(anchor.href); }, 2000);
     });
-    return { open: function () { refresh(); overlay.classList.add("open"); },
+    // The record behind the dialog changes with the selected PR, so read it on open.
+    return { open: function () {
+               verdict.value = state.verdict;
+               summary.value = state.summary;
+               refresh();
+               overlay.classList.add("open");
+             },
              close: function () { overlay.classList.remove("open"); },
              refresh: refresh };
   }
@@ -855,6 +1261,8 @@ window.HR = (function () {
   }
   function metaOf() {
     return (target.repo || "") + (target.number ? " #" + target.number : "") +
+           (stack ? " · PR " + (prs.indexOf(entry) + 1) + " of " + prs.length +
+                    " · " + (target.branch || "") + " → " + (target.base || "") : "") +
            (target.head_sha ? " @" + String(target.head_sha).slice(0, 7) : "") +
            (plan.config && plan.config.name ? " · rules: " + plan.config.name : "");
   }
@@ -862,9 +1270,11 @@ window.HR = (function () {
   applyTheme();
   loadMonaco();
 
-  return {
-    plan: plan, target: target, byPath: byPath, state: state, LABEL: LABEL,
-    save: save, el: el, toast: toast,
+  return Object.assign(api, {
+    LABEL: LABEL, stack: stack, prs: prs, VIEWS: VIEWS,
+    select: select, save: save, el: el, toast: toast,
+    parseRoute: parseRoute, link: link, prLabel: prLabel, byId: byId, elsewhere: elsewhere,
+    progressOf: progressOf, relationOf: relationOf, renderStack: renderStack, stepTarget: stepTarget,
     parsePatch: parsePatch, anchorOf: anchorOf, languageOf: languageOf,
     isRead: isRead, setRead: setRead, tallyRead: tallyRead,
     commentsFor: commentsFor, addComment: addComment, removeComment: removeComment,
@@ -872,28 +1282,22 @@ window.HR = (function () {
     collapsed: collapsed, setCollapsed: setCollapsed,
     onMonaco: onMonaco, mountDiff: mountDiff,
     themeChoice: themeChoice, themeMode: themeMode, mountTheme: mountTheme,
-    exportPayload: exportPayload, mountExport: mountExport,
+    exportPayload: exportPayload, exportStackPayload: exportStackPayload, mountExport: mountExport,
     titleOf: titleOf, metaOf: metaOf, mountSummary: mountSummary
-  };
+  });
 })();
 
 </script>
 <script>
 (function () {
   "use strict";
-  var plan = HR.plan, el = HR.el, LABEL = HR.LABEL;
+  var el = HR.el, LABEL = HR.LABEL;
   var exporter = HR.mountExport();
-  var current = null, view = null, anchor = null, kind = "fix";
-  var showFolded = {};
+  var route = null;               // the route on screen
+  var monacoSettled = false;      // Monaco loaded or failed; focus mounts its editor after this
 
-  document.getElementById("t-title").textContent = HR.titleOf();
-  document.getElementById("t-meta").textContent = HR.metaOf();
-  if (plan.summary) {
-    document.getElementById("t-plan").href = "plan.html#summary";
-    document.getElementById("t-plan").textContent = "PR intro";
-  }
-
-  function checkbox(paths, after, title) {
+  /* ── Shared pieces ──────────────────────────────────────────────────── */
+  function checkbox(paths, afterChange, title) {
     var box = el("button", "box");
     box.type = "button";
     box.setAttribute("role", "checkbox");
@@ -902,159 +1306,63 @@ window.HR = (function () {
     box.addEventListener("click", function (event) {
       event.stopPropagation();
       HR.setRead(paths, box.getAttribute("aria-checked") !== "true");
-      after();
+      afterChange();
     });
     return box;
   }
-
-  /* ── Rail ───────────────────────────────────────────────────────────── */
-  function renderRail() {
-    var rail = document.getElementById("rail");
-    rail.textContent = "";
-    plan.groups.forEach(function (group) {
-      var box = el("div");
-      box.setAttribute("data-weight", group.weight);
-      var key = "group:" + group.key;
-      var shut = HR.collapsed(key, false);
-      var head = el("div", "group-head");
-      head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
-      head.appendChild(checkbox(group.files, function () {
-        HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
-        renderRail(); renderCounts();
-      }, "Mark the whole group read"));
-      head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
-      var tally = HR.tallyRead(group.files);
-      head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
-      head.addEventListener("click", function () { HR.setCollapsed(key, !shut); renderRail(); });
-      box.appendChild(head);
-
-      if (!shut) {
-        var folded = [];
-        group.files.forEach(function (path) {
-          var f = HR.byPath[path];
-          if (f.folded_into && !showFolded[group.key]) { folded.push(f); return; }
-          box.appendChild(fileRow(f));
-        });
-        if (folded.length) {
-          var more = el("button", "more", "+ " + folded.length + " with an identical shape — show");
-          more.addEventListener("click", function (event) {
-            event.stopPropagation();
-            showFolded[group.key] = true;
-            renderRail();
-          });
-          box.appendChild(more);
-        }
-      }
-      rail.appendChild(box);
+  function renderProgress() {
+    var tally = HR.tallyRead(HR.plan.order);
+    document.getElementById("t-progress").textContent = tally.done + " / " + tally.total;
+    document.getElementById("t-bar").style.width =
+      tally.total ? (100 * tally.done / tally.total) + "%" : "0";
+    document.getElementById("t-count").textContent = String(HR.state.comments.length);
+  }
+  function githubLink(path) {
+    var t = HR.target;
+    if (!t.head_sha || !/^[\w.-]+\/[\w.-]+$/.test(t.repo || "")) return null;
+    var link = el("a", "btn btn-sm", "GitHub");
+    link.href = "https://github.com/" + t.repo + "/blob/" + t.head_sha + "/" + path;
+    link.target = "_blank"; link.rel = "noreferrer";
+    link.addEventListener("click", function (e) { e.stopPropagation(); });
+    return link;
+  }
+  /* On a stack render, where else this path changes - each link opens it there. */
+  function alsoIn(path) {
+    var prs = HR.elsewhere(path);
+    if (!prs.length) return null;
+    var wrap = el("span", "also", "also in");
+    prs.forEach(function (pr) {
+      var link = el("a", "", HR.prLabel(pr));
+      link.href = HR.link({ view: "focus", pr: pr.id, file: path });
+      link.title = "Open " + path + " in " + (pr.plan.target.title || pr.id);
+      link.addEventListener("click", function (event) { event.stopPropagation(); });
+      wrap.appendChild(link);
     });
+    return wrap;
   }
-
-  function fileRow(f) {
-    var row = el("div", "frow" + (HR.isRead(f.path) ? " done" : ""));
-    if (f.path === current) row.setAttribute("aria-current", "true");
-    row.appendChild(checkbox([f.path], function () { renderRail(); renderCounts(); }));
-    var cut = f.path.lastIndexOf("/");
-    var name = el("span", "fname");
-    name.appendChild(document.createTextNode(cut < 0 ? "" : f.path.slice(0, cut + 1)));
-    name.appendChild(el("b", "", cut < 0 ? f.path : f.path.slice(cut + 1)));
-    row.appendChild(name);
-    var count = HR.commentsFor(f.path).length;
-    if (count) row.appendChild(el("span", "count", String(count)));
-    row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
-    row.addEventListener("click", function () { show(f.path); });
-    return row;
-  }
-
-  /* ── Centre ─────────────────────────────────────────────────────────── */
-  function renderHead(f) {
-    var head = document.getElementById("fhead");
-    head.textContent = "";
-    head.setAttribute("data-weight", f.weight);
-    head.appendChild(el("span", "chip", LABEL[f.weight]));
-    head.appendChild(el("span", "path", f.path));
-    head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
-    head.appendChild(el("span", "spacer"));
-    var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
-    mark.addEventListener("click", function () { toggleRead(f.path); });
-    head.appendChild(mark);
-    if (HR.target.repo && HR.target.head_sha) {
-      var link = el("a", "btn btn-sm", "GitHub");
-      link.href = "https://github.com/" + HR.target.repo + "/blob/" +
-                  HR.target.head_sha + "/" + f.path;
-      link.target = "_blank"; link.rel = "noreferrer";
-      head.appendChild(link);
-    }
-    var why = el("span", "fwhy");
-    why.appendChild(document.createTextNode(f.why || ""));
-    (f.notes || []).forEach(function (note) { why.appendChild(el("span", "note", note)); });
-    head.appendChild(why);
-  }
-
-  function show(path) {
-    var f = HR.byPath[path];
-    if (!f || path === current) return;
-    current = path;
-    // replaceState, not a hash assignment: browsing files is not navigation, and
-    // Back should leave the tool rather than walk every file you glanced at.
-    try {
-      history.replaceState(null, "", "#" + encodeURIComponent(path));
-    } catch (e) { /* file:// in some browsers */ }
-    if (view) { view.dispose(); view = null; }
-    renderHead(f);
-    renderRail();
-    anchor = null;
-    document.getElementById("anchor").textContent = "file-level";
-    view = HR.mountDiff(document.getElementById("editor"), f, {
-      onAnchor: setAnchor
-    });
-    renderComments();
-  }
-
-  function toggleRead(path) {
-    HR.setRead([path], !HR.isRead(path));
-    renderRail(); renderCounts();
-    if (path === current) renderHead(HR.byPath[path]);
-  }
-
-  /* ── Comments ───────────────────────────────────────────────────────── */
-  function setAnchor(line) {
-    var a = HR.anchorOf(line);
-    anchor = a ? { line: a, text: line.text } : null;
-    document.getElementById("anchor").textContent = anchor
-      ? (a.side === "left" ? "removed line " : "line ") + a.line + " · " +
-        line.text.trim().slice(0, 40)
-      : "file-level";
-    document.getElementById("composer").focus();
-  }
-  function renderComments() {
-    var host = document.getElementById("comments");
+  /* The comments on one file. `view` returns the diff to reveal lines in; `after` runs
+     once a comment is deleted. Returns how many were listed. */
+  function commentList(host, path, view, after) {
     host.textContent = "";
-    var items = current ? HR.commentsFor(current) : [];
-    document.getElementById("p-count").textContent = String(items.length);
-    if (!items.length) {
-      host.appendChild(el("p", "muted", current
-        ? "No comments on this file yet. Click a line number to anchor one."
-        : "Pick a file from the list."));
-      return;
-    }
+    var items = HR.commentsFor(path);
     items.forEach(function (c) {
       var box = el("div", "cmt");
       var head = el("div", "cmt-head");
-      var tag = el("span", "cmt-kind", c.kind);
-      tag.setAttribute("data-kind", c.kind);
-      head.appendChild(tag);
+      var kind = el("span", "cmt-kind", c.kind);
+      kind.setAttribute("data-kind", c.kind);
+      head.appendChild(kind);
       var loc = el("span", "cmt-loc", c.line == null ? "file-level"
         : (c.side === "left" ? "−" : "") + "line " + c.line);
       if (c.line != null) loc.addEventListener("click", function () {
-        if (view) view.reveal(c.side, c.line);
+        var v = view();
+        if (v) v.reveal(c.side, c.line);
       });
       head.appendChild(loc);
       var remove = el("button", "cmt-x", "×");
       remove.title = "Delete comment";
       remove.addEventListener("click", function () {
         HR.removeComment(c.id);
-        if (view) view.paint();
-        renderComments(); renderRail(); renderCounts(); exporter.refresh();
+        after();
       });
       head.appendChild(remove);
       box.appendChild(head);
@@ -1062,70 +1370,669 @@ window.HR = (function () {
       box.appendChild(el("div", "cmt-body", c.body));
       host.appendChild(box);
     });
+    return items.length;
   }
-  function renderCounts() {
-    var tally = HR.tallyRead(plan.order);
-    document.getElementById("t-progress").textContent = tally.done + " / " + tally.total;
-    document.getElementById("t-bar").style.width =
-      tally.total ? (100 * tally.done / tally.total) + "%" : "0";
-    document.getElementById("t-count").textContent = String(HR.state.comments.length);
+  function anchorLabel(line, width) {
+    var a = HR.anchorOf(line);
+    return a ? (a.side === "left" ? "removed line " : "line ") + a.line + " · " +
+               line.text.trim().slice(0, width) : "file-level";
+  }
+  function metricTiles(host, tiles) {
+    host.textContent = "";
+    tiles.forEach(function (tile) {
+      var box = el("div", "metric" + (tile[2] ? " hot" : ""));
+      box.appendChild(el("span", "kicker", tile[0]));
+      box.appendChild(el("b", "", String(tile[1])));
+      host.appendChild(box);
+    });
+  }
+
+  /* ── Plan view ──────────────────────────────────────────────────────── */
+  var Plan = (function () {
+    var open = {};        // path -> {row, drawer, view, kind, anchor}
+    var showFolded = {};  // group key -> bool
+
+    function render() {
+      closeAll();
+      showFolded = {};
+      document.getElementById("l-title").textContent = HR.titleOf();
+      document.getElementById("l-meta").textContent = HR.metaOf();
+      HR.mountSummary(document.getElementById("summary"));
+
+      var stats = HR.plan.stats;
+      metricTiles(document.getElementById("metrics"), [
+        ["Changed files", stats.files, false], ["Need your eyes", stats.critical + stats.read, true],
+        ["Stop and read", stats.critical, false], ["Folded away", stats.skip + stats.folded, false],
+        ["Lines", "+" + stats.additions + " −" + stats.deletions, false]]);
+
+      var host = document.getElementById("questions");
+      host.textContent = "";
+      document.getElementById("band").hidden = !HR.plan.questions.length;
+      HR.plan.questions.forEach(function (q) {
+        var row = el("div", "q");
+        row.appendChild(el("span", "kind", q.kind));
+        var body = el("div", "body");
+        body.appendChild(el("div", "", q.text));
+        if (q.files.length) body.appendChild(el("div", "files", q.files.join("  ")));
+        row.appendChild(body);
+        host.appendChild(row);
+      });
+      renderStations();
+    }
+
+    function fileRow(f, depth, redraw, prefix) {
+      var row = el("div", "file" + (HR.isRead(f.path) ? " done" : "") +
+                           (f.folded_into ? " folded" : "") + (open[f.path] ? " open" : ""));
+      row.style.paddingLeft = (depth * 14 + 11) + "px";
+      // Folder rows spend this column on their caret. Files reserve it too, otherwise a
+      // child's checkbox sits to the left of its own parent's and the nesting reads wrong.
+      row.appendChild(el("span", "caret"));
+      row.appendChild(checkbox([f.path], redraw));
+      var name = el("span", "fname");
+      if (prefix) name.appendChild(document.createTextNode(prefix));
+      name.appendChild(el("b", "", f.path.split("/").pop()));
+      row.appendChild(name);
+      (f.notes || []).forEach(function (note) {
+        row.appendChild(el("span", "tag" + (/removal|deletion/.test(note) ? " cold" : ""), note));
+      });
+      var count = HR.commentsFor(f.path).length;
+      if (count) row.appendChild(el("span", "count", String(count)));
+      row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
+      row.addEventListener("click", function () { toggleDrawer(f, row); });
+      return row;
+    }
+
+    function toggleDrawer(f, row) {
+      if (open[f.path]) { closeDrawer(f.path); return; }
+      var drawer = el("div", "drawer");
+      var main = el("div", "drawer-main");
+      var head = el("div", "drawer-head");
+      head.setAttribute("data-weight", f.weight);
+      head.appendChild(el("span", "chip", LABEL[f.weight]));
+      head.appendChild(el("span", "path", f.path));
+      head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
+      var also = alsoIn(f.path);
+      if (also) head.appendChild(also);
+      head.appendChild(el("span", "spacer"));
+      var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
+      mark.addEventListener("click", function (event) {
+        event.stopPropagation();
+        HR.setRead([f.path], !HR.isRead(f.path));
+        renderStations();
+      });
+      head.appendChild(mark);
+      var focus = el("a", "btn btn-sm", "Focus");
+      focus.href = HR.link({ view: "focus", file: f.path });
+      focus.title = "Open in focus mode";
+      head.appendChild(focus);
+      var gh = githubLink(f.path);
+      if (gh) head.appendChild(gh);
+      main.appendChild(head);
+      var diff = el("div", "drawer-diff");
+      main.appendChild(diff);
+      drawer.appendChild(main);
+
+      var side = el("div", "drawer-side");
+      var list = el("div", "list");
+      side.appendChild(list);
+      drawer.appendChild(side);
+      drawer.addEventListener("click", function (event) { event.stopPropagation(); });
+      row.after(drawer);
+      row.classList.add("open");
+
+      var entry = { row: row, drawer: drawer, view: null, kind: "fix", anchor: null };
+      open[f.path] = entry;
+      entry.view = HR.mountDiff(diff, f, {
+        autoHeight: true,
+        onAnchor: function (line) {
+          var a = HR.anchorOf(line);
+          entry.anchor = a ? { line: a, text: line.text } : null;
+          drawer.querySelector(".anchor").textContent = anchorLabel(line, 36);
+          drawer.querySelector("textarea").focus();
+        }
+      });
+      side.appendChild(composer(f, entry, list));
+      renderComments(f, entry, list);
+    }
+
+    function closeDrawer(path) {
+      var entry = open[path];
+      if (!entry) return;
+      if (entry.view) entry.view.dispose();
+      entry.drawer.remove();
+      entry.row.classList.remove("open");
+      delete open[path];
+    }
+    function closeAll() { Object.keys(open).forEach(closeDrawer); }
+
+    function composer(f, entry, list) {
+      var box = el("div", "composer");
+      var head = el("div", "composer-head");
+      var kinds = el("span", "kinds");
+      ["fix", "question", "nit", "praise"].forEach(function (kind) {
+        var button = el("button", "", kind);
+        button.setAttribute("aria-pressed", String(kind === "fix"));
+        button.addEventListener("click", function () {
+          entry.kind = kind;
+          kinds.querySelectorAll("button").forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b === button));
+          });
+        });
+        kinds.appendChild(button);
+      });
+      head.appendChild(kinds);
+      box.appendChild(head);
+      var text = el("textarea");
+      text.placeholder = "Click a line number in the gutter to anchor a comment, or write a file-level note.";
+      box.appendChild(text);
+      var foot = el("div", "composer-foot");
+      foot.appendChild(el("span", "anchor", "file-level"));
+      var add = el("button", "btn btn-sm btn-solid", "Add");
+      function submit() {
+        var body = text.value.trim();
+        if (!body) { text.focus(); return; }
+        HR.addComment(f.path, body, entry.kind, entry.anchor);
+        entry.anchor = null;
+        text.value = "";
+        box.querySelector(".anchor").textContent = "file-level";
+        changed(f, entry, list);
+      }
+      add.addEventListener("click", submit);
+      text.addEventListener("keydown", function (event) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault(); submit();
+        }
+      });
+      foot.appendChild(add);
+      box.appendChild(foot);
+      return box;
+    }
+    /* A comment was added or removed: repaint this drawer in place, keep it open. */
+    function changed(f, entry, list) {
+      if (entry.view) entry.view.paint();
+      renderComments(f, entry, list);
+      var n = HR.commentsFor(f.path).length;
+      var count = entry.row.querySelector(".count");
+      if (n && !count) {
+        count = el("span", "count");
+        entry.row.insertBefore(count, entry.row.querySelector(".fstat"));
+      }
+      if (count) { if (n) count.textContent = String(n); else count.remove(); }
+      renderProgress();
+      exporter.refresh();
+    }
+    function renderComments(f, entry, list) {
+      if (!commentList(list, f.path, function () { return entry.view; },
+                       function () { changed(f, entry, list); })) {
+        list.appendChild(el("p", "muted", "No comments on this file."));
+      }
+    }
+
+    function renderTree(host, node, depth, redraw) {
+      HR.sortedDirs(node).forEach(function (dir) {
+        var paths = HR.filesUnder(dir);
+        if (paths.length === 1) {
+          // Its own row, a caret and a 0/1 tally, all to introduce one file. Put the
+          // directory on the file row instead and save three lines of chrome.
+          host.appendChild(fileRow(HR.byPath[paths[0]], depth, redraw, dir.name + "/"));
+          return;
+        }
+        var key = "dir:" + dir.path;
+        var shut = HR.collapsed(key, false);
+        var row = el("div", "dir");
+        row.style.paddingLeft = (depth * 14 + 11) + "px";
+        row.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        row.appendChild(checkbox(paths, redraw, "Mark this folder read"));
+        row.appendChild(el("span", "n", dir.name + "/"));
+        row.appendChild(el("span", "tally", HR.tallyRead(paths).done + "/" + paths.length));
+        row.addEventListener("click", function () {
+          HR.setCollapsed(key, !shut);
+          redraw();
+        });
+        host.appendChild(row);
+        if (!shut) renderTree(host, dir, depth + 1, redraw);
+      });
+      node.files.slice().sort().forEach(function (path) {
+        host.appendChild(fileRow(HR.byPath[path], depth, redraw));
+      });
+    }
+
+    function anyGroupOpen() {
+      return HR.plan.groups.some(function (g) { return !HR.collapsed("group:" + g.key, false); });
+    }
+    function renderStations() {
+      var host = document.getElementById("stations");
+      closeAll();
+      host.textContent = "";
+      HR.plan.groups.forEach(function (group, index) {
+        var station = el("div", "station");
+        station.setAttribute("data-weight", group.weight);
+        var gutter = el("div", "gutter");
+        gutter.appendChild(el("div", "node", String(index + 1)));
+        gutter.appendChild(el("div", "lamp"));
+        station.appendChild(gutter);
+
+        var box = el("div", "group");
+        var key = "group:" + group.key;
+        var folded = group.files.filter(function (p) { return HR.byPath[p].folded_into; });
+        var visible = showFolded[group.key] ? group.files
+          : group.files.filter(function (p) { return !HR.byPath[p].folded_into; });
+
+        var shut = HR.collapsed(key, false);
+        var head = el("div", "group-head");
+        head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        head.appendChild(checkbox(group.files, function () {
+          // Checking a whole group is a statement that it needs no more attention,
+          // so it folds away once every file in it is ticked.
+          HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
+          renderStations();
+        }, "Mark the whole group read"));
+        head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
+        var tally = HR.tallyRead(group.files);
+        head.appendChild(el("span", "spacer"));
+        head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
+        head.addEventListener("click", function () {
+          HR.setCollapsed(key, !shut);
+          renderStations();
+        });
+        box.appendChild(head);
+
+        if (!shut) {
+          if (group.why) {
+            var why = el("div", "why");
+            // The box spans the row, the sentence inside it does not - see .why span.
+            why.appendChild(el("span", null, group.why));
+            box.appendChild(why);
+          }
+          var body = el("div", "group-body");
+          renderTree(body, HR.buildTree(visible), 0, renderStations);
+          if (folded.length) {
+            var more = el("button", "more", (showFolded[group.key] ? "− hide " : "+ ") +
+              folded.length + " with an identical shape" + (showFolded[group.key] ? "" : " — show"));
+            more.addEventListener("click", function (event) {
+              event.stopPropagation();
+              showFolded[group.key] = !showFolded[group.key];
+              // Revealing the fan-out turns a one-row group into a real one, and `skip`
+              // groups start collapsed - so without this the toggle appears to do nothing.
+              if (showFolded[group.key]) HR.setCollapsed(key, false);
+              renderStations();
+            });
+            body.appendChild(more);
+          }
+          box.appendChild(body);
+        }
+        station.appendChild(box);
+        host.appendChild(station);
+      });
+      document.getElementById("t-collapse").textContent = anyGroupOpen() ? "Collapse" : "Expand";
+      renderProgress();
+    }
+
+    function toggleAll() {
+      var shut = anyGroupOpen();
+      HR.plan.groups.forEach(function (g) { HR.setCollapsed("group:" + g.key, shut); });
+      renderStations();
+    }
+    /* Monaco arrives after first paint; a drawer opened before then re-mounts with it. */
+    function remount() {
+      if (Object.keys(open).length) renderStations();
+    }
+    return { render: render, closeAll: closeAll, toggleAll: toggleAll, remount: remount };
+  })();
+
+  /* ── Focus view ─────────────────────────────────────────────────────── */
+  var Focus = (function () {
+    var current = null, view = null, anchor = null, kind = "fix", showFolded = {};
+    var last = null;      // {pr, path}: where focus mode was, so coming back resumes it
+
+    function order() {
+      return HR.plan.order.length ? HR.plan.order : HR.plan.files.map(function (f) { return f.path; });
+    }
+    function renderRail() {
+      var rail = document.getElementById("rail");
+      rail.textContent = "";
+      HR.plan.groups.forEach(function (group) {
+        var box = el("div");
+        box.setAttribute("data-weight", group.weight);
+        var key = "group:" + group.key;
+        var shut = HR.collapsed(key, false);
+        var head = el("div", "group-head");
+        head.appendChild(el("span", "caret" + (shut ? " shut" : ""), "▼"));
+        head.appendChild(checkbox(group.files, function () {
+          HR.setCollapsed(key, HR.tallyRead(group.files).tri === "true");
+          renderRail(); renderProgress();
+        }, "Mark the whole group read"));
+        head.appendChild(el("span", "label", LABEL[group.weight] + " · " + group.label));
+        var tally = HR.tallyRead(group.files);
+        head.appendChild(el("span", "tally", tally.done + "/" + tally.total));
+        head.addEventListener("click", function () { HR.setCollapsed(key, !shut); renderRail(); });
+        box.appendChild(head);
+
+        if (!shut) {
+          var folded = [];
+          group.files.forEach(function (path) {
+            var f = HR.byPath[path];
+            if (f.folded_into && !showFolded[group.key] && path !== current) { folded.push(f); return; }
+            box.appendChild(fileRow(f));
+          });
+          if (folded.length) {
+            var more = el("button", "more", "+ " + folded.length + " with an identical shape — show");
+            more.addEventListener("click", function (event) {
+              event.stopPropagation();
+              showFolded[group.key] = true;
+              renderRail();
+            });
+            box.appendChild(more);
+          }
+        }
+        rail.appendChild(box);
+      });
+      var here = rail.querySelector('[aria-current="true"]');
+      if (here && here.scrollIntoView) here.scrollIntoView({ block: "nearest" });
+    }
+
+    function fileRow(f) {
+      var row = el("div", "frow" + (HR.isRead(f.path) ? " done" : ""));
+      if (f.path === current) row.setAttribute("aria-current", "true");
+      row.appendChild(checkbox([f.path], function () {
+        renderRail(); renderProgress();
+        if (f.path === current) renderHead(f);
+      }));
+      var cut = f.path.lastIndexOf("/");
+      var name = el("span", "fname");
+      name.appendChild(document.createTextNode(cut < 0 ? "" : f.path.slice(0, cut + 1)));
+      name.appendChild(el("b", "", cut < 0 ? f.path : f.path.slice(cut + 1)));
+      row.appendChild(name);
+      var count = HR.commentsFor(f.path).length;
+      if (count) row.appendChild(el("span", "count", String(count)));
+      row.appendChild(el("span", "fstat", "+" + f.add + " −" + f.del));
+      row.addEventListener("click", function () { open(f.path); });
+      return row;
+    }
+
+    function renderHead(f) {
+      var head = document.getElementById("fhead");
+      head.textContent = "";
+      head.setAttribute("data-weight", f.weight);
+      head.appendChild(el("span", "chip", LABEL[f.weight]));
+      head.appendChild(el("span", "path", f.path));
+      head.appendChild(el("span", "fstat muted", "+" + f.add + " −" + f.del + " · " + f.status));
+      var also = alsoIn(f.path);
+      if (also) head.appendChild(also);
+      head.appendChild(el("span", "spacer"));
+      var mark = el("button", "btn btn-sm", HR.isRead(f.path) ? "Unmark" : "Mark read");
+      mark.addEventListener("click", toggleRead);
+      head.appendChild(mark);
+      var gh = githubLink(f.path);
+      if (gh) head.appendChild(gh);
+      var why = el("span", "fwhy");
+      why.appendChild(document.createTextNode(f.why || ""));
+      (f.notes || []).forEach(function (note) { why.appendChild(el("span", "note", note)); });
+      head.appendChild(why);
+    }
+
+    /* Browsing files is not navigation: the route is replaced, not pushed. */
+    function open(path) {
+      if (path && path !== current) go({ view: "focus", file: path }, true);
+    }
+
+    /* Show the route's file; `fresh` when arriving from another view or PR. */
+    function enter(file, fresh) {
+      if (fresh) { dispose(); current = null; showFolded = {}; }
+      var start = HR.byPath[file] ? file : (current || resume() || order()[0] || HR.plan.files[0].path);
+      if (start !== route.file) {
+        route.file = start;
+        replaceHash(HR.link(route));
+      }
+      if (start === current && (view || !monacoSettled)) { renderRail(); return; }
+      current = start;
+      last = { pr: HR.entry.id, path: current };
+      renderHead(HR.byPath[current]);
+      renderRail();
+      setAnchor(null);
+      renderComments();
+      mountEditor();
+    }
+    function resume() {
+      return last && last.pr === HR.entry.id && HR.byPath[last.path] ? last.path : "";
+    }
+    function mountEditor() {
+      dispose();
+      if (!monacoSettled) return;   // Monaco's arrival calls remount()
+      view = HR.mountDiff(document.getElementById("editor"), HR.byPath[current], { onAnchor: setAnchor });
+    }
+    function dispose() {
+      if (view) { view.dispose(); view = null; }
+    }
+
+    function toggleRead() {
+      if (!current) return;
+      HR.setRead([current], !HR.isRead(current));
+      renderRail(); renderProgress();
+      renderHead(HR.byPath[current]);
+    }
+    function setAnchor(line) {
+      var a = line ? HR.anchorOf(line) : null;
+      anchor = a ? { line: a, text: line.text } : null;
+      document.getElementById("anchor").textContent = line ? anchorLabel(line, 40) : "file-level";
+      if (line) document.getElementById("composer").focus();
+    }
+    function renderComments() {
+      var host = document.getElementById("comments");
+      var n = current ? commentList(host, current, function () { return view; }, function () {
+        if (view) view.paint();
+        renderComments(); renderRail(); renderProgress(); exporter.refresh();
+      }) : 0;
+      document.getElementById("p-count").textContent = String(n);
+      if (!n) {
+        host.textContent = "";
+        host.appendChild(el("p", "muted", current
+          ? "No comments on this file yet. Click a line number to anchor one."
+          : "Pick a file from the list."));
+      }
+    }
+    function submit() {
+      var box = document.getElementById("composer");
+      var body = box.value.trim();
+      if (!body) { box.focus(); return; }
+      if (!current) { HR.toast("Pick a file first"); return; }
+      HR.addComment(current, body, kind, anchor);
+      box.value = "";
+      setAnchor(null);
+      if (view) view.paint();
+      renderComments(); renderRail(); renderProgress(); exporter.refresh();
+    }
+    function step(delta) {
+      var list = order(), index = list.indexOf(current);
+      open(list[Math.min(Math.max(index + delta, 0), list.length - 1)]);
+    }
+
+    document.getElementById("kinds").addEventListener("click", function (event) {
+      var button = event.target.closest("button[data-kind]");
+      if (!button) return;
+      kind = button.dataset.kind;
+      this.querySelectorAll("button").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === button));
+      });
+    });
+    document.getElementById("add").addEventListener("click", submit);
+    document.getElementById("composer").addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault(); submit();
+      }
+    });
+    document.getElementById("clear-anchor").addEventListener("click", function () { setAnchor(null); });
+
+    return { enter: enter, step: step, toggleRead: toggleRead, resume: resume,
+             leave: function () { dispose(); current = null; },
+             remount: function () { if (current) mountEditor(); } };
+  })();
+
+  /* ── Stack overview ─────────────────────────────────────────────────── */
+  function renderOverview() {
+    var stack = HR.stack, prs = HR.prs;
+    document.getElementById("s-title").textContent = stack.title;
+    var repos = [];
+    prs.forEach(function (pr) {
+      var repo = pr.plan.target.repo;
+      if (repo && repos.indexOf(repo) < 0) repos.push(repo);
+    });
+    document.getElementById("s-meta").textContent =
+      repos.concat([prs.length + " PRs on " + stack.trunk + ", bottom of the stack first"]).join(" · ");
+    var total = { files: 0, critical: 0, read: 0, additions: 0, deletions: 0 };
+    prs.forEach(function (pr) {
+      Object.keys(total).forEach(function (k) { total[k] += pr.plan.stats[k]; });
+    });
+    metricTiles(document.getElementById("s-metrics"), [
+      ["PRs", prs.length, false], ["Changed files", total.files, false],
+      ["Need your eyes", total.critical + total.read, true], ["Stop and read", total.critical, false],
+      ["Lines", "+" + total.additions + " −" + total.deletions, false]]);
+
+    var list = document.getElementById("s-prs");
+    list.textContent = "";
+    prs.forEach(function (pr) {
+      var t = pr.plan.target, s = pr.plan.stats, p = HR.progressOf(pr);
+      var forked = HR.relationOf(pr) && pr.parent;
+      var item = el("li", "pr" + (p.total && p.done === p.total ? " done" : "") + (forked ? " fork" : ""));
+      var head = el("div", "pr-head");
+      head.appendChild(el("b", "", HR.prLabel(pr)));
+      var title = el("a", "", t.title || pr.id);
+      title.href = HR.link({ view: "plan", pr: pr.id });
+      head.appendChild(title);
+      head.appendChild(el("span", "progress", p.done + "/" + p.total + " read" +
+        (p.comments ? " · " + p.comments + " comment" + (p.comments === 1 ? "" : "s") : "")));
+      item.appendChild(head);
+      var parent = pr.parent ? HR.byId(pr.parent) : null;
+      item.appendChild(el("p", "meta", [t.branch, "on " + (parent ? HR.prLabel(parent) : stack.trunk),
+        s.files + " files", "+" + s.additions + " −" + s.deletions, s.critical + " stop-and-read",
+        String(t.head_sha || "").slice(0, 7)].filter(Boolean).join(" · ")));
+      if (pr.plan.summary) {
+        // The first sentence of the PR's own introduction is its gist.
+        var prose = pr.plan.summary.overview.map(function (part) {
+          return typeof part === "string" ? part : part.text;
+        }).join("").trim();
+        var first = /^[\s\S]*?[.!?](?=\s|$)/.exec(prose);
+        item.appendChild(el("p", "gist", first ? first[0] : prose));
+      }
+      var links = el("div", "links");
+      [["Plan", "plan"], ["Focus", "focus"]].forEach(function (pair) {
+        var a = el("a", "btn btn-sm", pair[0]);
+        a.href = HR.link({ view: pair[1], pr: pr.id });
+        links.appendChild(a);
+      });
+      if (/^https?:\/\//.test(t.url || "")) {
+        var gh = el("a", "btn btn-sm", "GitHub");
+        gh.href = t.url; gh.target = "_blank"; gh.rel = "noreferrer";
+        links.appendChild(gh);
+      }
+      item.appendChild(links);
+      list.appendChild(item);
+    });
+  }
+
+  /* ── Router ─────────────────────────────────────────────────────────── */
+  function replaceHash(hash) {
+    try { history.replaceState(null, "", hash); } catch (e) { /* file:// in some browsers */ }
+  }
+  /* Go to a route. View and PR changes push a history entry; `replace` does not. */
+  function go(next, replace) {
+    var hash = HR.link(next);
+    if (hash !== location.hash) {
+      try { history[replace ? "replaceState" : "pushState"](null, "", hash); }
+      catch (e) { location.hash = hash; return; }   // hashchange then calls apply()
+    }
+    apply();
+  }
+
+  /* Render whatever the hash names. Idempotent: hashchange and popstate can both fire. */
+  function apply() {
+    var next = HR.parseRoute();
+    var prChanged = HR.select(next.pr);
+    next.pr = HR.entry.id;
+    var prev = route;
+    var viewChanged = !prev || prev.view !== next.view;
+    if (prev && (viewChanged || prChanged)) {
+      if (prev.view === "plan") Plan.closeAll();
+      if (prev.view === "focus") Focus.leave();
+    }
+    route = next;
+    document.body.setAttribute("data-view", next.view);
+    renderHeader();
+    HR.renderStack(document.getElementById("stack-bar"), route);
+
+    if (next.view === "plan") {
+      if (viewChanged || prChanged) Plan.render();
+      var summary = document.getElementById("summary");
+      if (next.at === "summary" && !summary.hidden) summary.scrollIntoView();
+      else if (viewChanged || prChanged) window.scrollTo(0, 0);
+    } else if (next.view === "focus") {
+      Focus.enter(next.file, viewChanged || prChanged);
+    } else {
+      renderOverview();
+      if (viewChanged) window.scrollTo(0, 0);
+    }
+    renderProgress();
+  }
+
+  function renderHeader() {
+    var overview = route.view === "stack";
+    var title = overview ? HR.stack.title : HR.titleOf();
+    document.getElementById("t-title").textContent = title;
+    document.getElementById("t-meta").textContent = overview
+      ? HR.prs.length + " PRs on " + HR.stack.trunk : HR.metaOf();
+    document.title = (HR.stack && !overview ? title + " · " + HR.stack.title : title) + " · human review";
+    document.getElementById("t-prog").hidden = overview;
+    var plan = document.getElementById("t-plan"), focus = document.getElementById("t-focus");
+    plan.href = HR.link({ view: "plan" });
+    focus.href = HR.link({ view: "focus", file: Focus.resume() });
+    plan.removeAttribute("aria-current");
+    focus.removeAttribute("aria-current");
+    if (route.view === "plan") plan.setAttribute("aria-current", "page");
+    if (route.view === "focus") focus.setAttribute("aria-current", "page");
   }
 
   /* ── Wiring ─────────────────────────────────────────────────────────── */
-  document.getElementById("kinds").addEventListener("click", function (event) {
-    var button = event.target.closest("button[data-kind]");
-    if (!button) return;
-    kind = button.dataset.kind;
-    this.querySelectorAll("button").forEach(function (b) {
-      b.setAttribute("aria-pressed", String(b === button));
-    });
-  });
-  function submit() {
-    var box = document.getElementById("composer");
-    var body = box.value.trim();
-    if (!body) { box.focus(); return; }
-    if (!current) { HR.toast("Pick a file first"); return; }
-    HR.addComment(current, body, kind, anchor);
-    anchor = null;
-    box.value = "";
-    document.getElementById("anchor").textContent = "file-level";
-    if (view) view.paint();
-    renderComments(); renderRail(); renderCounts(); exporter.refresh();
-  }
-  document.getElementById("add").addEventListener("click", submit);
-  document.getElementById("composer").addEventListener("keydown", function (event) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault(); submit();
-    }
-  });
-  document.getElementById("clear-anchor").addEventListener("click", function () {
-    anchor = null;
-    document.getElementById("anchor").textContent = "file-level";
-  });
   HR.mountTheme(document.getElementById("t-theme"));
   document.getElementById("t-export").addEventListener("click", exporter.open);
+  document.getElementById("t-collapse").addEventListener("click", Plan.toggleAll);
   document.getElementById("t-shortcuts").addEventListener("click", function () {
-    HR.toast("j/k file · x mark read · c comment · e export");
+    HR.toast((route.view === "focus" ? "j/k file · x mark read · c comment · " : "") +
+             "v plan/focus · e export" + (HR.stack ? " · [ ] lower/upper PR" : ""));
   });
   document.addEventListener("keydown", function (event) {
-    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.metaKey || event.ctrlKey) return;
-    var order = plan.order.length ? plan.order : plan.files.map(function (f) { return f.path; });
-    var index = order.indexOf(current);
-    if (event.key === "j") { show(order[Math.min(index + 1, order.length - 1)]); event.preventDefault(); }
-    else if (event.key === "k") { show(order[Math.max(index - 1, 0)]); event.preventDefault(); }
-    else if (event.key === "x" && current) { toggleRead(current); event.preventDefault(); }
-    else if (event.key === "c") { document.getElementById("composer").focus(); event.preventDefault(); }
-    else if (event.key === "e") { exporter.open(); event.preventDefault(); }
-    else if (event.key === "Escape") { exporter.close(); }
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.metaKey ||
+        event.ctrlKey || event.altKey) return;
+    var key = event.key;
+    if (key === "Escape") {
+      if (document.getElementById("overlay").classList.contains("open")) exporter.close();
+      else if (route.view === "plan") Plan.closeAll();
+      return;
+    }
+    var focus = route.view === "focus";
+    if (key === "e") exporter.open();
+    else if (key === "v") go({ view: focus ? "plan" : "focus", file: focus ? "" : Focus.resume() });
+    else if (key === "[" || key === "]") {
+      var next = HR.stepTarget(key === "]" ? 1 : -1, route);
+      if (!next) return;
+      go(next);
+    }
+    else if (focus && key === "j") Focus.step(1);
+    else if (focus && key === "k") Focus.step(-1);
+    else if (focus && key === "x") Focus.toggleRead();
+    else if (focus && key === "c") document.getElementById("composer").focus();
+    else return;
+    event.preventDefault();
   });
+  // In-page links change only the hash; Back and Forward do the same.
+  window.addEventListener("hashchange", apply);
+  window.addEventListener("popstate", apply);
 
-  renderRail(); renderCounts(); renderComments();
+  apply();
   HR.onMonaco(function (ok) {
+    monacoSettled = true;
     if (!ok) HR.toast("Monaco unavailable — plain diff view");
-    var start = decodeURIComponent((location.hash || "").slice(1)) ||
-                plan.order[0] || plan.files[0].path;
-    current = null;
-    show(HR.byPath[start] ? start : plan.files[0].path);
+    if (route.view === "focus") Focus.remount();
+    if (route.view === "plan") Plan.remount();
   });
 })();
 </script>

@@ -205,24 +205,25 @@ class PlanShape(unittest.TestCase):
 
 
 class Rendering(unittest.TestCase):
-    def test_every_page_round_trips_the_plan(self):
+    def test_one_file_round_trips_the_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "review"
+            out = Path(tmp) / "nested" / "review.html"
             path = Path(tmp) / "plan.json"
             path.write_text(json.dumps(EXAMPLE), encoding="utf-8")
-            sys.argv = ["render_reading.py", str(path), "--output-dir", str(out)]
-            render_reading.main()
-            for name in ("plan.html", "review.html", "index.html"):
-                self.assertTrue((out / name).is_file(), name)
-            for name in ("plan.html", "review.html"):
-                found = DATA.search((out / name).read_text(encoding="utf-8"))
-                self.assertIsNotNone(found, name)
-                self.assertEqual(json.loads(found.group(1))["stats"], EXAMPLE["stats"])
+            with patch.object(sys, "argv", ["render_reading.py", str(path), "-o", str(out)]):
+                render_reading.main()
+            self.assertEqual(sorted(p.name for p in out.parent.iterdir()), ["review.html"])
+            page = out.read_text(encoding="utf-8")
+            found = DATA.search(page)
+            self.assertIsNotNone(found)
+            self.assertEqual(json.loads(found.group(1))["stats"], EXAMPLE["stats"])
+            for view in ("view-plan", "view-focus", "view-stack"):
+                self.assertIn(f'id="{view}"', page)
 
     def test_embedded_json_cannot_close_its_script_tag(self):
         hostile = copy.deepcopy(EXAMPLE)
         hostile["files"][0]["patch"] = "</script><script>alert(1)</script>"
-        page = render_reading.render(hostile, "review")
+        page = render_reading.render(hostile)
         self.assertNotIn("<script>alert(1)", page)
         found = DATA.search(page)
         self.assertEqual(json.loads(found.group(1))["files"][0]["patch"],
@@ -249,25 +250,24 @@ class SummaryRendering(unittest.TestCase):
         legacy = copy.deepcopy(EXAMPLE)
         legacy.pop("summary")
         render_reading.validate(legacy)
-        self.assertNotIn("summary", json.loads(DATA.search(render_reading.render(legacy, "plan")).group(1)))
+        self.assertNotIn("summary", json.loads(DATA.search(render_reading.render(legacy)).group(1)))
 
     def test_external_summary_is_attached_without_mutating_the_plan_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "plan.json"
             summary = Path(tmp) / "summary.json"
-            out = Path(tmp) / "review"
+            out = Path(tmp) / "review.html"
             original = copy.deepcopy(EXAMPLE)
             original.pop("summary")
             source.write_text(json.dumps(original), encoding="utf-8")
             summary.write_text(json.dumps(EXAMPLE["summary"]), encoding="utf-8")
             with patch.object(sys, "argv", ["render_reading.py", str(source), "--summary",
-                                            str(summary), "--output-dir", str(out)]):
+                                            str(summary), "-o", str(out)]):
                 render_reading.main()
             self.assertEqual(json.loads(source.read_text(encoding="utf-8")), original)
-            for name in ("plan.html", "review.html"):
-                embedded = json.loads(DATA.search((out / name).read_text(encoding="utf-8")).group(1))
-                self.assertEqual(embedded["summary"], EXAMPLE["summary"])
-                self.assertEqual(embedded["order"], original["order"])
+            embedded = json.loads(DATA.search(out.read_text(encoding="utf-8")).group(1))
+            self.assertEqual(embedded["summary"], EXAMPLE["summary"])
+            self.assertEqual(embedded["order"], original["order"])
 
     def test_invalid_topics_and_stale_summaries_are_rejected(self):
         cases = {
@@ -296,9 +296,115 @@ class SummaryRendering(unittest.TestCase):
         payload = '</script><img src=x onerror="alert(1)"> @@CORE_JS@@'
         hostile["summary"]["overview"].append(payload)
         render_reading.validate(hostile)
-        page = render_reading.render(hostile, "plan")
+        page = render_reading.render(hostile)
         self.assertNotIn('<img src=x', page)
         self.assertEqual(json.loads(DATA.search(page).group(1))["summary"]["overview"][-1], payload)
+
+
+STACK_MANIFEST = SKILL / "assets/example-stack/stack.json"
+STACK_DATA = re.compile(r'<script type="application/json" id="stack">(.*?)</script>', re.S)
+
+
+class StackRendering(unittest.TestCase):
+    def manifest(self, tmp, prs, **extra):
+        path = Path(tmp) / "stack.json"
+        path.write_text(json.dumps({"prs": prs, **extra}), encoding="utf-8")
+        return path
+
+    def plans(self):
+        source = json.loads(STACK_MANIFEST.read_text(encoding="utf-8"))
+        return [json.loads((STACK_MANIFEST.parent / pr["plan"]).read_text(encoding="utf-8"))
+                for pr in source["prs"]]
+
+    def test_example_stack_renders_every_pr_into_one_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "stack.html"
+            with patch.object(sys, "argv", ["render_reading.py", "--stack", str(STACK_MANIFEST),
+                                            "-o", str(out)]):
+                render_reading.main()
+            self.assertEqual([p.name for p in Path(tmp).iterdir()], ["stack.html"])
+            page = out.read_text(encoding="utf-8")
+            self.assertIsNone(DATA.search(page), "a stack page embeds the stack, not one plan")
+            stack = json.loads(STACK_DATA.search(page).group(1))
+            self.assertEqual(stack["format"], "human-review/stack@1")
+            self.assertEqual([pr["id"] for pr in stack["prs"]],
+                             ["pr-411", "pr-412", "pr-413", "pr-414"])
+            self.assertEqual([pr["parent"] for pr in stack["prs"]],
+                             [None, "pr-411", "pr-412", "pr-412"])
+            self.assertNotIn("<!--template", page)
+            self.assertNotIn("@@", page.split('id="stack">')[0])
+            self.assertIn("<title>Account API keys, as a stack · human review</title>", page)
+
+    def test_single_plan_pages_keep_the_plan_script_and_drop_template_notes(self):
+        page = render_reading.render(EXAMPLE)
+        self.assertIsNotNone(DATA.search(page))
+        self.assertIsNone(STACK_DATA.search(page))
+        self.assertNotIn("<!--template", page)
+
+    def test_parent_is_inferred_from_branches_and_trunk_from_the_lowest_base(self):
+        lower, upper = self.plans()[:2]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.manifest(tmp, [{"plan": lower}, {"plan": upper}])
+            stack = render_reading.load_stack(path)
+        self.assertEqual([pr["id"] for pr in stack["prs"]], ["pr-411", "pr-412"])
+        self.assertEqual(stack["prs"][1]["parent"], "pr-411")
+        self.assertIsNone(stack["prs"][0]["parent"])
+        self.assertEqual(stack["trunk"], "main")
+        self.assertEqual(stack["title"], "Stack of 2 PRs on main")
+
+    def test_an_external_summary_is_attached_and_validated_per_pr(self):
+        lower = self.plans()[0]
+        summary = lower.pop("summary")
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "s.json").write_text(json.dumps(summary), encoding="utf-8")
+            stack = render_reading.load_stack(self.manifest(tmp, [{"plan": lower, "summary": "s.json"}]))
+            self.assertEqual(stack["prs"][0]["plan"]["summary"], summary)
+            stale = dict(summary, head_sha="f" * 40)
+            with self.assertRaises(ValueError):
+                render_reading.load_stack(self.manifest(tmp, [{"plan": lower, "summary": stale}]))
+
+    def test_a_broken_stack_is_rejected(self):
+        lower, upper = self.plans()[:2]
+        cases = {
+            "empty": [],
+            "duplicate id": [{"id": "a", "plan": lower}, {"id": "a", "plan": upper, "parent": None}],
+            "unknown parent": [{"plan": lower, "parent": "pr-999"}],
+            "parent listed after child": [{"plan": upper, "parent": "pr-411"}, {"plan": lower}],
+            "unsafe id": [{"id": "a b\"", "plan": lower}],
+            "invalid plan": [{"plan": dict(lower, format="other")}],
+            "missing plan": [{"id": "x"}],
+        }
+        for name, prs in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(ValueError):
+                    render_reading.load_stack(self.manifest(tmp, prs))
+
+    def test_stack_data_cannot_close_its_script_tag(self):
+        lower = self.plans()[0]
+        lower["files"][0]["patch"] = "</script><script>alert(1)</script>"
+        with tempfile.TemporaryDirectory() as tmp:
+            stack = render_reading.load_stack(self.manifest(tmp, [{"plan": lower}]))
+        page = render_reading.render(None, stack)
+        self.assertNotIn("<script>alert(1)", page)
+        self.assertEqual(json.loads(STACK_DATA.search(page).group(1))["prs"][0]["plan"]["files"][0]["patch"],
+                         "</script><script>alert(1)</script>")
+
+    def test_stack_title_is_escaped_in_the_page_title(self):
+        lower = self.plans()[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            stack = render_reading.load_stack(self.manifest(
+                tmp, [{"plan": lower}], title="</title><script>alert(1)</script>"))
+        page = render_reading.render(None, stack)
+        self.assertNotIn("<script>alert(1)", page)
+        self.assertIn("&lt;/title&gt;", page)
+
+    def test_plan_and_stack_are_mutually_exclusive(self):
+        for argv in (["render_reading.py"],
+                     ["render_reading.py", "plan.json", "--stack", "stack.json"],
+                     ["render_reading.py", "--stack", "stack.json", "--summary", "s.json"]):
+            with self.subTest(argv=argv), patch.object(sys, "argv", argv), \
+                    patch("sys.stderr"), self.assertRaises(SystemExit):
+                render_reading.main()
 
 
 if __name__ == "__main__":
