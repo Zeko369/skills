@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "rails-default",
-  "description": "Fallback rules for a Rails app with an RSpec suite and a Vite frontend. Array order decides which rule matches (first wins, so specific before general); `rank` decides reading order inside a weight.",
+  "name": "unidy",
+  "description": "Rules for UnidyID/unidy, our Rails app with an RSpec suite and a Vite frontend - its paths, its fan-outs, its expensive places. Not a general Rails config; other repos used it only as the fallback and worked example. Array order decides which rule matches (first wins, so specific before general); `rank` decides reading order inside a weight.",
   "rules": [
     {
       "id": "migration",
@@ -17,12 +17,14 @@
       "id": "authz",
       "weight": "critical",
       "rank": 20,
+      "never_demote": true,
       "match": [
         "app/policies/**",
-        "config/permissions.json"
+        "config/permissions.json",
+        "config/permission_resources.yml"
       ],
       "label": "Authorization",
-      "why": "Decides who can do what. A mistake here is a security bug, not a bug report."
+      "why": "Decides who can do what. A mistake here is a security bug, not a bug report. Removing an entry is as much a permission change as adding one."
     },
     {
       "id": "secrets",
@@ -87,6 +89,10 @@
       "weight": "skip",
       "rank": 10,
       "collapse": "shape",
+      "collapse_prefer": [
+        "config/locales/en.yml",
+        "**/en.yml"
+      ],
       "match": [
         "config/locales/**"
       ],
@@ -187,6 +193,17 @@
       ],
       "label": "Frontend entrypoints",
       "why": "Mounting and bundling glue."
+    },
+    {
+      "id": "db-data",
+      "weight": "skim",
+      "rank": 30,
+      "match": [
+        "db/seeds.rb",
+        "db/settings/**"
+      ],
+      "label": "DB seeds and settings",
+      "why": "Data, not schema. Check which records and values changed, not every line."
     },
     {
       "id": "e2e",

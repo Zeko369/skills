@@ -82,5 +82,6 @@ This abbreviated example illustrates structure. A complete worked introduction i
 
 Expansion is local to the introduction. It does not mark files read or change the reading plan.
 **Overview only** collapses all topics. File links open the corresponding diff in focus mode,
-which has a **PR intro** link back to the introduction. The prose and disclosure controls work
+which repeats the introduction at the top of its file rail. That copy folds away, keeps its
+expanded topics while you move between files, and marks the file on screen. The prose and disclosure controls work
 offline independently of Monaco.

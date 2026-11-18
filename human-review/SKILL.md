@@ -1,6 +1,6 @@
 ---
 name: human-review
-description: Introduce a pull request or diff with a short summary whose inline topics expand into deeper explanations, then build a reading plan from per-project rules and render a Monaco-backed review tool that exports line comments as JSON. Use when asked to review a PR yourself, decide what matters in a large diff, or prepare a change for human reading.
+description: Introduce a pull request, stack of pull requests, or diff with a short summary whose inline topics expand into deeper explanations, then build a reading plan from per-project rules and render a Monaco-backed review tool that exports line comments as JSON. Use when asked to review a PR yourself, decide what matters in a large diff, or prepare a change for human reading.
 ---
 
 # Human review
@@ -19,10 +19,16 @@ Take the target from the conversation. A PR number, a branch, a revision range, 
 Record repository, absolute workspace, base and head SHA, and whether the tree is dirty. The plan
 pins `head_sha`; comments exported later are anchored to that SHA, so say so if the branch moves.
 
+A stack of PRs is one target rendered together, but each PR is still planned and introduced on
+its own, against its parent branch rather than trunk. Record every PR's number, branch, base,
+parent and head SHA, bottom of the stack first. See [stack](references/stack.md).
+
 ## Resolve the rules
 
 Read `<repo>/.claude/reading-rules.json`, else `<repo>/.reading-rules.json`, else fall back to
-`configs/rails.json`. The contract is in [rules](references/rules.md).
+`configs/unidy.json`. The contract is in [rules](references/rules.md). That file holds the rules for
+`UnidyID/unidy`, our Rails app, not general Rails rules. For any other repo it is only a worked
+example, and a plan built on it should say the repo needs its own rules.
 
 Rules are per project because the noise is per project. Before writing a new one, look at what the
 last ten merged PRs actually touch: the fan-outs, the generated files, and the handful of paths where
@@ -92,35 +98,54 @@ details expand. The introduction does not alter file priorities or count toward 
 
 ```sh
 python3 /path/to/human-review/scripts/render_reading.py reading-plan.json \
-  --summary pr-summary.json --output-dir review/
+  --summary pr-summary.json -o review.html
 ```
 
-Writes `plan.html`, `review.html`, and an `index.html` chooser. Both pages embed the same plan JSON,
-share `assets/core.css` and `assets/core.js`, and work offline from `file://`.
+For a stack, build one plan and one introduction per PR, list them bottom-up in a manifest, and
+render all of them into the same file:
 
-- **plan.html** - the whole review in one page, and the one to start in. The expandable introduction
-  comes first, followed by metrics, questions and the reading order as a numbered rail of groups.
-  Each group holds a collapsible directory tree with a
-  checkbox at every level: tick a file, a folder, or a whole group, and ticking a group folds it
-  away. Clicking a file opens its diff inline, with the comment composer beside it, so triage and
-  reading are the same page.
-- **review.html** - focus mode for one file at a time: full-height editor, keyboard navigation,
-  the file list as a flat rail, and a **PR intro** link back to the explanation. Reach for it when
-  a file is long enough that the drawer is cramped.
+```sh
+python3 /path/to/human-review/scripts/render_reading.py --stack stack.json -o review.html
+```
 
-Both render the diff with a plain Monaco editor plus custom decorations rather than a diff editor,
-because the patch already encodes the diff. That avoids the diff worker entirely. Monaco loads from
-jsDelivr; without a network both pages fall back to a plain diff view that still anchors comments.
+The output is one self-contained HTML file. It embeds the plan JSON, `assets/core.css` and
+`assets/core.js`, works offline from `file://`, and can be shared or attached on its own. It holds
+every view and switches between them in place. The URL hash names the view, the PR and the open
+file (`#view=focus&pr=pr-413&file=…`), so a link reopens the same spot.
+
+- **Plan** - the whole review, and where a single PR opens. The expandable introduction comes
+  first, then metrics, questions and the reading order as a numbered rail of groups. Each group
+  holds a collapsible directory tree with a checkbox at every level: tick a file, a folder, or a
+  whole group, and ticking a group folds it away. Clicking a file opens its diff inline, so
+  triage and reading are the same page. Clicking a line number opens a comment box under that
+  line, with Fix / Question / Nit / Praise, and saved comments stay under their lines. The panel
+  beside the diff lists the file's comments and takes file-level notes.
+- **Focus** - one file at a time: full-height editor, keyboard navigation (`j`/`k`, `x`, `c`) and
+  a rail with the PR introduction on top and the file list below. `c` comments on the line last
+  clicked. The introduction folds away and keeps its expanded topics while you move between
+  files; it marks the file on screen wherever a topic links to it. Reach for focus mode when a
+  file is long enough that the drawer is cramped. **Plan** / **Focus** in the top bar, or `v`,
+  switch views. Focus mode resumes the last file.
+- **Stack** - stack renders only, and where they open. Every PR bottom-up, with its branch, its
+  parent, its size, the first sentence of its introduction, its own progress, and links into it.
+  A stack bar under the top bar links every PR, `[` / `]` step down and up, and a file another PR
+  also changes links to it there. See [stack](references/stack.md).
+
+The diff is a plain Monaco editor plus custom decorations rather than a diff editor, because the
+patch already encodes the diff. That avoids the diff worker entirely. Monaco loads once from
+jsDelivr. Without a network, the page falls back to a plain diff view with the same line comments.
 
 Progress, comments and collapse state live in that browser's `localStorage`, keyed by repo, PR and
-head SHA, and are shared by both pages. Moving between files uses `replaceState`, so Back leaves the
-tool instead of walking every file you opened.
+head SHA. Changing view or PR adds a history entry; moving between files replaces it, so Back
+leaves the file list instead of walking every file you opened.
 
-Open and check the rendered pages when browser tools are available. Confirm the reading order matches
-the plan, the critical group is first, a gutter click anchors a comment to the right line, and the
-console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
-follow a file link. These actions must leave reading progress unchanged. Summary controls must
-work with the keyboard and without Monaco or a network connection.
+Open and check the rendered page when browser tools are available. Confirm the reading order matches
+the plan, the critical group is first, clicking a line number opens a comment box under that line
+and the saved comment stays there, and the console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
+follow a file link into focus mode and back. These actions must leave reading progress unchanged.
+Summary controls must work with the keyboard and without Monaco or a network connection. For a
+stack, also switch PRs from the stack bar and with `[` / `]`, and check that each PR keeps its own
+progress.
 
 ## Hand comments back
 
@@ -135,5 +160,11 @@ work with the keyboard and without Monaco or a network connection.
 - `progress.unread` lists files the human never opened. If a comment implies a defect that likely
   also appears in an unread file, say so rather than silently fixing beyond what was reviewed.
 - Report per comment `id` what changed, what you verified, and what you skipped and why.
+
+From a stack, **Whole stack** in the export produces `human-review/stack-comments@1`: `reviews`
+holds one comments payload per PR, bottom-up, each with its own `target`. Apply each one exactly as
+above, on that PR's branch and against its own `head_sha`, lowest PR first. Then restack the PRs
+above it. Ask before force-pushing or rewriting a shared branch. A **This PR** export from a stack
+is a plain `comments@1` with a `stack` field naming its position.
 
 Do not post anything to GitHub. Posting is a separate, explicitly requested step.

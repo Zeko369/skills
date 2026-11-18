@@ -1,0 +1,118 @@
+{
+  "format": "human-review/plan@1",
+  "generated_at": "2026-11-17T09:00:00Z",
+  "target": {
+    "kind": "pr",
+    "repo": "acme/example",
+    "number": 414,
+    "title": "docs: API key runbook",
+    "author": "example",
+    "base": "feat/api-keys",
+    "branch": "docs/api-key-runbook",
+    "head_sha": "4444444444444444444444444444444444444444",
+    "url": "https://github.com/acme/example/pull/414",
+    "draft": false
+  },
+  "config": {
+    "name": "unidy",
+    "source": "configs/unidy.json (example)"
+  },
+  "stats": {
+    "critical": 0,
+    "read": 2,
+    "skim": 0,
+    "skip": 0,
+    "files": 2,
+    "additions": 8,
+    "deletions": 0,
+    "folded": 0
+  },
+  "questions": [],
+  "groups": [
+    {
+      "key": "read:api-contract",
+      "rule": "api-contract",
+      "label": "API contract",
+      "weight": "read",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "files": [
+        "docs/API_CHANGELOG.md"
+      ]
+    },
+    {
+      "key": "read:docs",
+      "rule": "docs",
+      "label": "Docs",
+      "weight": "read",
+      "why": "Useful orientation, but the code is the source of truth.",
+      "files": [
+        "docs/runbooks/api-keys.md"
+      ]
+    }
+  ],
+  "order": [
+    "docs/API_CHANGELOG.md",
+    "docs/runbooks/api-keys.md"
+  ],
+  "files": [
+    {
+      "path": "docs/API_CHANGELOG.md",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,2 @@\n def change\n+See the runbook for rotation.\n end",
+      "previous": null,
+      "rule_id": "api-contract",
+      "weight": "read",
+      "why": "What clients already depend on. Breaking it is not a deploy you can take back.",
+      "label": "API contract",
+      "collapse": null,
+      "report": null,
+      "rank": 50,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "docs/runbooks/api-keys.md",
+      "add": 7,
+      "del": 0,
+      "status": "added",
+      "patch": "@@ -1,1 +1,8 @@\n def change\n+# API keys\n+\n+Keys are stored as HMAC digests; a leaked database dump does not leak usable keys.\n+\n+## Rotating secret_key_base\n+\n+Rotation invalidates every key. Announce it first.\n end",
+      "previous": null,
+      "rule_id": "docs",
+      "weight": "read",
+      "why": "Useful orientation, but the code is the source of truth.",
+      "label": "Docs",
+      "collapse": null,
+      "report": null,
+      "rank": 80,
+      "never_demote": false,
+      "notes": []
+    }
+  ],
+  "summary": {
+    "overview": [
+      "This illustrative docs PR forks from the API-key PR, beside the revoke PR rather than above it. It adds a runbook whose ",
+      {
+        "text": "rotation warning",
+        "topic": "rotation"
+      },
+      " states as fact what the API-key PR's introduction could only infer. Nothing here changes code."
+    ],
+    "topics": [
+      {
+        "id": "rotation",
+        "title": "The rotation warning",
+        "paragraphs": [
+          [
+            "The runbook says rotating secret_key_base invalidates every key. That follows from TokenDigest keying HMAC with the secret, but only if lookup recomputes the digest, and the lookup path is not in any PR of this stack. Confirm it before the runbook ships."
+          ]
+        ],
+        "files": [
+          "docs/runbooks/api-keys.md"
+        ]
+      }
+    ],
+    "head_sha": "4444444444444444444444444444444444444444"
+  }
+}

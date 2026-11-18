@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_CONFIG = HERE.parent / "configs" / "rails.json"
+DEFAULT_CONFIG = HERE.parent / "configs" / "unidy.json"
 
 WEIGHTS = ["critical", "read", "skim", "skip"]
 TEST_FILE = re.compile(r"(_spec\.rb|_test\.rb|\.test\.[tj]sx?|\.spec\.[tj]sx?)$")
@@ -147,7 +147,8 @@ def from_range(repo_path, rev_range):
 
 
 def classify(files, config):
-    rules = [{**rule, "_re": [glob_re(p) for p in rule["match"]], "_rank": rank_of(rule, i)}
+    rules = [{**rule, "_re": [glob_re(p) for p in rule["match"]], "_rank": rank_of(rule, i),
+              "_prefer": [glob_re(p) for p in rule.get("collapse_prefer", [])]}
              for i, rule in enumerate(config["rules"])]
     mods = config.get("modifiers", {})
 
@@ -157,7 +158,8 @@ def classify(files, config):
                 entry.update(rule_id=rule["id"], weight=rule["weight"], why=rule.get("why", ""),
                              label=rule.get("label", rule["id"]), collapse=rule.get("collapse"),
                              report=rule.get("report"), rank=rule["_rank"],
-                             never_demote=bool(rule.get("never_demote")))
+                             never_demote=bool(rule.get("never_demote")),
+                             _prefer=rule["_prefer"])
                 break
         else:
             entry.update(rule_id="other", weight="skim", why="", label="Unclassified",
@@ -232,11 +234,19 @@ def classify(files, config):
         buckets[(entry["rule_id"], entry["add"], entry["del"])].append(entry)
     for members in buckets.values():
         if len(members) >= shape and not members[0]["never_demote"]:
-            members.sort(key=lambda e: e["path"])
+            # The file left showing stands for all of them, so it should be the one a reader
+            # recognises: en.yml rather than cs.yml, which merely sorts first.
+            members.sort(key=lambda e: (preference(e), e["path"]))
             for entry in members[1:]:
                 entry["folded_into"] = members[0]["path"]
             members[0]["folds"] = len(members) - 1
     return files
+
+
+def preference(entry):
+    """Position of the first `collapse_prefer` glob the path matches; unmatched sort last."""
+    prefer = entry.get("_prefer") or []
+    return next((i for i, pattern in enumerate(prefer) if pattern.match(entry["path"])), len(prefer))
 
 
 def generated_question(entry, files):
@@ -325,6 +335,7 @@ def build_plan(target, files, config):
              if e["weight"] in ("critical", "read") and not e.get("folded_into")]
     for entry in files:
         entry.pop("_re", None)
+        entry.pop("_prefer", None)
     return {
         "format": "human-review/plan@1",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

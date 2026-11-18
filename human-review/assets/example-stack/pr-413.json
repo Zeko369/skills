@@ -1,0 +1,238 @@
+{
+  "format": "human-review/plan@1",
+  "generated_at": "2026-11-17T09:00:00Z",
+  "target": {
+    "kind": "pr",
+    "repo": "acme/example",
+    "number": 413,
+    "title": "feat: revoke API keys from settings",
+    "author": "example",
+    "base": "feat/api-keys",
+    "branch": "feat/api-key-revoke",
+    "head_sha": "3333333333333333333333333333333333333333",
+    "url": "https://github.com/acme/example/pull/413",
+    "draft": false
+  },
+  "config": {
+    "name": "unidy",
+    "source": "configs/unidy.json (example)"
+  },
+  "stats": {
+    "critical": 1,
+    "read": 2,
+    "skim": 1,
+    "skip": 2,
+    "files": 6,
+    "additions": 17,
+    "deletions": 0,
+    "folded": 0
+  },
+  "questions": [],
+  "groups": [
+    {
+      "key": "critical:models",
+      "rule": "models",
+      "label": "Models",
+      "weight": "critical",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "files": [
+        "app/models/api_key.rb"
+      ]
+    },
+    {
+      "key": "read:controllers",
+      "rule": "controllers",
+      "label": "Controllers",
+      "weight": "read",
+      "why": "Where a request becomes an action: params, authorization calls, what gets rendered.",
+      "files": [
+        "app/controllers/api_keys_controller.rb"
+      ]
+    },
+    {
+      "key": "read:request-spec",
+      "rule": "request-spec",
+      "label": "Request specs",
+      "weight": "read",
+      "why": "The contract as exercised. Read after the code they cover, as confirmation.",
+      "files": [
+        "spec/requests/api_keys_spec.rb"
+      ]
+    },
+    {
+      "key": "skim:view",
+      "rule": "view",
+      "label": "Views and components",
+      "weight": "skim",
+      "why": "Markup. Look at the shape; the browser is a better reviewer than you are.",
+      "files": [
+        "app/components/settings/api_keys/component.html.erb"
+      ]
+    },
+    {
+      "key": "skip:locale",
+      "rule": "locale",
+      "label": "Translations",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "files": [
+        "config/locales/de.yml",
+        "config/locales/en.yml"
+      ]
+    }
+  ],
+  "order": [
+    "app/models/api_key.rb",
+    "app/controllers/api_keys_controller.rb",
+    "spec/requests/api_keys_spec.rb"
+  ],
+  "files": [
+    {
+      "path": "app/models/api_key.rb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,2 @@\n def change\n+  def revoked? = revoked_at.present?\n end",
+      "previous": null,
+      "rule_id": "models",
+      "weight": "critical",
+      "why": "The data contract. Associations, validations and scopes reach the whole app, so even a one-line change here is read.",
+      "label": "Models",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": true,
+      "notes": [
+        "tiny change - this is the whole fix"
+      ]
+    },
+    {
+      "path": "app/controllers/api_keys_controller.rb",
+      "add": 6,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,7 @@\n def change\n+def destroy\n+  key = current_account.api_keys.active.find(params[:id])\n+  key.update!(revoked_at: Time.current)\n+  Audit::Recorder.call(account: current_account, action: \"api_key.revoked\", key_id: key.id)\n+  head :no_content\n+end\n end",
+      "previous": null,
+      "rule_id": "controllers",
+      "weight": "read",
+      "why": "Where a request becomes an action: params, authorization calls, what gets rendered.",
+      "label": "Controllers",
+      "collapse": null,
+      "report": null,
+      "rank": 20,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "spec/requests/api_keys_spec.rb",
+      "add": 5,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,6 @@\n def change\n+it \"revokes a key and records it\" do\n+  delete api_key_path(key)\n+  expect(key.reload).to be_revoked\n+  expect(AuditEvent.last.action).to eq(\"api_key.revoked\")\n+end\n end",
+      "previous": null,
+      "rule_id": "request-spec",
+      "weight": "read",
+      "why": "The contract as exercised. Read after the code they cover, as confirmation.",
+      "label": "Request specs",
+      "collapse": null,
+      "report": null,
+      "rank": 90,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "app/components/settings/api_keys/component.html.erb",
+      "add": 1,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,2 @@\n def change\n+<%= button_to t(\".revoke\"), api_key_path(key), method: :delete, data: { turbo_confirm: t(\".confirm\") } %>\n end",
+      "previous": null,
+      "rule_id": "view",
+      "weight": "skim",
+      "why": "Markup. Look at the shape; the browser is a better reviewer than you are.",
+      "label": "Views and components",
+      "collapse": null,
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/locales/de.yml",
+      "add": 2,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,3 @@\n def change\n+      revoke: Widerrufen\n+      confirm: Diesen Schlüssel widerrufen?\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": []
+    },
+    {
+      "path": "config/locales/en.yml",
+      "add": 2,
+      "del": 0,
+      "status": "modified",
+      "patch": "@@ -1,1 +1,3 @@\n def change\n+      revoke: Revoke\n+      confirm: Revoke this key?\n end",
+      "previous": null,
+      "rule_id": "locale",
+      "weight": "skip",
+      "why": "Copy. Wrong wording is cheap to fix and reading 40 of them teaches nothing.",
+      "label": "Translations",
+      "collapse": "shape",
+      "report": null,
+      "rank": 10,
+      "never_demote": false,
+      "notes": []
+    }
+  ],
+  "summary": {
+    "overview": [
+      "This illustrative PR sits on the API-key PR and lets an account ",
+      {
+        "text": "revoke a key",
+        "topic": "revoke"
+      },
+      " from settings. Revocation stamps revoked_at instead of deleting the row and records an event through the audit recorder from the base PR, so it is the first PR where the ",
+      {
+        "text": "lower PRs meet",
+        "topic": "joins"
+      },
+      ". The settings component gains a confirm button with two locale strings. The snippets are synthetic and no tests were run."
+    ],
+    "topics": [
+      {
+        "id": "revoke",
+        "title": "Revoking a key",
+        "paragraphs": [
+          [
+            "destroy looks the key up through current_account.api_keys.active, so another account's key or an already revoked one is a 404 rather than a silent success. It sets revoked_at and returns 204. No authorization call is shown here; whether api_keys.manage is enforced depends on a before_action in the PR below."
+          ]
+        ],
+        "files": [
+          "app/controllers/api_keys_controller.rb",
+          "app/models/api_key.rb"
+        ]
+      },
+      {
+        "id": "joins",
+        "title": "Where the stack comes together",
+        "paragraphs": [
+          [
+            "Audit::Recorder comes from #411 and ApiKey with its active scope from #412. The request spec asserts both the revoked state and the recorded action, which is the first test that exercises the two lower PRs together."
+          ]
+        ],
+        "files": [
+          "spec/requests/api_keys_spec.rb"
+        ]
+      }
+    ],
+    "head_sha": "3333333333333333333333333333333333333333"
+  }
+}

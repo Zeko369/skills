@@ -1,7 +1,8 @@
 # Reading rules contract
 
 A project's rules live at `<repo>/.claude/reading-rules.json` (or `<repo>/.reading-rules.json`).
-`configs/rails.json` is the fallback and a worked example.
+`configs/unidy.json` holds the rules for `UnidyID/unidy`, our Rails app. It is not a general Rails
+config. It doubles as the fallback and a worked example.
 
 ```jsonc
 {
@@ -30,6 +31,7 @@ classified.
 | `why` | no | One sentence, shown to the reader. Write it for `critical` and `skip` especially: both are claims that need justifying. |
 | `never_demote` | no | Modifiers may promote these files but never demote, fold, or hide them. |
 | `collapse` | no | `"shape"` folds files with an identical `(rule, additions, deletions)` signature. |
+| `collapse_prefer` | no | Globs, best first, for the file left showing when a fan-out folds - `config/locales/en.yml` rather than `cs.yml`, which only sorts first. Unmatched files fall back to path order. |
 | `report` | no | Skip the content but raise the change as a question. See below. |
 
 Without `rank`, a group lands wherever its biggest file does, which is how a 400-line request

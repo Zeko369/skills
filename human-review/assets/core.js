@@ -1,33 +1,200 @@
-/* Shared engine for the reading plan and the review tool.
-   Both pages read the same embedded plan and the same localStorage record, so a file
-   marked read in one is read in the other. */
+/* Shared engine for the review page.
+   One page holds every view - the reading plan, focus mode and, for a stack, the stack
+   overview - and the URL hash says which: #view=focus&pr=pr-413&file=app%2Fx.rb.
+   A single render embeds one plan in the `plan` script; a stack render embeds every
+   PR's plan in the `stack` script. Each PR keeps its own localStorage record, keyed
+   exactly as it would be on its own, so switching PRs never mixes their progress. */
 window.HR = (function () {
   "use strict";
   var MONACO = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
-  var plan = JSON.parse(document.getElementById("plan").textContent);
-  var target = plan.target;
-  var byPath = {};
-  plan.files.forEach(function (f) { byPath[f.path] = f; });
 
-  var KEY = "human-review:" + (target.repo || "") + ":" +
-            (target.number || target.range || "") + ":" + (target.head_sha || "").slice(0, 12);
+  function embedded(id) {
+    var node = document.getElementById(id);
+    return node ? JSON.parse(node.textContent || "null") : null;
+  }
+  var stack = embedded("stack");
+  // A single plan is a stack of one without the stack chrome, so there is one code path.
+  var prs = stack ? stack.prs : [{ id: "pr", parent: null, plan: embedded("plan") }];
+  var api = {};
+
+  function keyOf(t) {
+    return "human-review:" + (t.repo || "") + ":" +
+           (t.number || t.range || "") + ":" + (t.head_sha || "").slice(0, 12);
+  }
   var LABEL = { critical: "Stop and read", read: "Read", skim: "Skim", skip: "Skipped" };
   var LANG = { rb: "ruby", ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript",
     json: "json", yml: "yaml", yaml: "yaml", md: "markdown", html: "html", erb: "html", css: "css",
     scss: "scss", sql: "sql", sh: "shell", rake: "ruby", py: "python", toml: "ini", lock: "ini",
     gemspec: "ruby", ru: "ruby", jbuilder: "ruby", vue: "html", graphql: "graphql" };
 
-  var state = (function () {
+  function loadState(key) {
     try {
-      var raw = JSON.parse(localStorage.getItem(KEY) || "{}");
+      var raw = JSON.parse(localStorage.getItem(key) || "{}");
       return { read: raw.read || {}, comments: raw.comments || [], seq: raw.seq || 0,
                collapsed: raw.collapsed || {}, verdict: raw.verdict || "comment",
                summary: raw.summary || "" };
     } catch (e) {
       return { read: {}, comments: [], seq: 0, collapsed: {}, verdict: "comment", summary: "" };
     }
-  })();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  }
+
+  /* ── The selected PR ────────────────────────────────────────────────────
+     Everything below reads these, and select() swaps them. Views must read HR.plan and
+     friends at render time rather than caching them. */
+  var entry, plan, target, byPath, KEY, state;
+  function select(id) {
+    var next = prs[0];
+    prs.forEach(function (pr) { if (pr.id === id) next = pr; });
+    if (next === entry) return false;
+    entry = next;
+    plan = entry.plan;
+    target = plan.target;
+    byPath = {};
+    plan.files.forEach(function (f) { byPath[f.path] = f; });
+    KEY = keyOf(target);
+    state = loadState(KEY);
+    api.entry = entry; api.plan = plan; api.target = target;
+    api.byPath = byPath; api.state = state;
+    return true;
+  }
+  select(prs[0].id);
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    paintStack();
+  }
+
+  /* ── Routes ─────────────────────────────────────────────────────────────
+     The hash is the whole route, so a link to a file survives a reload and the page
+     works from file:// and from hosts that drop query strings. */
+  var VIEWS = stack ? ["stack", "plan", "focus"] : ["plan", "focus"];
+  function parseRoute() {
+    var params = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    var view = params.get("view");
+    return { view: VIEWS.indexOf(view) >= 0 ? view : VIEWS[0],
+             pr: params.get("pr") || prs[0].id,
+             file: params.get("file") || "", at: params.get("at") || "" };
+  }
+  /* A hash for `route`, filled in from the current PR. The PR is left out of single
+     renders, where there is only one. */
+  function link(route) {
+    var params = new URLSearchParams();
+    params.set("view", route.view || "plan");
+    if (stack) params.set("pr", route.pr || entry.id);
+    if (route.file) params.set("file", route.file);
+    if (route.at) params.set("at", route.at);
+    return "#" + params.toString();
+  }
+  function prLabel(pr) {
+    var t = pr.plan.target;
+    return t.number ? "#" + t.number : pr.id;
+  }
+  function byId(id) {
+    for (var i = 0; i < prs.length; i++) if (prs[i].id === id) return prs[i];
+    return null;
+  }
+  /* Other PRs in the stack that change the same path - the reader of a lower PR should
+     know the file moves again above it, and the reader of an upper one where it began. */
+  function elsewhere(path) {
+    if (!stack) return [];
+    return prs.filter(function (pr) {
+      return pr !== entry && pr.plan.files.some(function (f) { return f.path === path; });
+    });
+  }
+  function progressOf(pr) {
+    var s = pr === entry ? state : loadState(keyOf(pr.plan.target));
+    var order = pr.plan.order;
+    return { done: order.filter(function (p) { return s.read[p]; }).length,
+             total: order.length, comments: s.comments.length };
+  }
+  /* How a PR sits on the one below it: null when it simply continues the chip before. */
+  function relationOf(pr) {
+    var index = prs.indexOf(pr);
+    if (index === 0) return null;
+    if (pr.parent == null) return "on " + (stack.trunk || "trunk");
+    return pr.parent !== prs[index - 1].id ? "on " + prLabel(byId(pr.parent)) : null;
+  }
+
+  /* ── Stack bar ──────────────────────────────────────────────────────────
+     One chip per PR, bottom of the stack first, each with that PR's own progress.
+     Redrawn on every route change so the chips keep the view you are in. */
+  var stackHost = null;
+  function renderStack(host, route) {
+    if (!stack || !host) return;
+    stackHost = host;
+    host.hidden = false;
+    host.setAttribute("aria-label", "Pull requests in this stack");
+    host.textContent = "";
+    var view = route.view === "stack" ? "plan" : route.view;
+    var head = el("span", "stack-head");
+    var overview = el("a", "kicker", "Stack · " + prs.length + " PRs");
+    overview.href = link({ view: "stack" });
+    overview.title = "Stack overview";
+    if (route.view === "stack") overview.setAttribute("aria-current", "page");
+    head.appendChild(overview);
+    host.appendChild(head);
+    var list = el("ol", "stack-prs");
+    prs.forEach(function (pr, index) {
+      var item = el("li", "stack-pr");
+      var chip = el("a", "stack-chip");
+      chip.href = link({ view: view, pr: pr.id });
+      chip.setAttribute("data-pr", pr.id);
+      if (pr === entry && route.view !== "stack") chip.setAttribute("aria-current", "page");
+      var relation = relationOf(pr);
+      chip.title = (pr.plan.target.title || pr.id) +
+                   (pr.plan.target.branch ? " · " + pr.plan.target.branch : "") +
+                   (relation ? " · " + relation : "");
+      if (index) item.appendChild(el("span", "stack-sep", relation ? "↳" : "→"));
+      chip.appendChild(el("b", "", prLabel(pr)));
+      chip.appendChild(el("span", "stack-title", pr.plan.target.title || ""));
+      if (relation) chip.appendChild(el("span", "stack-rel", relation));
+      chip.appendChild(el("span", "stack-tally"));
+      chip.appendChild(el("span", "count"));
+      chip.appendChild(el("span", "bar")).appendChild(el("i"));
+      item.appendChild(chip);
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    var nav = el("span", "stack-step");
+    [["Lower PR", -1, "["], ["Upper PR", 1, "]"]].forEach(function (step) {
+      var next = stepTarget(step[1], route);
+      var button = el(next ? "a" : "span", "btn btn-sm", step[1] < 0 ? "‹" : "›");
+      button.title = step[0] + " (" + step[2] + ")";
+      button.setAttribute("aria-label", step[0]);
+      if (next) button.href = link(next);
+      else button.setAttribute("aria-disabled", "true");
+      nav.appendChild(button);
+    });
+    host.appendChild(nav);
+    paintStack();
+    var current = host.querySelector('[aria-current="page"]');
+    if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function paintStack() {
+    if (!stackHost) return;
+    prs.forEach(function (pr) {
+      var chip = stackHost.querySelector('[data-pr="' + pr.id.replace(/"/g, "") + '"]');
+      if (!chip) return;
+      var p = progressOf(pr);
+      chip.classList.toggle("done", p.total > 0 && p.done === p.total);
+      chip.querySelector(".stack-tally").textContent = p.done + "/" + p.total;
+      chip.querySelector(".bar i").style.width = p.total ? (100 * p.done / p.total) + "%" : "0";
+      var count = chip.querySelector(".count");
+      count.textContent = String(p.comments);
+      count.hidden = !p.comments;
+      count.title = p.comments + " comment" + (p.comments === 1 ? "" : "s");
+    });
+  }
+  /* `[` and `]` step down and up the stack, keeping the view - and in focus mode the
+     open file, when the next PR changes it too. From the overview they enter the plan. */
+  function stepTarget(delta, route) {
+    if (!stack) return null;
+    var next = prs[prs.indexOf(entry) + delta];
+    if (!next) return null;
+    var keep = route.view === "focus" && route.file &&
+               next.plan.files.some(function (f) { return f.path === route.file; });
+    return { view: route.view === "stack" ? "plan" : route.view, pr: next.id,
+             file: keep ? route.file : "" };
+  }
 
   /* ── Theme ────────────────────────────────────────────────────────────
      The choice is light / dark / system; what the CSS sees is the resolved mode. */
@@ -79,10 +246,11 @@ window.HR = (function () {
      Expanding context never changes the file reading state. All authored text goes
      through textContent; topic links are data, not HTML or Markdown. */
   function mountSummary(host) {
+    host.textContent = "";
+    host.hidden = !plan.summary;
     if (!plan.summary) return;
     var summary = plan.summary, topics = Object.create(null), seq = 0;
     summary.topics.forEach(function (topic) { topics[topic.id] = topic; });
-    host.hidden = false;
     var head = el("div", "summary-head");
     head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
     var reset = el("button", "btn btn-sm", "Overview only");
@@ -141,9 +309,9 @@ window.HR = (function () {
                 var files = el("div", "summary-files");
                 files.appendChild(el("span", "kicker", "Read the change"));
                 topic.files.forEach(function (path) {
-                  var link = el("a", "", path);
-                  link.href = "review.html#" + encodeURIComponent(path);
-                  files.appendChild(link);
+                  var fileLink = el("a", "", path);
+                  fileLink.href = link({ view: "focus", file: path });
+                  files.appendChild(fileLink);
                 });
                 panel.appendChild(files);
               }
@@ -381,8 +549,19 @@ window.HR = (function () {
   }
 
   /* ── A diff view for one file ───────────────────────────────────────────
-     Monaco when it loaded, a plain <pre> otherwise. Both report gutter clicks through
-     `onAnchor`, so the commenting flow is identical either way. */
+     Monaco when it loaded, a plain <pre> otherwise. Line comments live in the diff, the
+     way a code host shows them: a line number opens a comment box under its line, and saved
+     comments stay under the line they are about. Both renderers place those blocks through
+     one `place(index, node, ordinal)`, so commenting behaves the same either way. The view
+     owns line comments end to end; the page passes `onChange` to hear that one was added or
+     removed, and keeps file-level notes and the comment list beside the diff. */
+
+  /* A half-written line comment, one per PR and file. It lives outside the view so it
+     survives the view being rebuilt - Monaco arriving late, a comment added from the side
+     list, moving to another file and back. Memory only: a reload drops it. */
+  var drafts = {};
+  var KINDS = ["fix", "question", "nit", "praise"];
+
   function mountDiff(host, file, options) {
     options = options || {};
     var lines = parsePatch(file.patch);
@@ -390,38 +569,227 @@ window.HR = (function () {
       lines = [{ text: "No textual diff (binary, rename, or too large to include).",
                  kind: "hunk", oldNo: null, newNo: null }];
     }
+    var draftKey = entry.id + "\n" + file.path;
     var view = { lines: lines, editor: null, dispose: function () {}, paint: function () {},
-                 reveal: function () {} };
+                 reveal: function () {}, compose: function () { return false; } };
+    var place = null;           // (index, node, ordinal) -> {remove}, set by the renderer
+    var threads = [], composer = null, lastLine = -1;
 
-    function marked() {
-      var set = {};
-      commentsFor(file.path).forEach(function (c) {
-        if (c.line != null) set[c.side + ":" + c.line] = true;
-      });
-      return set;
+    function indexOf(side, number) {
+      for (var i = 0; i < lines.length; i++) {
+        var a = anchorOf(lines[i]);
+        if (a && a.side === side && a.line === number) return i;
+      }
+      return -1;
     }
+    function byLine() {
+      var out = {};
+      commentsFor(file.path).forEach(function (c) {
+        var i = c.line == null ? -1 : indexOf(c.side, c.line);
+        if (i >= 0) (out[i] = out[i] || []).push(c);
+      });
+      return out;
+    }
+    function changed() {
+      view.paint();
+      if (options.onChange) options.onChange();
+    }
+
+    function threadNode(items) {
+      var box = el("div", "inline");
+      items.forEach(function (c) {
+        var card = el("div", "cmt");
+        var head = el("div", "cmt-head");
+        var kind = el("span", "cmt-kind", c.kind);
+        kind.setAttribute("data-kind", c.kind);
+        head.appendChild(kind);
+        head.appendChild(el("span", "spacer"));
+        var remove = el("button", "cmt-x", "×");
+        remove.type = "button";
+        remove.title = "Delete comment";
+        remove.addEventListener("click", function () { removeComment(c.id); changed(); });
+        head.appendChild(remove);
+        card.appendChild(head);
+        card.appendChild(el("div", "cmt-body", c.body));
+        box.appendChild(card);
+      });
+      return box;
+    }
+
+    function composerNode(draft) {
+      var box = el("div", "inline");
+      var form = el("div", "composer inline-composer");
+      var head = el("div", "composer-head");
+      var kinds = el("span", "kinds");
+      KINDS.forEach(function (kind) {
+        var button = el("button", "", kind);
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(kind === draft.kind));
+        button.addEventListener("click", function () {
+          draft.kind = kind;
+          kinds.querySelectorAll("button").forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b === button));
+          });
+        });
+        kinds.appendChild(button);
+      });
+      head.appendChild(kinds);
+      head.appendChild(el("span", "anchor", (draft.side === "left" ? "removed line " : "line ") +
+                                            draft.line));
+      form.appendChild(head);
+      var text = el("textarea");
+      text.value = draft.text;
+      text.placeholder = "Comment on this line. Ctrl/⌘ + Enter adds it.";
+      text.setAttribute("aria-label", "Comment on line " + draft.line);
+      text.addEventListener("input", function () { draft.text = text.value; });
+      text.addEventListener("keydown", function (event) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault(); submit();
+        } else if (event.key === "Escape") {
+          // Esc never throws away writing: it closes an empty box and steps out of a full one.
+          event.preventDefault();
+          if (text.value.trim()) text.blur(); else cancel();
+        }
+      });
+      form.appendChild(text);
+      var foot = el("div", "composer-foot");
+      foot.appendChild(el("span", "spacer"));
+      var no = el("button", "btn btn-sm", "Cancel");
+      no.type = "button";
+      no.addEventListener("click", cancel);
+      foot.appendChild(no);
+      var yes = el("button", "btn btn-sm btn-solid", "Comment");
+      yes.type = "button";
+      yes.addEventListener("click", submit);
+      foot.appendChild(yes);
+      form.appendChild(foot);
+      box.appendChild(form);
+      return { node: box, text: text };
+    }
+
+    /* Show the draft's comment box, or take it away. One box per file at a time. */
+    function showComposer(focus) {
+      if (composer) { composer.slot.remove(); composer = null; }
+      var draft = drafts[draftKey];
+      if (!draft || !place) return;
+      var index = indexOf(draft.side, draft.line);
+      if (index < 0) { delete drafts[draftKey]; return; }
+      var made = composerNode(draft);
+      composer = { slot: place(index, made.node, 1), text: made.text, index: index };
+      if (view.editor) view.editor.revealLineInCenterIfOutsideViewport(index + 1);
+      if (focus) focusComposer();
+    }
+    function focusComposer() {
+      if (!composer) return false;
+      var text = composer.text;
+      // A Monaco zone is shown on the editor's next render, and a hidden box takes no focus.
+      setTimeout(function () {
+        text.focus({ preventScroll: true });
+        if (text.scrollIntoView) text.scrollIntoView({ block: "nearest" });
+      }, 40);
+      return true;
+    }
+    function openAt(index) {
+      var a = lines[index] ? anchorOf(lines[index]) : null;
+      if (!a) return false;
+      lastLine = index;
+      var draft = drafts[draftKey];
+      var same = draft && draft.side === a.side && draft.line === a.line;
+      if (draft && draft.text.trim()) {
+        if (!same) toast("Finish or cancel the open comment first");
+        return focusComposer();
+      }
+      if (same) { delete drafts[draftKey]; showComposer(false); return true; }
+      drafts[draftKey] = { side: a.side, line: a.line, kind: draft ? draft.kind : "fix",
+                           text: "", code: lines[index].text };
+      showComposer(true);
+      return true;
+    }
+    function submit() {
+      var draft = drafts[draftKey];
+      if (!draft) return;
+      var body = draft.text.trim();
+      if (!body) { focusComposer(); return; }
+      addComment(file.path, body, draft.kind,
+                 { line: { side: draft.side, line: draft.line }, text: draft.code });
+      delete drafts[draftKey];
+      showComposer(false);
+      changed();
+    }
+    function cancel() {
+      delete drafts[draftKey];
+      showComposer(false);
+    }
+    function paintThreads() {
+      threads.forEach(function (slot) { slot.remove(); });
+      threads = [];
+      if (!place) return;
+      var all = byLine();
+      Object.keys(all).forEach(function (index) {
+        threads.push(place(+index, threadNode(all[index]), 0));
+      });
+    }
+    /* Keep the box when the view goes away, and its focus if it had it. */
+    function release() {
+      var draft = drafts[draftKey];
+      if (draft && composer) draft.refocus = composer.text === document.activeElement;
+    }
+    function restore() {
+      var draft = drafts[draftKey];
+      showComposer(!!(draft && draft.refocus));
+      if (draft) delete draft.refocus;
+    }
+    /* `c` in focus mode: the open box, else a box on the line last clicked. */
+    view.compose = function () {
+      return composer ? focusComposer() : (lastLine >= 0 && openAt(lastLine));
+    };
 
     if (!monacoState.ok) {
       var pre = el("pre", "fallback");
       if (options.autoHeight) pre.style.maxHeight = "520px";
-      lines.forEach(function (line) {
+      var rows = lines.map(function (line, index) {
         var row = el("div", "ln " + line.kind);
         var num = el("span", "n", line.kind === "hunk" ? "⋯"
           : (line.newNo != null ? String(line.newNo) : line.oldNo + " −"));
-        num.addEventListener("click", function () {
-          if (options.onAnchor) options.onAnchor(line);
-        });
+        if (anchorOf(line)) {
+          num.title = "Comment on this line";
+          num.addEventListener("click", function () { openAt(index); });
+        }
         row.appendChild(num);
         row.appendChild(el("span", "c",
           (line.kind === "add" ? "+" : line.kind === "del" ? "−" : " ") + line.text));
         pre.appendChild(row);
+        return row;
       });
+      var marks = function () {
+        var all = byLine();
+        rows.forEach(function (row, index) { row.classList.toggle("commented", !!all[index]); });
+      };
+      place = function (index, node, ordinal) {
+        var zone = el("div", "fallback-zone");
+        zone.setAttribute("data-ordinal", String(ordinal));
+        zone.appendChild(node);
+        var before = rows[index];
+        while (before.nextSibling && before.nextSibling.classList.contains("fallback-zone") &&
+               +before.nextSibling.getAttribute("data-ordinal") <= ordinal) {
+          before = before.nextSibling;
+        }
+        before.after(zone);
+        return { remove: function () { zone.remove(); } };
+      };
       host.appendChild(pre);
-      view.dispose = function () { pre.remove(); };
+      view.paint = function () { marks(); paintThreads(); };
+      view.reveal = function (side, number) {
+        var index = indexOf(side, number);
+        if (index >= 0 && rows[index].scrollIntoView) rows[index].scrollIntoView({ block: "center" });
+      };
+      view.dispose = function () { release(); pre.remove(); };
+      view.paint();
+      restore();
       return view;
     }
 
-    var box = el("div");
+    var box = el("div", "hr-diff");
     box.style.height = options.autoHeight
       ? Math.min(Math.max(lines.length * 19 + 14, 90), 560) + "px"
       : "100%";
@@ -442,43 +810,111 @@ window.HR = (function () {
         return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
       }
     });
-    var decorations = [];
+    var decorations = [], hover = [], hovered = 0, observers = [], commented = {};
     view.editor = editor;
+
+    /* A drawer is as tall as its content, comment blocks included, up to a cap past which
+       the editor scrolls inside itself. */
+    if (options.autoHeight) {
+      var fit = function () {
+        var height = Math.min(Math.max(editor.getContentHeight(), 60), 640) + "px";
+        if (box.style.height !== height) { box.style.height = height; editor.layout(); }
+      };
+      editor.onDidContentSizeChange(fit);
+      fit();
+    }
+
+    /* Monaco treats clicks and keys inside the editor as its own: a click would move its
+       cursor and a key could open its find widget. Blocks of ours keep their events. */
+    function keepEvents(node) {
+      ["mousedown", "mouseup", "pointerdown", "pointerup", "click", "dblclick",
+       "contextmenu", "keydown", "keyup", "keypress"].forEach(function (type) {
+        node.addEventListener(type, function (event) { event.stopPropagation(); });
+      });
+    }
+    place = function (index, node, ordinal) {
+      var dom = el("div", "hr-zone");
+      dom.appendChild(node);
+      keepEvents(dom);
+      var zone = { afterLineNumber: index + 1, heightInPx: 40, domNode: dom,
+                   suppressMouseDown: true, ordinal: ordinal };
+      var id = null;
+      editor.changeViewZones(function (zones) { id = zones.addZone(zone); });
+      // Monaco needs a zone's height up front; measure the block once it is laid out, and
+      // again whenever it changes - wrapping, a resized textarea, a longer thread.
+      var observer = new ResizeObserver(function () {
+        var height = Math.ceil(node.getBoundingClientRect().height);
+        if (height && height !== zone.heightInPx && id !== null) {
+          zone.heightInPx = height;
+          editor.changeViewZones(function (zones) { zones.layoutZone(id); });
+        }
+      });
+      observer.observe(node);
+      observers.push(observer);
+      return { remove: function () {
+        observer.disconnect();
+        if (id !== null) editor.changeViewZones(function (zones) { zones.removeZone(id); });
+        id = null;
+      } };
+    };
+
     view.paint = function () {
-      var set = marked();
+      commented = byLine();
       decorations = editor.deltaDecorations(decorations, lines.map(function (line, i) {
         var base = { add: "dec-add", del: "dec-del", hunk: "dec-hunk", ctx: "" }[line.kind];
-        var a = anchorOf(line);
-        var hit = a && set[a.side + ":" + a.line];
+        var hit = !!commented[i];
         return { range: new monaco.Range(i + 1, 1, i + 1, 1),
                  options: { isWholeLine: true, className: hit ? "dec-commented" : base,
                             glyphMarginClassName: hit ? "glyph-comment" : null } };
       }));
+      paintThreads();
     };
-    view.reveal = function (side, line) {
-      for (var i = 0; i < lines.length; i++) {
-        var a = anchorOf(lines[i]);
-        if (a && a.side === side && a.line === line) {
-          editor.revealLineInCenter(i + 1);
-          editor.setPosition({ lineNumber: i + 1, column: 1 });
-          return;
-        }
-      }
+    view.reveal = function (side, number) {
+      var index = indexOf(side, number);
+      if (index < 0) return;
+      editor.revealLineInCenter(index + 1);
+      editor.setPosition({ lineNumber: index + 1, column: 1 });
+      lastLine = index;
     };
     view.dispose = function () {
+      release();
+      observers.forEach(function (observer) { observer.disconnect(); });
       var model = editor.getModel();
       editor.dispose();
       if (model) model.dispose();
       box.remove();
     };
-    editor.onMouseDown(function (event) {
+
+    function lineAt(event) {
+      var target = event.target;
+      return target.position ? target.position.lineNumber - 1 : -1;
+    }
+    function inGutter(event) {
       var kinds = monaco.editor.MouseTargetType;
-      if (event.target.type !== kinds.GUTTER_LINE_NUMBERS &&
-          event.target.type !== kinds.GUTTER_GLYPH_MARGIN) return;
-      var line = lines[event.target.position.lineNumber - 1];
-      if (line && options.onAnchor) options.onAnchor(line);
+      return event.target.type === kinds.GUTTER_LINE_NUMBERS ||
+             event.target.type === kinds.GUTTER_GLYPH_MARGIN;
+    }
+    editor.onMouseDown(function (event) {
+      var index = lineAt(event);
+      if (index < 0) return;
+      if (inGutter(event)) openAt(index);
+      else if (lines[index] && anchorOf(lines[index])) lastLine = index;
+    });
+    // A "+" on the line under the pointer says the number is clickable.
+    editor.onMouseMove(function (event) {
+      var index = lineAt(event);
+      var n = index >= 0 && lines[index] && anchorOf(lines[index]) && !commented[index] ? index + 1 : 0;
+      if (n === hovered) return;
+      hovered = n;
+      hover = editor.deltaDecorations(hover, n ? [{ range: new monaco.Range(n, 1, n, 1),
+        options: { glyphMarginClassName: "glyph-add" } }] : []);
+    });
+    editor.onMouseLeave(function () {
+      hovered = 0;
+      hover = editor.deltaDecorations(hover, []);
     });
     view.paint();
+    restore();
     return view;
   }
 
@@ -493,25 +929,66 @@ window.HR = (function () {
     "post anything to GitHub unless you are asked separately. Report per comment id what " +
     "you changed, what you verified, and anything you deliberately skipped.";
 
-  function exportPayload() {
+  var STACK_INSTRUCTIONS =
+    "A human read a stack of pull requests and left the comments below, one entry in " +
+    "`reviews` per PR, bottom of the stack first. Apply each entry exactly as a " +
+    "human-review/comments@1 payload against its own target.branch and target.head_sha, " +
+    "starting with the lowest PR, then restack the PRs above it. Ask before force-pushing " +
+    "or rewriting a shared branch. Do not post anything to GitHub unless you are asked " +
+    "separately. Report per PR and per comment id what you changed, what you verified, " +
+    "and anything you deliberately skipped.";
+
+  function payloadFor(p, s) {
+    var files = {};
+    p.files.forEach(function (f) { files[f.path] = f; });
+    var read = function (path) { return !!s.read[path]; };
     return {
       format: "human-review/comments@1",
       generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
-      target: target,
+      target: p.target,
       instructions: INSTRUCTIONS,
-      review: { verdict: state.verdict, summary: (state.summary || "").trim() },
-      comments: state.comments.map(function (c) {
-        var f = byPath[c.path] || {};
+      review: { verdict: s.verdict, summary: (s.summary || "").trim() },
+      comments: s.comments.map(function (c) {
+        var f = files[c.path] || {};
         return { id: c.id, path: c.path, line: c.line, side: c.side, kind: c.kind,
                  body: c.body, code: c.code, weight: f.weight, rule: f.rule_id };
       }),
       progress: {
-        read: plan.order.filter(isRead),
-        unread: plan.order.filter(function (p) { return !isRead(p); }),
-        skipped_by_rules: plan.files.filter(function (f) { return f.weight === "skip"; })
-                                    .map(function (f) { return f.path; })
+        read: p.order.filter(read),
+        unread: p.order.filter(function (path) { return !read(path); }),
+        skipped_by_rules: p.files.filter(function (f) { return f.weight === "skip"; })
+                                 .map(function (f) { return f.path; })
       },
-      stats: plan.stats
+      stats: p.stats
+    };
+  }
+  function exportPayload() {
+    var payload = payloadFor(plan, state);
+    if (stack) {
+      payload.stack = { id: entry.id, parent: entry.parent,
+                        position: prs.indexOf(entry) + 1, of: prs.length };
+    }
+    return payload;
+  }
+  /* The whole stack in one paste: every PR's payload, each read from its own record. */
+  function exportStackPayload() {
+    var total = 0;
+    var reviews = prs.map(function (pr) {
+      var payload = payloadFor(pr.plan, pr === entry ? state : loadState(keyOf(pr.plan.target)));
+      total += payload.comments.length;
+      // The envelope carries format, time and instructions once for every PR.
+      delete payload.format; delete payload.generated_at; delete payload.instructions;
+      return Object.assign({ id: pr.id, parent: pr.parent }, payload);
+    });
+    return {
+      format: "human-review/stack-comments@1",
+      generated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      title: stack.title,
+      trunk: stack.trunk,
+      instructions: STACK_INSTRUCTIONS,
+      comment_instructions: INSTRUCTIONS,
+      counts: { prs: reviews.length, comments: total },
+      reviews: reviews
     };
   }
 
@@ -520,11 +997,17 @@ window.HR = (function () {
     var overlay = document.getElementById("overlay");
     var verdict = document.getElementById("x-verdict");
     var summary = document.getElementById("x-summary");
-    verdict.value = state.verdict;
-    summary.value = state.summary;
+    var scope = document.getElementById("x-scope");
+    var whole = false;
+    if (scope && stack) {
+      scope.hidden = false;
+      scope.addEventListener("change", function () { whole = scope.value === "stack"; refresh(); });
+    }
+    function current() { return whole ? exportStackPayload() : exportPayload(); }
     function refresh() {
-      document.getElementById("x-json").textContent =
-        JSON.stringify(exportPayload(), null, 2);
+      document.getElementById("x-format").textContent =
+        whole ? "human-review/stack-comments@1" : "human-review/comments@1";
+      document.getElementById("x-json").textContent = JSON.stringify(current(), null, 2);
     }
     [verdict, summary].forEach(function (node) {
       node.addEventListener("input", function () {
@@ -540,19 +1023,28 @@ window.HR = (function () {
       if (event.target === overlay) overlay.classList.remove("open");
     });
     document.getElementById("x-copy").addEventListener("click", function () {
-      navigator.clipboard.writeText(JSON.stringify(exportPayload(), null, 2)).then(function () {
-        toast("Copied " + state.comments.length + " comments");
+      var payload = current();
+      var count = whole ? payload.counts.comments : payload.comments.length;
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(function () {
+        toast("Copied " + count + " comments" + (whole ? " across the stack" : ""));
       }, function () { toast("Copy blocked - use Download"); });
     });
     document.getElementById("x-download").addEventListener("click", function () {
-      var blob = new Blob([JSON.stringify(exportPayload(), null, 2)], { type: "application/json" });
-      var link = el("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "review-comments" + (target.number ? "-" + target.number : "") + ".json";
-      link.click();
-      setTimeout(function () { URL.revokeObjectURL(link.href); }, 2000);
+      var blob = new Blob([JSON.stringify(current(), null, 2)], { type: "application/json" });
+      var anchor = el("a");
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = whole ? "review-comments-stack.json"
+        : "review-comments" + (target.number ? "-" + target.number : "") + ".json";
+      anchor.click();
+      setTimeout(function () { URL.revokeObjectURL(anchor.href); }, 2000);
     });
-    return { open: function () { refresh(); overlay.classList.add("open"); },
+    // The record behind the dialog changes with the selected PR, so read it on open.
+    return { open: function () {
+               verdict.value = state.verdict;
+               summary.value = state.summary;
+               refresh();
+               overlay.classList.add("open");
+             },
              close: function () { overlay.classList.remove("open"); },
              refresh: refresh };
   }
@@ -579,6 +1071,8 @@ window.HR = (function () {
   }
   function metaOf() {
     return (target.repo || "") + (target.number ? " #" + target.number : "") +
+           (stack ? " · PR " + (prs.indexOf(entry) + 1) + " of " + prs.length +
+                    " · " + (target.branch || "") + " → " + (target.base || "") : "") +
            (target.head_sha ? " @" + String(target.head_sha).slice(0, 7) : "") +
            (plan.config && plan.config.name ? " · rules: " + plan.config.name : "");
   }
@@ -586,9 +1080,11 @@ window.HR = (function () {
   applyTheme();
   loadMonaco();
 
-  return {
-    plan: plan, target: target, byPath: byPath, state: state, LABEL: LABEL,
-    save: save, el: el, toast: toast,
+  return Object.assign(api, {
+    LABEL: LABEL, stack: stack, prs: prs, VIEWS: VIEWS,
+    select: select, save: save, el: el, toast: toast,
+    parseRoute: parseRoute, link: link, prLabel: prLabel, byId: byId, elsewhere: elsewhere,
+    progressOf: progressOf, relationOf: relationOf, renderStack: renderStack, stepTarget: stepTarget,
     parsePatch: parsePatch, anchorOf: anchorOf, languageOf: languageOf,
     isRead: isRead, setRead: setRead, tallyRead: tallyRead,
     commentsFor: commentsFor, addComment: addComment, removeComment: removeComment,
@@ -596,7 +1092,7 @@ window.HR = (function () {
     collapsed: collapsed, setCollapsed: setCollapsed,
     onMonaco: onMonaco, mountDiff: mountDiff,
     themeChoice: themeChoice, themeMode: themeMode, mountTheme: mountTheme,
-    exportPayload: exportPayload, mountExport: mountExport,
+    exportPayload: exportPayload, exportStackPayload: exportStackPayload, mountExport: mountExport,
     titleOf: titleOf, metaOf: metaOf, mountSummary: mountSummary
-  };
+  });
 })();
