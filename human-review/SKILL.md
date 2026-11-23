@@ -118,17 +118,20 @@ file (`#view=focus&pr=pr-413&file=…`), so a link reopens the same spot.
   holds a collapsible directory tree with a checkbox at every level: tick a file, a folder, or a
   whole group, and ticking a group folds it away. Clicking a file opens its diff inline, so
   triage and reading are the same page. Clicking a line number opens a comment box under that
-  line, with Fix / Question / Nit / Praise, and saved comments stay under their lines. The panel
-  beside the diff lists the file's comments and takes file-level notes.
+  line, with Fix / Question / Nit / Praise, and saved comments stay under their lines. **Add file
+  comment** in the diff header opens a whole-file note. The panel stays hidden until you open the
+  composer or save a whole-file note.
 - **Focus** - one file at a time: full-height editor, keyboard navigation (`j`/`k`, `x`, `c`) and
-  a rail with the PR introduction on top and the file list below. `c` comments on the line last
-  clicked. The introduction folds away and keeps its expanded topics while you move between
+  a rail with the PR introduction on top and the file list below. Drag its divider to resize it
+  or focus the divider and use the arrow keys. Double-click the divider or press Enter to reset.
+  On narrow screens, open the rail with **Files**. `c` comments on the line last clicked, or on the whole file if you haven't
+  selected a line. The introduction folds away and keeps its expanded topics while you move between
   files; it marks the file on screen wherever a topic links to it. Reach for focus mode when a
   file is long enough that the drawer is cramped. **Plan** / **Focus** in the top bar, or `v`,
   switch views. Focus mode resumes the last file.
 - **Stack** - stack renders only, and where they open. Every PR bottom-up, with its branch, its
   parent, its size, the first sentence of its introduction, its own progress, and links into it.
-  A stack bar under the top bar links every PR, `[` / `]` step down and up, and a file another PR
+  The **Stack** button opens a collapsible sidebar linking every PR. `[` / `]` step down and up, and a file another PR
   also changes links to it there. See [stack](references/stack.md).
 
 The diff is a plain Monaco editor plus custom decorations rather than a diff editor, because the
@@ -144,7 +147,7 @@ the plan, the critical group is first, clicking a line number opens a comment bo
 and the saved comment stays there, and the console is clean. Expand an inline topic and a deeper topic, collapse back to the overview, and
 follow a file link into focus mode and back. These actions must leave reading progress unchanged.
 Summary controls must work with the keyboard and without Monaco or a network connection. For a
-stack, also switch PRs from the stack bar and with `[` / `]`, and check that each PR keeps its own
+stack, also switch PRs from the sidebar and with `[` / `]`, and check that each PR keeps its own
 progress.
 
 ## Hand comments back

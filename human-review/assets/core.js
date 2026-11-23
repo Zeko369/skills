@@ -114,26 +114,23 @@ window.HR = (function () {
     return pr.parent !== prs[index - 1].id ? "on " + prLabel(byId(pr.parent)) : null;
   }
 
-  /* ── Stack bar ──────────────────────────────────────────────────────────
-     One chip per PR, bottom of the stack first, each with that PR's own progress.
-     Redrawn on every route change so the chips keep the view you are in. */
+  /* ── Stack sidebar ──────────────────────────────────────────────────────
+     One card per PR, bottom of the stack first, each with that PR's own progress. */
   var stackHost = null;
   function renderStack(host, route) {
     if (!stack || !host) return;
     stackHost = host;
-    host.hidden = false;
-    host.setAttribute("aria-label", "Pull requests in this stack");
     host.textContent = "";
     var view = route.view === "stack" ? "plan" : route.view;
-    var head = el("span", "stack-head");
-    var overview = el("a", "kicker", "Stack · " + prs.length + " PRs");
+    var head = el("div", "stack-head");
+    var overview = el("a", "btn btn-sm", "Overview");
     overview.href = link({ view: "stack" });
     overview.title = "Stack overview";
     if (route.view === "stack") overview.setAttribute("aria-current", "page");
     head.appendChild(overview);
     host.appendChild(head);
     var list = el("ol", "stack-prs");
-    prs.forEach(function (pr, index) {
+    prs.forEach(function (pr) {
       var item = el("li", "stack-pr");
       var chip = el("a", "stack-chip");
       chip.href = link({ view: view, pr: pr.id });
@@ -143,7 +140,6 @@ window.HR = (function () {
       chip.title = (pr.plan.target.title || pr.id) +
                    (pr.plan.target.branch ? " · " + pr.plan.target.branch : "") +
                    (relation ? " · " + relation : "");
-      if (index) item.appendChild(el("span", "stack-sep", relation ? "↳" : "→"));
       chip.appendChild(el("b", "", prLabel(pr)));
       chip.appendChild(el("span", "stack-title", pr.plan.target.title || ""));
       if (relation) chip.appendChild(el("span", "stack-rel", relation));
@@ -153,7 +149,6 @@ window.HR = (function () {
       item.appendChild(chip);
       list.appendChild(item);
     });
-    host.appendChild(list);
     var nav = el("span", "stack-step");
     [["Lower PR", -1, "["], ["Upper PR", 1, "]"]].forEach(function (step) {
       var next = stepTarget(step[1], route);
@@ -164,10 +159,9 @@ window.HR = (function () {
       else button.setAttribute("aria-disabled", "true");
       nav.appendChild(button);
     });
-    host.appendChild(nav);
+    head.appendChild(nav);
+    host.appendChild(list);
     paintStack();
-    var current = host.querySelector('[aria-current="page"]');
-    if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   function paintStack() {
     if (!stackHost) return;
@@ -245,26 +239,28 @@ window.HR = (function () {
   /* ── Layered PR introduction ───────────────────────────────────────────
      Expanding context never changes the file reading state. All authored text goes
      through textContent; topic links are data, not HTML or Markdown. */
-  function mountSummary(host) {
+  function mountSummary(host, options) {
     host.textContent = "";
     host.hidden = !plan.summary;
     if (!plan.summary) return;
     var summary = plan.summary, topics = Object.create(null), seq = 0;
     summary.topics.forEach(function (topic) { topics[topic.id] = topic; });
-    var head = el("div", "summary-head");
-    head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
-    var reset = el("button", "btn btn-sm", "Overview only");
-    reset.type = "button";
-    reset.addEventListener("click", function () {
-      host.querySelectorAll(".summary-detail").forEach(function (panel) { panel.hidden = true; });
-      host.querySelectorAll(".summary-tag").forEach(function (button) {
-        button.setAttribute("aria-expanded", "false");
-      });
-    });
-    if (summary.topics.length) head.appendChild(reset);
-    host.appendChild(head);
-    if (summary.topics.length) {
-      host.appendChild(el("p", "summary-hint", "Click an underlined phrase to go deeper."));
+    if (!options || options.showOverviewHeader !== false) {
+      var head = el("div", "summary-head");
+      head.appendChild(el("span", "kicker", "Level 1 · PR introduction"));
+      host.appendChild(head);
+      if (summary.topics.length) {
+        var reset = el("button", "btn btn-sm", "Overview only");
+        reset.type = "button";
+        reset.addEventListener("click", function () {
+          host.querySelectorAll(".summary-detail").forEach(function (panel) { panel.hidden = true; });
+          host.querySelectorAll(".summary-tag").forEach(function (button) {
+            button.setAttribute("aria-expanded", "false");
+          });
+        });
+        head.appendChild(reset);
+        host.appendChild(el("p", "summary-hint", "Click an underlined phrase to go deeper."));
+      }
     }
 
     function paragraphs(parent, blocks, level) {
@@ -561,6 +557,7 @@ window.HR = (function () {
      list, moving to another file and back. Memory only: a reload drops it. */
   var drafts = {};
   var KINDS = ["fix", "question", "nit", "praise"];
+  var compactDiff = window.matchMedia("(max-width:820px)");
 
   function mountDiff(host, file, options) {
     options = options || {};
@@ -569,6 +566,13 @@ window.HR = (function () {
       lines = [{ text: "No textual diff (binary, rename, or too large to include).",
                  kind: "hunk", oldNo: null, newNo: null }];
     }
+    var numbers = lines.map(function (line) {
+      if (line.kind === "hunk") return "⋯";
+      return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
+    });
+    var numberChars = numbers.reduce(function (width, number) {
+      return Math.max(width, number.length);
+    }, 3);
     var draftKey = entry.id + "\n" + file.path;
     var view = { lines: lines, editor: null, dispose: function () {}, paint: function () {},
                  reveal: function () {}, compose: function () { return false; } };
@@ -685,7 +689,7 @@ window.HR = (function () {
       // A Monaco zone is shown on the editor's next render, and a hidden box takes no focus.
       setTimeout(function () {
         text.focus({ preventScroll: true });
-        if (text.scrollIntoView) text.scrollIntoView({ block: "nearest" });
+        if (text.scrollIntoView) text.scrollIntoView({ block: "nearest", inline: "nearest" });
       }, 40);
       return true;
     }
@@ -746,11 +750,11 @@ window.HR = (function () {
 
     if (!monacoState.ok) {
       var pre = el("pre", "fallback");
+      pre.style.setProperty("--diff-number-chars", numberChars);
       if (options.autoHeight) pre.style.maxHeight = "520px";
       var rows = lines.map(function (line, index) {
         var row = el("div", "ln " + line.kind);
-        var num = el("span", "n", line.kind === "hunk" ? "⋯"
-          : (line.newNo != null ? String(line.newNo) : line.oldNo + " −"));
+        var num = el("span", "n", numbers[index]);
         if (anchorOf(line)) {
           num.title = "Comment on this line";
           num.addEventListener("click", function () { openAt(index); });
@@ -794,22 +798,34 @@ window.HR = (function () {
       ? Math.min(Math.max(lines.length * 19 + 14, 90), 560) + "px"
       : "100%";
     host.appendChild(box);
-    var editor = monaco.editor.create(box, {
+    function gutterOptions() {
+      return {
+        glyphMargin: !compactDiff.matches,
+        lineNumbersMinChars: compactDiff.matches ? numberChars : Math.max(6, numberChars),
+        lineDecorationsWidth: compactDiff.matches ? 4 : 10
+      };
+    }
+    var editor = monaco.editor.create(box, Object.assign({
       value: lines.map(function (l) { return l.text; }).join("\n"),
       language: languageOf(file.path),
-      readOnly: true, automaticLayout: true, glyphMargin: true, minimap: { enabled: false },
+      readOnly: true, automaticLayout: true, minimap: { enabled: false },
       scrollBeyondLastLine: false, renderLineHighlight: "none", fontSize: 12.5,
-      lineNumbersMinChars: 6, folding: false, wordWrap: "on", contextmenu: false,
+      folding: false, wordWrap: "on", contextmenu: false,
       scrollbar: { alwaysConsumeMouseWheel: !options.autoHeight },
       fontFamily: "ui-monospace, SF Mono, Menlo, Consolas, monospace",
       theme: themeMode() === "dark" ? "hr-dark" : "hr-light",
-      lineNumbers: function (n) {
-        var line = lines[n - 1];
-        if (!line) return "";
-        if (line.kind === "hunk") return "⋯";
-        return line.kind === "del" ? "−" + line.oldNo : String(line.newNo);
-      }
-    });
+      lineNumbers: function (n) { return numbers[n - 1] || ""; }
+    }, gutterOptions()));
+    function updateGutter() { editor.updateOptions(gutterOptions()); }
+    compactDiff.addEventListener("change", updateGutter);
+
+    // Monaco sizes the zone layer to its scroll width. Keep inputs inside the visible editor.
+    function fitZones(layout) {
+      box.style.setProperty("--diff-content-width",
+        Math.max(0, layout.contentWidth - layout.verticalScrollbarWidth) + "px");
+    }
+    editor.onDidLayoutChange(fitZones);
+    fitZones(editor.getLayoutInfo());
     var decorations = [], hover = [], hovered = 0, observers = [], commented = {};
     view.editor = editor;
 
@@ -828,6 +844,7 @@ window.HR = (function () {
        cursor and a key could open its find widget. Blocks of ours keep their events. */
     function keepEvents(node) {
       ["mousedown", "mouseup", "pointerdown", "pointerup", "click", "dblclick",
+       "touchstart", "touchmove", "touchend", "touchcancel",
        "contextmenu", "keydown", "keyup", "keypress"].forEach(function (type) {
         node.addEventListener(type, function (event) { event.stopPropagation(); });
       });
@@ -840,6 +857,8 @@ window.HR = (function () {
                    suppressMouseDown: true, ordinal: ordinal };
       var id = null;
       editor.changeViewZones(function (zones) { id = zones.addZone(zone); });
+      // Monaco hides its zone layer from assistive technology. These zones contain controls.
+      if (dom.parentElement) dom.parentElement.removeAttribute("aria-hidden");
       // Monaco needs a zone's height up front; measure the block once it is laid out, and
       // again whenever it changes - wrapping, a resized textarea, a longer thread.
       var observer = new ResizeObserver(function () {
@@ -865,6 +884,7 @@ window.HR = (function () {
         var hit = !!commented[i];
         return { range: new monaco.Range(i + 1, 1, i + 1, 1),
                  options: { isWholeLine: true, className: hit ? "dec-commented" : base,
+                            lineNumberClassName: hit ? "has-comment" : null,
                             glyphMarginClassName: hit ? "glyph-comment" : null } };
       }));
       paintThreads();
@@ -878,6 +898,7 @@ window.HR = (function () {
     };
     view.dispose = function () {
       release();
+      compactDiff.removeEventListener("change", updateGutter);
       observers.forEach(function (observer) { observer.disconnect(); });
       var model = editor.getModel();
       editor.dispose();

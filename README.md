@@ -96,10 +96,11 @@ expandable introduction, the questions you can answer without opening a diff, an
 order as a numbered rail of groups. Each group holds a collapsible directory tree with a checkbox
 at every level - tick a file, a folder, or a whole group, and ticking a group folds it away.
 Clicking a file opens its diff inline. Clicking a line number opens a comment box under that
-line, and saved comments stay under their lines; the panel beside the diff lists the file's
-comments and takes file-level notes. **Focus** shows one
+line, and saved comments stay under their lines. **Add file comment** opens a whole-file note
+from the diff header. **Focus** shows one
 file at a time, with a full-height editor, keyboard navigation, and the PR introduction above the
-file list so the context stays beside the diff. The URL hash names the view,
+file list so the context stays beside the diff. On narrow screens, **Files** opens the list.
+The URL hash names the view,
 PR and file, so links and reloads land in the same place.
 
 The diff is a plain Monaco editor plus custom decorations rather than a diff editor, since the
@@ -112,7 +113,7 @@ The exported `human-review/comments@1` carries each comment's path, line, side, 
 acts on it. It does not post to GitHub; that is a separate, explicitly requested step.
 
 A stack of PRs renders into the same single file with `--stack stack.json`. Each PR keeps its own
-plan, introduction and progress. A **Stack** view gives the overview, a stack bar switches PRs
+plan, introduction and progress. A **Stack** view gives the overview, and a collapsible sidebar switches PRs
 (`[` / `]` step down and up), a file changed in several PRs links between them, and export offers
 this PR or the whole stack. See [`human-review/references/stack.md`](human-review/references/stack.md).
 

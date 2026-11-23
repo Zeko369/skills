@@ -1,7 +1,7 @@
 # Reviewing a stack
 
-A stack of pull requests is rendered once, into one HTML file that holds every PR. A stack bar
-under the command bar links all of them, so switching PRs works like switching files. The switch
+A stack of pull requests is rendered once, into one HTML file that holds every PR. The **Stack**
+button opens a sidebar that links all of them, so switching PRs works like switching files. The switch
 happens in place, with no page load. Each PR is still planned, introduced and read on its own,
 against its parent branch. The stack only adds navigation.
 
@@ -65,10 +65,10 @@ stack overview, and an unknown `pr` falls back to the lowest PR.
 - **Stack overview** (`view=stack`) - each PR, bottom-up, shows its branch, its parent, its size,
   the first sentence of its introduction, its live progress, and links to its plan, focus mode and
   GitHub. A PR that forks from something other than the PR listed above it is indented.
-- **Stack bar** - one chip per PR, bottom-up, showing the number, title, read progress, comment
-  count, and `on #N` when the PR forks from something other than the chip before it. The current
-  PR is underlined. A chip keeps the view you are in, so focus mode stays in focus mode.
-  **Stack · N PRs** opens the overview. `‹` / `›` and the keys `[` / `]` step down and up. In focus
+- **Stack sidebar** shows one card per PR, bottom-up, with the number, title, read progress, comment
+  count, and `on #N` when a PR forks from an earlier PR. Selecting a PR keeps the current review
+  view. The sidebar docks on wide screens and closes after selection on narrow screens.
+  **Overview** opens the stack overview. `‹` / `›` and the keys `[` / `]` step down and up. In focus
   mode they keep the open file when the next PR changes it too.
 - **Also in** - a file that another PR in the stack also changes shows `also in #412` in its
   drawer or header. The link opens that file in that PR's focus mode.
